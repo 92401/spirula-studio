@@ -146,6 +146,12 @@ void invert_affine4x4(const double in[16], double out[16]) {
     out[15] = 1.0;
 }
 
+void train_to_normalized_inverse(const ParsedDataset& ds, double out[16]) {
+    double T[16];
+    for (int i = 0; i < 16; i++) T[i] = ds.train_to_normalized[i];
+    invert_affine4x4(T, out);
+}
+
 
 // ---------------------------------------------------------------------------
 // eval_mode train subset
@@ -508,12 +514,8 @@ CenterTable scene_centers(const double* c2w, int64_t n, const double* points,
 CenterTable scene_centers(const ParsedDataset& ds) {
     const int64_t n = std::min<int64_t>(ds.num_cameras, (int64_t)ds.c2w.size() / 12);
     std::vector<double> c2w(ds.c2w.begin(), ds.c2w.begin() + n * 12);
-    double A[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
-    if (ds.train_frame_scale != 1.0f) {
-        double T[16];
-        for (int i = 0; i < 16; i++) T[i] = ds.train_to_normalized[i];
-        invert_affine4x4(T, A);
-    }
+    double A[16];
+    train_to_normalized_inverse(ds, A);
     return scene_centers_t(c2w.data(), n, ds.points.xyz.data(), ds.points.num(), 3, A);
 }
 

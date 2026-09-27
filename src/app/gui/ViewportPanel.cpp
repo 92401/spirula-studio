@@ -155,13 +155,9 @@ void ViewportPanel::compute_framing(const spirula::TrainerSession& session) {
 
     // Scene radius (drives only the preview depth range): spread of the
     // camera positions in the client frame.
-    double A[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
     const auto& ds = session.ds;
-    if (ds.train_frame_scale != 1.0f) {
-        double T[16];
-        for (int i = 0; i < 16; i++) T[i] = ds.train_to_normalized[i];
-        dsparse::invert_affine4x4(T, A);
-    }
+    double A[16];
+    dsparse::train_to_normalized_inverse(ds, A);
     double radius = 1.0;
     for (int64_t i = 0; i < ds.num_cameras; i++) {
         float p[3] = {ds.c2w[i*12 + 3], ds.c2w[i*12 + 7], ds.c2w[i*12 + 11]};

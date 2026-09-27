@@ -856,7 +856,7 @@ void TrainerSession::load_dataset() {
 
     // relative_scale scales the world: point means here, and the c2w
     // translations pre-bake so the baked viewmats follow.
-    // auto_scale_poses=false forces the normalized-frame scale to 1.
+    // auto_scale_poses=false makes the normalized frame the training frame.
     if (cfg.relative_scale.has_value()) {
         float rs = *cfg.relative_scale;
         for (auto& v : ds.points.xyz) v *= rs;
@@ -864,7 +864,11 @@ void TrainerSession::load_dataset() {
             for (int r = 0; r < 3; r++)
                 ds.c2w[i*12 + r*4 + 3] *= rs;
     }
-    if (!cfg.auto_scale_poses) ds.train_frame_scale = 1.0f;
+    if (!cfg.auto_scale_poses) {
+        ds.train_frame_scale = 1.0f;
+        ds.train_to_normalized = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+        ds.normalized_rotation = {1,0,0, 0,1,0, 0,0,1};
+    }
 
     seed_at_random();
 

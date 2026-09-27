@@ -231,11 +231,9 @@ struct ParsedDataset {
     // frames, before the eval_mode subset is dropped.
     float                    train_frame_scale = 1.0f;
 
-    // Similarity mapping a normalized-frame point into the training frame.
-    // The name is historical; the stored value is inv(T_n_from_train). The
-    // viewer client navigates in the normalized frame and remaps its c2w
-    // through this before rendering (RenderWorker.cpp). Row-major 4x4;
-    // identity when train_frame_scale == 1.
+    // inv(T_n_from_train), row-major 4x4: normalized frame -> training frame,
+    // what the viewers remap their c2w through. A train_frame_scale of 1 does
+    // not make it the identity -- R_align and the centring can remain.
     std::array<float, 16>    train_to_normalized{1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
 
     // The up->+Z rotation inside train_to_normalized, row-major 3x3, so a
@@ -382,6 +380,10 @@ std::vector<uint8_t> read_exif_orientations(const std::string& mode,
 
 // inv([A|b; 0 1]) for a general invertible 3x3 A (row-major 4x4 in/out).
 void invert_affine4x4(const double in[16], double out[16]);
+
+// inv(ds.train_to_normalized): training frame -> the normalized frame the
+// viewers navigate.
+void train_to_normalized_inverse(const ParsedDataset& ds, double out[16]);
 
 // Every centering mode over a parsed dataset, in its NORMALIZED frame --
 // which is what both viewers navigate.

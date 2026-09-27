@@ -765,14 +765,10 @@ bool PreviewRenderer::build(const ParsedDataset& ds, const PostSplitCameras& pos
     destroy_gl();
     if (!ensure_program()) return false;
 
-    // train -> normalized frame similarity (identity when scale == 1),
-    // matching how the viewport frames the scene.
-    double A[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
-    if (ds.train_frame_scale != 1.0f) {
-        double T[16];
-        for (int i = 0; i < 16; i++) T[i] = ds.train_to_normalized[i];
-        dsparse::invert_affine4x4(T, A);
-    }
+    // train -> normalized frame similarity, matching how the viewport frames
+    // the scene.
+    double A[16];
+    dsparse::train_to_normalized_inverse(ds, A);
     auto map_pt = [&](const auto* p, float out[3]) {
         for (int r = 0; r < 3; r++)
             out[r] = (float)(A[r*4+0]*p[0] + A[r*4+1]*p[1] + A[r*4+2]*p[2] + A[r*4+3]);
