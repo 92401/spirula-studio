@@ -16,6 +16,7 @@
 #include "app/gui/FeatureWatcher.h"
 #include "app/gui/FilmReel.h"
 #include "app/gui/GeometryPanel.h"
+#include "app/gui/PartitionPanel.h"
 #include "app/gui/ImageCompare.h"
 #include "app/gui/MatchMatrix.h"
 #include "app/gui/PairPreview.h"
@@ -37,7 +38,9 @@
 #include <deque>
 #include <fstream>
 #include <map>
+#include <atomic>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -780,6 +783,41 @@ private:
     // that tries it on one frame, and the checkpoint fetch.
     GeometryJob _geometry;
     GeometryPanel _geometry_panel;
+    PartitionPanel _partition_panel;
+    void open_partition_panel(const DatasetFolders& f);
+    // Queueing a partition's parts: the modal with the run's settings, the
+    // "clear what is still pending?" question, and the rows it finally adds.
+    struct PartitionQueue {
+        bool open = false, shown = false, ask_clear = false;
+        std::string partition;
+        int num_parts = 0;
+        DatasetFolders folders;
+        BatchRun run;
+        bool merge = true;
+    };
+    PartitionQueue _pq;
+    // One training row per part of a saved partition, with `_pq.run`'s
+    // settings; returns how many.
+    int add_batch_partition_rows(const DatasetFolders& f, const std::string& partition,
+                                 int num_parts);
+    void open_partition_queue(const DatasetFolders& f, const std::string& partition,
+                              int num_parts);
+    void draw_partition_queue_modal();
+    int queue_partition_rows(bool clear_pending);
+    // A Merge task runs on its own thread: the parts' models found beside
+    // the dataset, joined and written next to them.
+    std::thread _merge_thread;
+    std::atomic<bool> _merge_busy{false};
+    std::string _merge_result, _merge_error;
+    bool launch_batch_merge(BatchTask& task, const BatchRow& row);
+    void draw_batch_row_merge(BatchRow& row, int index);
+    // Every task of the row ran and finished well.
+    bool batch_row_done(int index) const;
+    // "Clear list" and "Clear done rows" both ask first.
+    enum class BatchConfirm { None, ClearList, ClearDone };
+    BatchConfirm _batch_confirm = BatchConfirm::None;
+    bool _batch_confirm_shown = false;
+    void draw_batch_confirm_modal();
     DownloadQueue _geom_download;
     // input_pixel_size()'s cache, keyed by input path. A zero pair is a
     // remembered "could not tell", so nothing is probed twice.

@@ -71,6 +71,8 @@ a file's include lines tell you which subsystems it depends on.
 ```
 src/
 ├── core/                   Tensor.h, Camera.h, Common.cuh, GradQuant.cuh, …
+│                             GraphCut.h -- the normalized cut the SfM mapper
+│                             and the scene partitioner both use
 │                             the types and device helpers everything uses
 ├── primitives/             Primitive*.cuh — 3DGS / Mip / 3DGUT traits
 │                             (compile-time types, not runtime branches)
@@ -82,7 +84,13 @@ src/
 │   ├── optim/  densify/  loss/  background/  visualize/
 ├── engine/                 Engine*.cpp/.h — the training engine
 │                             (process-global singleton)
-├── data/                   DataManager (image cache / prefetch / warp) and
+├── data/                   DataManager (image cache / prefetch / warp),
+│   │                         Region.h / LabelField.h / RegionProgram.h (regions
+│   │                         of space with an inside test on host and device,
+│   │                         and the labelled seed field that gives every point
+│   │                         one owner), ScenePartition.h (split a scene into
+│   │                         parts that train separately -- READ
+│   │                         docs/notes/scene-partition.md)
 │   └── parsers/              COLMAP / Nerfstudio / Metashape readers
 ├── mesh/                   meshing pipeline: Delaunay3D, UV, export/import, and
 │                             MeshingDevice.h -- the DEVICE SEAM the portable
@@ -180,7 +188,9 @@ src/
 ├── checkpoint/             Resume.{h,cpp} — config.json -> TrainConfig,
 │                             checkpoint resolution, resumability checks;
 │                             Adapt.{h,cpp} — host-side layout adaptation
-│                             (the state restore itself is EngineCheckpoint.cpp)
+│                             (the state restore itself is EngineCheckpoint.cpp);
+│                             SplatMerge.{h,cpp} — the parts of a partitioned
+│                             scene back into one model
 ├── generated/  instantiations/    GENERATED — do not hand-edit
 └── external/               vendored (miniz, stb, npy)
 ```
@@ -204,7 +214,9 @@ Everything builds into **one executable**, `<build dir>/spirula`: no arguments o
 the GUI (`-DSS_BUILD_GUI=OFF` leaves a headless binary that needs neither a
 display nor GL), `spirula sfm|train|sam|mesh` are the command-line tools, and
 a symlink named `spirula-sfm` runs that tool directly (`src/app/Tools.h`);
-`spirula geometry` estimates depth and normals for a dataset. The GUI runs
+`spirula geometry` estimates depth and normals for a dataset, and `spirula
+partition` splits one into parts that train separately and merges the models
+back (docs/notes/scene-partition.md). The GUI runs
 reconstruction and that estimation by re-running itself as a child process, so
 there is no sibling binary to keep next to it. `-DSS_SEPARATE_TOOLS=ON` also builds the old
 per-tool executables.

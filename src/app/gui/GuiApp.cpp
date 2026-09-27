@@ -5,7 +5,9 @@
 #include "core/ColorSpace.h"
 #include "core/ExrImage.h"
 
+#include "checkpoint/SplatMerge.h"
 #include "checkpoint/SplatPly.h"
+#include "data/ScenePartition.h"
 #include "data/Json.h"
 #include "app/AppPaths.h"
 #include "app/CrashLog.h"
@@ -23,6 +25,7 @@
 #include "i18n/catalog/Edit.h"
 #include "i18n/catalog/Gui.h"
 #include "i18n/catalog/MaskEdit.h"
+#include "i18n/catalog/Partition.h"
 #include "i18n/catalog/Render.h"
 #include "i18n/catalog/Train.h"
 #include "i18n/catalog/TrainFields.h"
@@ -303,6 +306,8 @@ void GuiApp::shutdown() {
     _mask_editor.close();
     _mask_editor.sam_drain_retiring();   // before nn::shutdown() frees the device
     _geometry_panel.destroy_gl();
+    _partition_panel.destroy_gl();
+    if (_merge_thread.joinable()) _merge_thread.join();
     _colmap.cancel();
     _sfm.cancel();
     reset_dataset_preview();
@@ -1270,6 +1275,7 @@ void GuiApp::close_splat() {
 void GuiApp::close_native_previews() {
     _segment.close();
     _geometry_panel.close();
+    _partition_panel.close();
 }
 
 // Every site that starts inference (or tears it down) calls this, never the
@@ -1527,6 +1533,7 @@ bool GuiApp::batch_stage_busy(BatchStage stage) const {
     switch (stage) {
         case BatchStage::Dataset: return dataset_busy();
         case BatchStage::Mesh:    return _mesh.busy();
+        case BatchStage::Merge:   return _merge_busy.load();
         case BatchStage::Train: {
             const TrainRunner::Phase ph = _runner.phase();
             return ph == TrainRunner::Phase::Preparing ||
@@ -1599,6 +1606,13 @@ void GuiApp::record_batch_task() {
             if (ok) t.result = _mesh.output_path();
             break;
         }
+        case BatchStage::Merge: {
+            if (_merge_thread.joinable()) _merge_thread.join();
+            ok = _merge_error.empty();
+            error = _merge_error;
+            if (ok) t.result = _merge_result;
+            break;
+        }
     }
 
     if (ok) {
@@ -1666,6 +1680,11 @@ bool GuiApp::launch_batch_train(BatchTask& task, const BatchRow& row) {
         flipped = made->mask_flipped;
     }
 
+    if (image_dir.empty() && !row.image_dir.empty()) {
+        image_dir = row.image_dir;
+        mask_dir = row.mask_dir;
+        flipped = row.mask_flipped;
+    }
     TrainConfig cfg;
     std::string base, error;
     if (!batch_build_train_config(row, task.variant, dataset, image_dir, mask_dir,
@@ -1730,6 +1749,7 @@ bool GuiApp::launch_batch_task(BatchTask& task) {
             case BatchStage::Dataset: return launch_batch_dataset(task, row);
             case BatchStage::Train:   return launch_batch_train(task, row);
             case BatchStage::Mesh:    return launch_batch_mesh(task, row);
+            case BatchStage::Merge:   return launch_batch_merge(task, row);
         }
     } catch (const std::exception& e) {
         // Nothing below here is supposed to throw, and a queue that dies on
@@ -1785,6 +1805,13 @@ void GuiApp::finish_batch() {
         else if (t.status == BatchStatus::Failed) failed++;
         else other++;
     }
+    // A row that ran through is left unticked: re-running the list should
+    // not redo it, and "clear done rows" is what removes it.
+    for (int i = 0; i < (int)_batch.size(); i++)
+        if (_batch[(size_t)i].enabled && batch_row_done(i)) {
+            _batch[(size_t)i].enabled = false;
+            _batch_dirty = true;
+        }
     _batch_active = false;
     _batch_launched = false;
     _batch_current = -1;
@@ -1846,6 +1873,7 @@ void GuiApp::follow_batch_screen(BatchStage stage) {
         case BatchStage::Dataset: _screen = Screen::NewDataset; break;
         case BatchStage::Train:   _screen = Screen::Train; break;
         case BatchStage::Mesh:    _screen = Screen::Mesh; break;
+        case BatchStage::Merge:   break;
     }
 }
 
@@ -2624,7 +2652,14 @@ void GuiApp::handle_dialog_result(const std::vector<std::string>& paths) {
             _pick_row = -1;
             break;
         case PickAction::BatchPresetFile:
-            if (!path.empty() && _pick_row >= 0 &&
+            if (!path.empty() && _pick_row == -2) {
+                try {
+                    TrainPreset p = load_preset(path);
+                    _pq.run.preset = {p.path, p.name};
+                } catch (const std::exception& e) {
+                    log(e.what());
+                }
+            } else if (!path.empty() && _pick_row >= 0 &&
                 _pick_row < (int)_batch.size()) {
                 try {
                     TrainPreset p = load_preset(path);
@@ -2687,6 +2722,8 @@ std::string GuiApp::state_json() {
     out += ",\"dataset\":" + quoted(_cfg.data);
     out += ",\"mask_editor_open\":";
     out += _mask_editor.is_open() ? "true" : "false";
+    out += ",\"partition_panel_open\":";
+    out += _partition_panel.is_open() ? "true" : "false";
     // The app's one segmentation checkpoint, which both screens pick and fetch.
     static const char* kDownload[] = {"idle", "running", "done", "failed", "cancelled"};
     out += ",\"model_id\":" + quoted(_model_id);
@@ -5606,6 +5643,9 @@ void GuiApp::draw_dataset_open_buttons(const DatasetFolders& f, bool model) {
             request_open_splat(f.dir);
         }
         ui::help_on_hover(emsg::sparse_edit_help);
+        ImGui::SameLine();
+        if (ui::Button(spirula::i18n::msg::partition::open_button)) open_partition_panel(f);
+        ui::help_on_hover(spirula::i18n::msg::partition::open_button_help);
     }
     if (!f.mask_dir.empty()) {
         if (model) ImGui::SameLine();
@@ -5623,6 +5663,40 @@ void GuiApp::draw_dataset_open_buttons(const DatasetFolders& f, bool model) {
         ImGui::EndDisabled();
         ui::help_on_hover(mmsg::correct_masks_help);
     }
+}
+
+void GuiApp::open_partition_panel(const DatasetFolders& f) {
+    if (dataset_busy() || native_work_busy()) return;
+    PartitionPanel::Hooks hooks;
+    hooks.log = [this](const std::string& s) { log(s); };
+    hooks.open_splat = [this](const std::string& path) { request_open_splat(path); };
+    hooks.queue_batch = [this, f](const std::string& partition, int n) {
+        open_partition_queue(f, partition, n);
+        return 0;
+    };
+    hooks.open_batch = [this] {
+        if (!native_work_busy()) _screen = Screen::Batch;
+    };
+    _partition_panel.open(f.dir, std::move(hooks));
+}
+
+int GuiApp::add_batch_partition_rows(const DatasetFolders& f, const std::string& partition,
+                                     int num_parts) {
+    for (int k = 0; k < num_parts; k++) {
+        BatchRow r;
+        r.dataset = f.dir;
+        r.image_dir = f.image_dir;
+        r.mask_dir = f.mask_dir;
+        r.mask_flipped = f.mask_flipped;
+        r.partition = partition;
+        r.partition_part = k;
+        r.does(BatchStage::Train) = true;
+        r.runs.push_back(_pq.run);
+        _batch.push_back(std::move(r));
+    }
+    _batch_open_row = -1;
+    batch_edited();
+    return num_parts;
 }
 
 void GuiApp::open_mask_editor(const std::string& workspace, const std::string& image_dir,
@@ -6504,6 +6578,8 @@ void GuiApp::draw_new_dataset() {
         }
     }
     if (_geometry_panel.is_open()) _geometry_panel.draw(_geometry);
+    if (_partition_panel.is_open()) _partition_panel.draw();
+    draw_partition_queue_modal();
     draw_clear_project_modal();
     draw_drop_intermediate_modal();
     draw_mask_recon_modal();
@@ -7269,6 +7345,7 @@ const Msg& GuiApp::batch_stage_name(BatchStage s) const {
     switch (s) {
         case BatchStage::Dataset: return msg::batch_stage_dataset;
         case BatchStage::Mesh:    return msg::batch_stage_mesh;
+        case BatchStage::Merge:   return spirula::i18n::msg::partition::stage_merge;
         default:                  return msg::batch_stage_train;
     }
 }
@@ -7282,6 +7359,7 @@ std::string GuiApp::batch_row_summary(const BatchRow& row) const {
             s += " (+" + std::to_string(row.sources.size() - 1) + ")";
         return s;
     }
+    if (row.does(BatchStage::Merge) && !row.partition.empty()) return row.partition;
     if (!row.dataset.empty()) return row.dataset;
     if (!row.model.empty()) return row.model;
     return {};
@@ -7365,12 +7443,15 @@ void GuiApp::draw_batch() {
     const bool busy_elsewhere =
         !_batch_active && (dataset_busy() || _mesh.busy());
     ImGui::BeginDisabled(_batch.empty());
-    if (ui::Button(msg::batch_clear)) {
-        _batch.clear();
-        _batch_tasks.clear();
-        _batch_open_row = -1;
-        _batch_msg.clear();
-        batch_edited();
+    if (ui::Button(msg::batch_clear)) _batch_confirm = BatchConfirm::ClearList;
+    ImGui::SameLine();
+    {
+        int done = 0;
+        for (int i = 0; i < (int)_batch.size(); i++) done += batch_row_done(i);
+        ImGui::BeginDisabled(done == 0);
+        if (ui::Button(msg::batch_clear_done)) _batch_confirm = BatchConfirm::ClearDone;
+        ui::help_on_hover(msg::batch_clear_done_help);
+        ImGui::EndDisabled();
     }
     ImGui::SameLine();
     ImGui::BeginDisabled(busy_elsewhere);
@@ -7404,9 +7485,231 @@ void GuiApp::draw_batch() {
     draw_batch_issues();
     draw_batch_command();
     draw_batch_plan();
+    draw_batch_confirm_modal();
     ImGui::EndChild();
 
     draw_log_panel(log_h);
+}
+
+bool GuiApp::batch_row_done(int index) const {
+    bool any = false;
+    for (const BatchTask& t : _batch_tasks) {
+        if (t.row != index) continue;
+        if (t.status != BatchStatus::Done) return false;
+        any = true;
+    }
+    return any;
+}
+
+void GuiApp::draw_batch_confirm_modal() {
+    if (_batch_confirm != BatchConfirm::None && !_batch_confirm_shown) {
+        ui::OpenPopup(msg::batch_confirm_title);
+        _batch_confirm_shown = true;
+    }
+    if (!_batch_confirm_shown) return;
+    if (!ui::BeginPopupModal(msg::batch_confirm_title, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        _batch_confirm_shown = false;
+        _batch_confirm = BatchConfirm::None;
+        return;
+    }
+    const bool all = _batch_confirm == BatchConfirm::ClearList;
+    ImGui::PushTextWrapPos(px(420.0f));
+    ui::Text(all ? msg::batch_clear_confirm : msg::batch_clear_done_confirm);
+    ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+    if (ui::Button(all ? msg::batch_clear : msg::batch_clear_done, ImVec2(px(170.0f), 0))) {
+        if (all) {
+            _batch.clear();
+        } else {
+            std::vector<BatchRow> kept;
+            for (int i = 0; i < (int)_batch.size(); i++)
+                if (!batch_row_done(i)) kept.push_back(_batch[(size_t)i]);
+            _batch.swap(kept);
+        }
+        _batch_tasks.clear();
+        _batch_open_row = -1;
+        _batch_msg.clear();
+        batch_edited();
+        _batch_confirm_shown = false;
+        _batch_confirm = BatchConfirm::None;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ui::Button(msg::cancel, ImVec2(px(170.0f), 0))) {
+        _batch_confirm_shown = false;
+        _batch_confirm = BatchConfirm::None;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+}
+
+void GuiApp::draw_batch_row_merge(BatchRow& row, int index) {
+    namespace pmsg = spirula::i18n::msg::partition;
+    ui::SeparatorText(pmsg::stage_merge);
+    ui::Text(pmsg::lbl_file);
+    ImGui::SetNextItemWidth(px(-8.0f));
+    if (ui::InputTextRaw("##mergepart", &row.partition)) batch_edited();
+    ui::TextDisabledWrapped(pmsg::merge_row_help);
+    ui::Text(pmsg::lbl_runs);
+    const float bw = ImGui::GetFrameHeight() + 6.0f;
+    ImGui::SetNextItemWidth(-bw);
+    if (ui::InputTextWithHintRaw("##mergeout", msg::batch_output_hint, &row.output_dir))
+        batch_edited();
+    ImGui::SameLine(0, 2);
+    if (ui::ButtonRaw("...##mergeout")) {
+        _pick_row = index;
+        open_pick(PickAction::BatchOutput, msg::batch_pick_output.get(),
+                  FileDialog::Mode::Folder, {}, row.output_dir);
+    }
+}
+
+bool GuiApp::launch_batch_merge(BatchTask& task, const BatchRow& row) {
+    namespace pmsg = spirula::i18n::msg::partition;
+    if (_merge_thread.joinable()) _merge_thread.join();
+    const std::string partition = row.partition;
+    const std::string outputs = row.output_dir.empty()
+                                    ? (fs::path(row.dataset).parent_path() / fs::path(row.dataset).filename() / "outputs").string()
+                                    : row.output_dir;
+    _merge_result.clear();
+    _merge_error.clear();
+    _merge_busy = true;
+    log(i18n::format(pmsg::batch_log_merge, {(long long)(_batch_current + 1), partition}));
+    _merge_thread = std::thread([this, partition, outputs] {
+        try {
+            std::string dataset;
+            const spirula::ScenePartition p = spirula::read_partition(partition, &dataset);
+            const std::vector<std::string> runs =
+                spirula::find_partition_runs(outputs, partition, p.num_parts);
+            int found = 0;
+            for (const std::string& r : runs) found += !r.empty();
+            if (found == 0) throw std::runtime_error(pmsg::err_nothing_to_merge.get());
+            spirula::MergeStats st;
+            const spirula::SplatCloud merged = spirula::merge_partition_splats(p, runs, st);
+            char stamp[32];
+            const std::time_t now = std::time(nullptr);
+            std::strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", std::localtime(&now));
+            const std::string stem = fs::path(dataset.empty() ? fs::path(partition).parent_path().string() : dataset).filename().string();
+            std::error_code ec;
+            fs::create_directories(outputs, ec);
+            const std::string out = (fs::path(outputs) / (stem + "_merged_" + stamp + ".ply")).string();
+            spirula::write_splat_ply(merged, out);
+            _merge_result = out;
+        } catch (const std::exception& e) {
+            _merge_error = e.what();
+        }
+        _merge_busy = false;
+    });
+    (void)task;
+    return true;
+}
+
+// ---- queueing a partition's parts ----
+
+void GuiApp::open_partition_queue(const DatasetFolders& f, const std::string& partition,
+                                  int num_parts) {
+    _pq = PartitionQueue{};
+    _pq.folders = f;
+    _pq.partition = partition;
+    _pq.num_parts = num_parts;
+    _pq.run = batch_run_on_screen();
+    _pq.open = true;
+}
+
+int GuiApp::queue_partition_rows(bool clear_pending) {
+    if (clear_pending) {
+        std::vector<BatchRow> kept;
+        for (int i = 0; i < (int)_batch.size(); i++)
+            if (!_batch[(size_t)i].enabled || batch_row_done(i)) kept.push_back(_batch[(size_t)i]);
+        _batch.swap(kept);
+        _batch_tasks.clear();
+    }
+    const int n = add_batch_partition_rows(_pq.folders, _pq.partition, _pq.num_parts);
+    if (_pq.merge) {
+        BatchRow m;
+        m.dataset = _pq.folders.dir;
+        m.partition = _pq.partition;
+        m.partition_part = -1;
+        for (int i = 0; i < kNumBatchStages; i++) m.stages[i] = false;
+        m.does(BatchStage::Merge) = true;
+        _batch.push_back(std::move(m));
+        batch_edited();
+    }
+    log(i18n::format(spirula::i18n::msg::partition::batch_added, {n}));
+    return n;
+}
+
+void GuiApp::draw_partition_queue_modal() {
+    namespace pmsg = spirula::i18n::msg::partition;
+    if (_pq.open) {
+        ui::OpenPopup(pmsg::pq_title);
+        _pq.open = false;
+        _pq.shown = true;
+    }
+    if (!_pq.shown) return;
+    if (!ui::BeginPopupModal(pmsg::pq_title, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        _pq.shown = false;
+        return;
+    }
+    ImGui::PushTextWrapPos(px(520.0f));
+    ui::Text(pmsg::pq_runs, {_pq.num_parts, fs::path(_pq.folders.dir).filename().string()});
+    ImGui::PopTextWrapPos();
+    ImGui::Spacing();
+    if (!_pq.ask_clear) {
+        // The same line a batch row shows: preset, then the three numbers.
+        ImGui::SetNextItemWidth(px(520.0f));
+        draw_batch_run(_pq.run, -2, 0, false);
+        ui::Checkbox(pmsg::pq_merge, &_pq.merge);
+        ui::help_on_hover(pmsg::pq_merge_help);
+        ImGui::Spacing();
+        int pending = 0;
+        for (int i = 0; i < (int)_batch.size(); i++)
+            pending += _batch[(size_t)i].enabled && !batch_row_done(i);
+        ImGui::BeginDisabled(_batch_active);
+        if (ui::Button(pmsg::pq_queue, ImVec2(px(170.0f), 0))) {
+            if (pending > 0) {
+                _pq.ask_clear = true;
+            } else {
+                queue_partition_rows(false);
+                _pq.shown = false;
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::EndDisabled();
+        if (_batch_active) {
+            ImGui::SameLine();
+            ui::TextColored(kDim, msg::batch_busy_elsewhere);
+        }
+        ImGui::SameLine();
+        if (ui::Button(msg::cancel, ImVec2(px(170.0f), 0))) {
+            _pq.shown = false;
+            ImGui::CloseCurrentPopup();
+        }
+    } else {
+        int pending = 0;
+        for (int i = 0; i < (int)_batch.size(); i++)
+            pending += _batch[(size_t)i].enabled && !batch_row_done(i);
+        ImGui::PushTextWrapPos(px(520.0f));
+        ui::Text(pmsg::pq_pending, {pending});
+        ImGui::PopTextWrapPos();
+        ImGui::Spacing();
+        if (ui::Button(pmsg::pq_clear, ImVec2(px(170.0f), 0))) {
+            queue_partition_rows(true);
+            _pq.shown = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ui::Button(pmsg::pq_keep, ImVec2(px(170.0f), 0))) {
+            queue_partition_rows(false);
+            _pq.shown = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ui::Button(msg::cancel, ImVec2(px(170.0f), 0))) {
+            _pq.shown = false;
+            ImGui::CloseCurrentPopup();
+        }
+    }
+    ImGui::EndPopup();
 }
 
 
@@ -7471,6 +7774,12 @@ void GuiApp::draw_batch_row(BatchRow& row, int index, int& remove, int& move) {
         ImGui::SameLine();
         ui::TextDisabled(msg::batch_runs_count, {(long long)batch_num_runs(row)});
     }
+    if (!row.partition.empty() && row.partition_part >= 0) {
+        ImGui::SameLine();
+        ui::TextColored(row.enabled ? kOk : kDim, spirula::i18n::msg::partition::chip_part,
+                        {row.partition_part});
+        ui::help_on_hover_raw(row.partition.c_str());
+    }
     if (const std::string what = batch_row_summary(row); !what.empty()) {
         ImGui::SameLine();
         ui::TextDisabledRaw(what);
@@ -7528,6 +7837,7 @@ void GuiApp::draw_batch_row(BatchRow& row, int index, int& remove, int& move) {
         if (row.does(BatchStage::Dataset)) draw_batch_row_dataset(row, index);
         if (row.does(BatchStage::Train)) draw_batch_row_train(row, index);
         if (row.does(BatchStage::Mesh)) draw_batch_row_mesh(row, index);
+        if (row.does(BatchStage::Merge)) draw_batch_row_merge(row, index);
         ImGui::EndDisabled();
         ImGui::Unindent();
     }
@@ -7942,6 +8252,10 @@ void GuiApp::draw_batch_plan() {
                 }
                 break;
             }
+            case BatchStage::Merge:
+                line = i18n::format(spirula::i18n::msg::partition::plan_merge,
+                                    {n, fs::path(row.partition).parent_path().filename().string()});
+                break;
         }
         ImVec4 color = kDim;
         if (_batch_active) {
@@ -7975,6 +8289,7 @@ float GuiApp::batch_task_fraction() {
             if (pr.total_steps <= 0) return -1.0f;
             return std::min(1.0f, (float)(pr.step + 1) / (float)pr.total_steps);
         }
+        case BatchStage::Merge: return 0.5f;
         case BatchStage::Mesh: return _mesh.progress();
     }
     return -1.0f;
@@ -8010,6 +8325,7 @@ void GuiApp::draw_batch_stop_buttons() {
             switch (_batch_tasks[(size_t)_batch_current].stage) {
                 case BatchStage::Dataset: cancel_dataset_job(); break;
                 case BatchStage::Mesh:    _mesh.cancel(); break;
+                case BatchStage::Merge:   break;
                 default:                  _runner.request_stop(); break;
             }
         }
@@ -8061,6 +8377,7 @@ void GuiApp::draw_batch_progress() {
             switch (st) {
                 case BatchStage::Dataset: _screen = Screen::NewDataset; break;
                 case BatchStage::Mesh:    _screen = Screen::Mesh; break;
+                case BatchStage::Merge:   break;
                 default:                  _screen = Screen::Train; break;
             }
         }
