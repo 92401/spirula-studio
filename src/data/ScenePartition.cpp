@@ -5,6 +5,7 @@
 #include "data/CameraMath.h"
 #include "data/Json.h"
 #include "data/JsonWrite.h"
+#include "data/Knn.h"
 
 #include <algorithm>
 #include <cmath>
@@ -183,6 +184,161 @@ graph::WeightedGraph camera_graph_of(const std::vector<int64_t>& beg,
                 acc.add((uint32_t)frame[(size_t)a], (uint32_t)frame[(size_t)b], 1.0);
     }
     return acc.build(n_frames);
+}
+
+int find_root(std::vector<int32_t>& up, int32_t i) {
+    while (up[(size_t)i] != i) {
+        up[(size_t)i] = up[(size_t)up[(size_t)i]];
+        i = up[(size_t)i];
+    }
+    return i;
+}
+
+// Owner per point of `pick`: the nearest camera's part, diffused over a
+// covisibility-weighted kNN graph, then islands dissolved. A plain vote per
+// point interleaved parts wherever both saw a surface (docs/notes/scene-partition.md).
+std::vector<int32_t> own_points(const ParsedDataset& ds, const Covisibility& cov,
+                                const std::vector<int32_t>& frame_label,
+                                const std::vector<float>& centers, int parts,
+                                const std::vector<int64_t>& pick, bool tracked) {
+    const int64_t n = (int64_t)pick.size();
+    const int K = std::max(1, parts);
+    std::vector<int32_t> out((size_t)n, 0);
+    if (n == 0 || K == 1) return out;
+    std::vector<float> xyz((size_t)n * 3);
+    for (int64_t j = 0; j < n; j++)
+        for (int r = 0; r < 3; r++) xyz[(size_t)j * 3 + r] = (float)ds.points.xyz[(size_t)pick[(size_t)j] * 3 + r];
+
+    // Start from the nearest camera's part. Its nearest *observer* or the
+    // summed closeness of its observers both merged worse (tracks are far
+    // sparser than what each camera actually sees; the doc has the numbers).
+    std::vector<float> s((size_t)n * K, 0.0f), t((size_t)n * K, 0.0f);
+    {
+        const knn::KdTree3 cams(centers.data(), (int64_t)centers.size() / 3);
+#pragma omp parallel for schedule(static)
+        for (int64_t j = 0; j < n; j++) {
+            float d2;
+            int32_t c = -1;
+            if (cams.query(&xyz[(size_t)j * 3], -1, 1, &d2, &c) == 1)
+                s[(size_t)j * K + frame_label[(size_t)c]] = 1.0f;
+        }
+    }
+    std::vector<int32_t> frames;
+    std::vector<int64_t> beg((size_t)n + 1, 0);
+    if (tracked)
+        for (int64_t j = 0; j < n; j++) {
+            const int64_t i = pick[(size_t)j];
+            frames.insert(frames.end(), cov.frame.begin() + cov.beg[(size_t)i],
+                          cov.frame.begin() + cov.beg[(size_t)i + 1]);
+            beg[(size_t)j + 1] = (int64_t)frames.size();
+            std::sort(frames.begin() + beg[(size_t)j], frames.end());
+        }
+    // Two points link as strongly as the share of one's observers that are,
+    // or are covisible with, the other's: tracks are too short to share frames.
+    const graph::WeightedGraph& g = cov.cameras;
+    std::vector<uint32_t> cam_adj = g.adj;
+    for (size_t c = 0; c < g.n(); c++)
+        std::sort(cam_adj.begin() + g.offs[c], cam_adj.begin() + g.offs[c + 1]);
+
+    constexpr int kNb = 12;
+    std::vector<int32_t> nb((size_t)n * kNb, -1);
+    std::vector<float> w((size_t)n * kNb, 0.0f);
+    {
+        const knn::KdTree3 tree(xyz.data(), n);
+#pragma omp parallel for schedule(dynamic, 1024)
+        for (int64_t j = 0; j < n; j++) {
+            float d2[kNb];
+            int32_t idx[kNb];
+            const int got = tree.query(&xyz[(size_t)j * 3], (int32_t)j, kNb, d2, idx);
+            for (int e = 0; e < got; e++) {
+                const int32_t o = idx[e];
+                float a = 1.0f;
+                if (tracked) {
+                    const int32_t* oi = &frames[(size_t)beg[(size_t)j]];
+                    const int32_t* oi_end = &frames[0] + beg[(size_t)j + 1];
+                    int64_t hits = 0;
+                    for (int64_t y = beg[(size_t)o]; y < beg[(size_t)o + 1]; y++) {
+                        const uint32_t b = (uint32_t)frames[(size_t)y];
+                        bool linked = std::binary_search(oi, oi_end, (int32_t)b);
+                        for (const int32_t* x = oi; x < oi_end && !linked; x++)
+                            linked = std::binary_search(cam_adj.begin() + g.offs[(size_t)*x],
+                                                        cam_adj.begin() + g.offs[(size_t)*x + 1], b);
+                        hits += linked;
+                    }
+                    const int64_t m = beg[(size_t)o + 1] - beg[(size_t)o];
+                    a = m > 0 ? (float)hits / (float)m : 0.0f;
+                }
+                nb[(size_t)j * kNb + e] = o;
+                w[(size_t)j * kNb + e] = a;
+            }
+        }
+    }
+
+    for (int it = 0; it < 40; it++) {
+#pragma omp parallel for schedule(static)
+        for (int64_t j = 0; j < n; j++) {
+            float* dst = &t[(size_t)j * K];
+            const float* self = &s[(size_t)j * K];
+            float total = 1.0f;
+            for (int k = 0; k < K; k++) dst[k] = self[k];
+            for (int e = 0; e < kNb; e++) {
+                const int32_t o = nb[(size_t)j * kNb + e];
+                const float a = w[(size_t)j * kNb + e];
+                if (o < 0 || a <= 0) continue;
+                const float* src = &s[(size_t)o * K];
+                for (int k = 0; k < K; k++) dst[k] += a * src[k];
+                total += a;
+            }
+            for (int k = 0; k < K; k++) dst[k] /= total;
+        }
+        s.swap(t);
+    }
+    for (int64_t j = 0; j < n; j++)
+        out[(size_t)j] = (int32_t)(std::max_element(&s[(size_t)j * K], &s[(size_t)j * K] + K) -
+                                   &s[(size_t)j * K]);
+
+    // Islands: every piece of a part smaller than a quarter of its largest
+    // joins the larger piece it borders most, until nothing moves.
+    for (int pass = 0; pass < 8; pass++) {
+        std::vector<int32_t> up((size_t)n);
+        std::iota(up.begin(), up.end(), 0);
+        for (int64_t j = 0; j < n; j++)
+            for (int e = 0; e < kNb; e++) {
+                const int32_t o = nb[(size_t)j * kNb + e];
+                if (o < 0 || w[(size_t)j * kNb + e] <= 0 || out[(size_t)o] != out[(size_t)j]) continue;
+                const int a = find_root(up, (int32_t)j), b = find_root(up, o);
+                if (a != b) up[(size_t)std::max(a, b)] = std::min(a, b);
+            }
+        for (int64_t j = 0; j < n; j++) up[(size_t)j] = find_root(up, (int32_t)j);
+        std::vector<int64_t> size((size_t)n, 0), largest((size_t)K, 0);
+        for (int64_t j = 0; j < n; j++) size[(size_t)up[(size_t)j]]++;
+        for (int64_t j = 0; j < n; j++)
+            if (up[(size_t)j] == j) largest[(size_t)out[(size_t)j]] = std::max(largest[(size_t)out[(size_t)j]], size[(size_t)j]);
+        std::vector<std::vector<float>> border;
+        std::unordered_map<int32_t, size_t> slot;
+        for (int64_t j = 0; j < n; j++) {
+            const int32_t r = up[(size_t)j];
+            if (4 * size[(size_t)r] >= largest[(size_t)out[(size_t)j]]) continue;
+            for (int e = 0; e < kNb; e++) {
+                const int32_t o = nb[(size_t)j * kNb + e];
+                if (o < 0 || w[(size_t)j * kNb + e] <= 0 || out[(size_t)o] == out[(size_t)j] ||
+                    size[(size_t)up[(size_t)o]] <= size[(size_t)r])
+                    continue;
+                auto [at, fresh] = slot.emplace(r, border.size());
+                if (fresh) border.emplace_back((size_t)K, 0.0f);
+                border[at->second][(size_t)out[(size_t)o]] += w[(size_t)j * kNb + e];
+            }
+        }
+        if (slot.empty()) break;
+        std::unordered_map<int32_t, int32_t> to;
+        for (const auto& [r, at] : slot)
+            to[r] = (int32_t)(std::max_element(border[at].begin(), border[at].end()) - border[at].begin());
+        for (int64_t j = 0; j < n; j++) {
+            auto it = to.find(up[(size_t)j]);
+            if (it != to.end()) out[(size_t)j] = it->second;
+        }
+    }
+    return out;
 }
 
 }  // namespace
@@ -460,86 +616,25 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
         p.cut_fraction = total > 0 ? cut / total : 0.0;
     }
 
-    // ---- point ownership: the part most of a point's observers are in ----
+    // ---- point ownership, and the field that carries it into space ----
     const int64_t n_pts = ds.points.num();
     p.point_label.assign((size_t)n_pts, -1);
-    std::vector<double> part_centroid((size_t)p.num_parts * 3, 0.0);
-    {
-        std::vector<int64_t> n((size_t)p.num_parts, 0);
-        for (int64_t i = 0; i < n_cam; i++) {
-            const int32_t l = p.frame_label[(size_t)i];
-            for (int r = 0; r < 3; r++) part_centroid[(size_t)l * 3 + r] += ds.c2w[(size_t)i * 12 + r * 4 + 3];
-            n[(size_t)l]++;
-        }
-        for (int k = 0; k < p.num_parts; k++)
-            for (int r = 0; r < 3; r++) part_centroid[(size_t)k * 3 + r] /= std::max<int64_t>(1, n[(size_t)k]);
-    }
-    if (cov.has_tracks() && cov.num_points() == n_pts) {
-#pragma omp parallel
-        {
-            std::vector<int32_t> votes((size_t)p.num_parts, 0);
-#pragma omp for schedule(static)
-            for (int64_t i = 0; i < n_pts; i++) {
-                const int64_t lo = cov.beg[(size_t)i], hi = cov.beg[(size_t)i + 1];
-                if (lo == hi) continue;
-                for (int64_t k = lo; k < hi; k++) votes[(size_t)p.frame_label[(size_t)cov.frame[(size_t)k]]]++;
-                int best = -1;
-                int32_t best_n = 0;
-                const double* q = &ds.points.xyz[(size_t)i * 3];
-                for (int64_t k = lo; k < hi; k++) {
-                    const int l = p.frame_label[(size_t)cov.frame[(size_t)k]];
-                    if (votes[(size_t)l] == 0) continue;
-                    bool take = votes[(size_t)l] > best_n;
-                    if (votes[(size_t)l] == best_n) {
-                        // A tie goes to the part whose cameras are nearer.
-                        double da = 0, db = 0;
-                        for (int r = 0; r < 3; r++) {
-                            const double x = q[r] - part_centroid[(size_t)l * 3 + r];
-                            const double y = q[r] - part_centroid[(size_t)best * 3 + r];
-                            da += x * x;
-                            db += y * y;
-                        }
-                        take = da < db;
-                    }
-                    if (take) { best_n = votes[(size_t)l]; best = l; }
-                    votes[(size_t)l] = 0;
-                }
-                p.point_label[(size_t)i] = best;
-            }
-        }
-    } else {
-        // No tracks: a point belongs with the nearest camera's part.
-#pragma omp parallel for schedule(static)
-        for (int64_t i = 0; i < n_pts; i++) {
-            const double* q = &ds.points.xyz[(size_t)i * 3];
-            double best = 1e300;
-            int32_t pick = -1;
-            for (int64_t j = 0; j < n_cam; j++) {
-                const float* b = &ds.c2w[(size_t)j * 12];
-                double d2 = 0;
-                for (int r = 0; r < 3; r++) {
-                    const double d = q[r] - b[r * 4 + 3];
-                    d2 += d * d;
-                }
-                if (d2 < best) { best = d2; pick = p.frame_label[(size_t)j]; }
-            }
-            p.point_label[(size_t)i] = pick;
-        }
-    }
-
-    // ---- the owned field: points with the side they were seen from, and
-    // the cameras, which see all around ----
     p.frame_centers.resize((size_t)n_cam * 3);
     for (int64_t i = 0; i < n_cam; i++)
         for (int r = 0; r < 3; r++) p.frame_centers[(size_t)i * 3 + r] = ds.c2w[(size_t)i * 12 + r * 4 + 3];
     {
+        const bool tracked = cov.has_tracks() && cov.num_points() == n_pts;
         const int64_t stride = std::max<int64_t>(1, (n_pts + std::max(1, opt.max_seeds) - 1) /
                                                         std::max(1, opt.max_seeds));
+        std::vector<int64_t> pick;
+        for (int64_t i = 0; i < n_pts; i += stride)
+            if (!tracked || cov.beg[(size_t)i] < cov.beg[(size_t)i + 1]) pick.push_back(i);
+        const std::vector<int32_t> own =
+            own_points(ds, cov, p.frame_label, p.frame_centers, p.num_parts, pick, tracked);
         std::vector<float> xyz, dirs;
         std::vector<int32_t> lab;
-        const bool tracked = cov.has_tracks() && cov.num_points() == n_pts;
-        for (int64_t i = 0; i < n_pts; i += stride) {
-            if (p.point_label[(size_t)i] < 0) continue;
+        for (size_t j = 0; j < pick.size(); j++) {
+            const int64_t i = pick[j];
             const double* q = &ds.points.xyz[(size_t)i * 3];
             float d[3] = {0, 0, 0};
             if (tracked) {
@@ -553,15 +648,20 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
             }
             for (int r = 0; r < 3; r++) xyz.push_back((float)q[r]);
             dirs.insert(dirs.end(), d, d + 3);
-            lab.push_back(p.point_label[(size_t)i]);
+            lab.push_back(own[j]);
+            p.point_label[(size_t)i] = own[j];
         }
-        for (int64_t i = 0; i < n_cam; i++) {
-            for (int r = 0; r < 3; r++) xyz.push_back(p.frame_centers[(size_t)i * 3 + r]);
-            dirs.insert(dirs.end(), {0.f, 0.f, 0.f});
-            lab.push_back(p.frame_label[(size_t)i]);
-        }
+        // Cameras seed the field only when no point does: a camera standing
+        // in another part's owned space would cut a hole in it.
+        if (lab.empty())
+            for (int64_t i = 0; i < n_cam; i++) {
+                for (int r = 0; r < 3; r++) xyz.push_back(p.frame_centers[(size_t)i * 3 + r]);
+                dirs.insert(dirs.end(), {0.f, 0.f, 0.f});
+                lab.push_back(p.frame_label[(size_t)i]);
+            }
         p.field = std::make_shared<LabelField>(
             LabelField::build(xyz.data(), lab.data(), dirs.data(), (int64_t)lab.size()));
+#pragma omp parallel for schedule(static)
         for (int64_t i = 0; i < n_pts; i++)
             if (p.point_label[(size_t)i] < 0)
                 p.point_label[(size_t)i] = p.field->label(&ds.points.xyz[(size_t)i * 3]);

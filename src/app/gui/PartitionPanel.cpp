@@ -2,6 +2,8 @@
 
 #include "app/gui/PartitionPanel.h"
 
+#include "app/webviewer/RegionOverlay.h"
+
 #include "app/gui/Layout.h"
 #include "app/gui/Ui.h"
 #include "checkpoint/SplatMerge.h"
@@ -62,6 +64,7 @@ void PartitionPanel::open(const std::string& dataset_dir, Hooks hooks) {
     _post = PostSplitCameras{};
     _tracks = spirula::SparseStats{};
     _part = spirula::ScenePartition{};
+    _part_meshes.clear();
     _error.clear();
     _status.clear();
     _saved_path.clear();
@@ -152,8 +155,19 @@ void PartitionPanel::run_compute() {
         _cov_valid = true;
     }
     spirula::ScenePartition part = spirula::partition_scene(_ds, _cov, opt, log);
+    std::vector<spirula::RegionMesh> meshes;
+    if (part.field && !part.field->empty()) {
+        std::vector<float> xyz;
+        const int64_t n = _ds.points.num(), stride = std::max<int64_t>(1, n / 200000);
+        for (int64_t i = 0; i < n; i += stride)
+            for (int r = 0; r < 3; r++) xyz.push_back((float)(_ds.points.xyz[(size_t)i * 3 + r] + _ds.center[r]));
+        const spirula::Aabb box = xyz.empty() ? part.field->bounds()
+                                              : spirula::robust_bounds(xyz.data(), (int64_t)xyz.size() / 3);
+        meshes = spirula::label_boundary_meshes(*part.field, box, 96);
+    }
     std::lock_guard<std::mutex> lk(_mu);
     _part = std::move(part);
+    _part_meshes = std::move(meshes);
     _part_valid = true;
 }
 
@@ -236,6 +250,7 @@ void PartitionPanel::refresh_view() {
     const int64_t n_pts = _ds.points.num();
     const int64_t n_cam = _ds.num_cameras;
     std::vector<float> cam_rgb;
+    std::shared_ptr<const spirula::RegionOverlay> overlay;
     if (_part_valid && _part.num_parts > 0 && (int64_t)_part.frame_label.size() == n_cam) {
         const int solo = _show_part;
         // Which cameras and points the shown part trains on.
@@ -287,24 +302,24 @@ void PartitionPanel::refresh_view() {
                     show.points.rgb.push_back((uint8_t)std::lround(std::clamp(c[k], 0.0f, 1.0f) * 255.0f));
             }
         }
-        if (_show_grid && _part.field && !_part.field->empty()) {
-            // About 64k samples: enough to read the seams, cheap to query.
-            std::vector<float> xyz;
-            std::vector<int32_t> lab;
-            _part.field->lattice(40, xyz, lab);
-            for (size_t i = 0; i < lab.size(); i++) {
-                if (solo >= 0 && lab[i] != solo) continue;
+        if (_show_grid && !_part_meshes.empty()) {
+            // Each part's boundary: the field is in the dataset's frame, the
+            // points it is drawn with less their centre.
+            const float to_points[12] = {1, 0, 0, (float)-_ds.center[0], 0, 1, 0, (float)-_ds.center[1],
+                                         0, 0, 1, (float)-_ds.center[2]};
+            auto ov = std::make_shared<spirula::RegionOverlay>();
+            for (int k = 0; k < (int)_part_meshes.size(); k++) {
+                if (solo >= 0 && k != solo) continue;
                 float c[3];
-                spirula::part_color(lab[i], c);
-                for (int k = 0; k < 3; k++) {
-                    show.points.xyz.push_back(xyz[i * 3 + k]);
-                    show.points.rgb.push_back((uint8_t)std::lround(std::clamp(0.6f * c[k] + 0.15f, 0.0f, 1.0f) * 255.0f));
-                }
+                spirula::part_color(k, c);
+                ov->add(_part_meshes[(size_t)k], c, to_points);
             }
+            overlay = ov;
         }
     }
     _view.attach_preview_data(show, _post, "partition:" + _dataset, 1.0f, n_cam > 0, nullptr,
                               cam_rgb.empty() ? nullptr : cam_rgb.data());
+    _view.set_region_overlay(nullptr, overlay);
 }
 
 // ---------------------------------------------------------------------------

@@ -88,7 +88,8 @@ src/
 │   │                         Region.h / LabelField.h / RegionProgram.h (regions
 │   │                         of space with an inside test on host and device,
 │   │                         and the labelled seed field that gives every point
-│   │                         one owner), ScenePartition.h (split a scene into
+│   │                         one owner), RegionMesh.h (a region's boundary as
+│   │                         triangles, for drawing), ScenePartition.h (split a scene into
 │   │                         parts that train separately -- READ
 │   │                         docs/notes/scene-partition.md)
 │   └── parsers/              COLMAP / Nerfstudio / Metashape readers

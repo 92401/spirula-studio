@@ -7,6 +7,7 @@
 
 #include "app/gui/ViewportPanel.h"
 #include "data/DatasetParser.h"
+#include "data/RegionMesh.h"
 #include "data/ScenePartition.h"
 #include "data/SparseEdit.h"
 
@@ -74,6 +75,7 @@ private:
     spirula::PartitionOptions _cov_opt;   // the options _cov was built with
     bool _cov_valid = false;
     spirula::ScenePartition _part;
+    std::vector<spirula::RegionMesh> _part_meshes;   // per part, its boundary
     spirula::PartitionOptions _part_opt;  // the options _part was built with
     bool _part_valid = false;
     std::vector<std::string> _log_lines;
@@ -88,7 +90,7 @@ private:
     bool _view_dirty = false;
     int _show_part = -1;   // -1: every part
     bool _owner_colors = true;
-    bool _show_grid = false;
+    bool _show_grid = true;
     bool _gl_ok = true;
 
     // ---- save / batch / merge ----

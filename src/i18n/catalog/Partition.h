@@ -932,34 +932,44 @@ SS_MSG(show_owner_colors,
     NL("Punten kleuren per deel"), RU("Красить точки по части"),
     TR("Noktaları sahibine göre renklendir"));
 SS_MSG(show_grid,
-    EN("Show ownership"), JA("所有領域を表示"), ZH_HANS("显示归属"), ZH_HANT("顯示歸屬"),
-    KO("소유 영역 표시"), DE("Zugehörigkeit zeigen"), FR("Afficher l'appartenance"),
-    ES("Mostrar pertenencia"), PT("Mostrar pertença"), IT("Mostra appartenenza"),
-    NL("Eigendom tonen"), RU("Показать принадлежность"), TR("Aidiyeti göster"));
+    EN("Show regions"), JA("領域を表示"), ZH_HANS("显示区域"), ZH_HANT("顯示區域"),
+    KO("영역 표시"), DE("Bereiche zeigen"), FR("Afficher les régions"),
+    ES("Mostrar regiones"), PT("Mostrar regiões"), IT("Mostra regioni"),
+    NL("Gebieden tonen"), RU("Показать области"), TR("Bölgeleri göster"));
 SS_MSG(show_grid_help,
-    EN("A lattice of sample points coloured by owner, which shows the seams "
-       "through empty space where no point marks them."),
-    JA("所有パートの色で塗ったサンプル点の格子です。点のない空間を通る継ぎ目が見えます。"),
-    ZH_HANS("按归属着色的采样点阵，能显示没有点标记的空旷处的接缝。"),
-    ZH_HANT("按歸屬著色的取樣點陣，能顯示沒有點標記的空曠處的接縫。"),
-    KO("소유 파트 색으로 칠한 표본 점 격자로, 점이 없는 빈 공간을 지나는 이음새를 "
-       "보여 줍니다."),
-    DE("Ein Gitter aus Stichprobenpunkten, nach Besitzer gefärbt: zeigt die Nähte "
-       "durch leeren Raum, wo kein Punkt sie markiert."),
-    FR("Un treillis de points d'échantillon coloré par partie : il montre les "
-       "coutures dans le vide, là où aucun point ne les marque."),
-    ES("Una retícula de puntos de muestra coloreada por parte: muestra las "
-       "costuras en el espacio vacío donde ningún punto las marca."),
-    PT("Uma retícula de pontos de amostra colorida por parte: mostra as costuras "
-       "no espaço vazio onde nenhum ponto as marca."),
-    IT("Un reticolo di punti campione colorato per parte: mostra le cuciture "
-       "nello spazio vuoto dove nessun punto le segna."),
-    NL("Een rooster van steekproefpunten gekleurd per deel: toont de naden door "
-       "lege ruimte waar geen punt ze markeert."),
-    RU("Решётка выборочных точек, окрашенная по части: показывает швы в пустом "
-       "пространстве, где их не отмечает ни одна точка."),
-    TR("Sahibine göre renklendirilmiş örnek noktalardan bir kafes: hiçbir "
-       "noktanın işaretlemediği boş alandaki dikişleri gösterir."));
+    EN("The surface around the space each part owns, tinted in its colour with a "
+       "dashed outline: the seams where the merge will switch from one model to "
+       "the next, through empty space as well."),
+    JA("各パートが所有する空間を囲む面を、そのパートの色と破線の輪郭で表示します。"
+       "マージがモデルを切り替える継ぎ目が、何もない空間でも見えます。"),
+    ZH_HANS("每个部分所拥有空间的边界面，以其颜色着色并带虚线轮廓：即合并时从一个模型切换到另一个模型的接缝，空旷处也可见。"),
+    ZH_HANT("每個部分所擁有空間的邊界面，以其顏色著色並帶虛線輪廓：即合併時從一個模型切換到另一個模型的接縫，空曠處也可見。"),
+    KO("각 파트가 소유한 공간을 둘러싼 면을 그 파트의 색과 점선 윤곽으로 표시합니다. "
+       "병합이 한 모델에서 다음 모델로 넘어가는 이음새가 빈 공간에서도 보입니다."),
+    DE("Die Fläche um den Raum, der jedem Teil gehört, in seiner Farbe getönt und "
+       "gestrichelt umrandet: die Nähte, an denen das Zusammenführen von einem "
+       "Modell zum nächsten wechselt, auch durch leeren Raum."),
+    FR("La surface autour de l'espace de chaque partie, teintée de sa couleur avec "
+       "un contour pointillé : les coutures où la fusion passe d'un modèle au "
+       "suivant, y compris dans le vide."),
+    ES("La superficie que rodea el espacio de cada parte, tintada de su color con "
+       "contorno discontinuo: las costuras donde la fusión pasa de un modelo al "
+       "siguiente, también en el espacio vacío."),
+    PT("A superfície em torno do espaço de cada parte, tingida da sua cor com "
+       "contorno tracejado: as costuras onde a fusão passa de um modelo ao "
+       "seguinte, também no espaço vazio."),
+    IT("La superficie attorno allo spazio di ogni parte, colorata col suo colore e "
+       "con contorno tratteggiato: le cuciture dove l'unione passa da un modello al "
+       "successivo, anche nello spazio vuoto."),
+    NL("Het oppervlak rond de ruimte van elk deel, getint in zijn kleur met een "
+       "gestippelde omtrek: de naden waar het samenvoegen van het ene model naar "
+       "het volgende overgaat, ook door lege ruimte."),
+    RU("Поверхность вокруг пространства каждой части, в её цвете с пунктирным "
+       "контуром: швы, где слияние переходит от одной модели к другой, в том числе "
+       "в пустом пространстве."),
+    TR("Her parçanın sahip olduğu alanı saran yüzey, kendi renginde ve kesikli bir "
+       "çerçeveyle: birleştirmenin bir modelden diğerine geçtiği dikişler, boş "
+       "alanda da."));
 
 SS_MSG(lbl_file, EN("File"), JA("ファイル"), ZH_HANS("文件"), ZH_HANT("檔案"), KO("파일"),
     DE("Datei"), FR("Fichier"), ES("Archivo"), PT("Ficheiro"), IT("File"), NL("Bestand"),

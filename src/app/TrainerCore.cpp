@@ -734,6 +734,10 @@ void TrainerSession::setup_region() {
     RegionProgram prog;
     std::string err;
     if (!compile_region(*roi, prog, err)) throw std::runtime_error(err);
+    // The region is in the dataset's frame, the splats in the training frame.
+    const double rs = cfg.relative_scale.value_or(1.0f);
+    const double shift[3] = {-rs * ds.center[0], -rs * ds.center[1], -rs * ds.center[2]};
+    prog.apply_similarity(rs, shift);
     // The training cameras, indexed, orient each splat's normal on the device.
     std::vector<int32_t> idx((size_t)ds.num_cameras);
     std::vector<float> centers((size_t)ds.num_cameras * 3);

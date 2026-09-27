@@ -2576,6 +2576,46 @@ SS_MSG(viewport_grid,
     PT("grade"),         IT("griglia"),      NL("raster"),       RU("сетка"),
     TR("ızgara"));
 
+SS_MSG(viewport_region,
+    EN("region"),        JA("領域"),          ZH_HANS("区域"),     ZH_HANT("區域"),
+    KO("영역"),           DE("Bereich"),      FR("région"),       ES("región"),
+    PT("região"),        IT("regione"),      NL("gebied"),       RU("область"),
+    TR("bölge"));
+
+SS_MSG(viewport_region_help,
+    EN("The region of interest this run trains, drawn as a tinted surface with a "
+       "dashed outline; fainter where the scene is in front of it. Splats outside "
+       "it are rarely densified."),
+    JA("この実行が学習する注目領域。色付きの面と破線の輪郭で描き、シーンの陰になる部分は薄く表示します。"
+       "領域外のスプラットはほとんど高密度化されません。"),
+    ZH_HANS("本次训练的感兴趣区域，以着色表面和虚线轮廓显示；被场景遮挡的部分较淡。区域外的高斯点很少被加密。"),
+    ZH_HANT("本次訓練的感興趣區域，以著色表面和虛線輪廓顯示；被場景遮擋的部分較淡。區域外的高斯點很少被加密。"),
+    KO("이 실행이 학습하는 관심 영역을 색칠된 면과 점선 윤곽으로 표시합니다. 장면에 가려진 부분은 흐리게 보입니다. "
+       "영역 밖의 스플랫은 거의 조밀화되지 않습니다."),
+    DE("Der Interessenbereich, den dieser Lauf trainiert, als getönte Fläche mit "
+       "gestrichelter Kontur; blasser, wo die Szene davor liegt. Splats außerhalb "
+       "werden kaum verdichtet."),
+    FR("La région d'intérêt que cet entraînement apprend, en surface teintée au "
+       "contour pointillé ; plus pâle là où la scène passe devant. Les splats hors "
+       "de la région sont rarement densifiés."),
+    ES("La región de interés que entrena esta ejecución, como superficie tintada con "
+       "contorno discontinuo; más tenue donde la escena queda delante. Los splats "
+       "fuera de ella apenas se densifican."),
+    PT("A região de interesse que esta execução treina, como superfície tingida com "
+       "contorno tracejado; mais clara onde a cena fica à frente. Splats fora dela "
+       "quase não são densificados."),
+    IT("La regione di interesse che questa esecuzione addestra, come superficie "
+       "colorata con contorno tratteggiato; più tenue dove la scena sta davanti. Gli "
+       "splat fuori da essa vengono densificati di rado."),
+    NL("Het interessegebied dat deze run traint, als getint oppervlak met een "
+       "gestippelde omtrek; vager waar de scène ervoor ligt. Splats erbuiten worden "
+       "zelden verdicht."),
+    RU("Область интереса этого обучения: тонированная поверхность с пунктирным "
+       "контуром, бледнее там, где сцена перед ней. Сплаты вне её почти не уплотняются."),
+    TR("Bu eğitimin ilgi bölgesi; renkli bir yüzey ve kesikli bir çerçeveyle çizilir, "
+       "sahnenin önünde kaldığı yerde daha soluktur. Dışındaki splat'ler nadiren "
+       "yoğunlaştırılır."));
+
 SS_MSG(viewport_level_cameras,
     EN("auto-level"),    JA("自動水平"),      ZH_HANS("自动摆正"),  ZH_HANT("自動擺正"),
     KO("자동 수평"),      DE("autom. Ausrichtung"), FR("mise à niveau"),

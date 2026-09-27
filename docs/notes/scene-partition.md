@@ -52,22 +52,49 @@ initialization (see "Not done").
    Frames are identified by the shortest tail of their path that is unique
    in the dataset, never the bare leaf: a rig has `cam0/00123.jpg` and
    `cam1/00123.jpg`.
-3. **Point ownership**: a point belongs to the part most of its observers are
-   in; ties go to the part whose camera centroid is nearer. Without tracks, to
-   the nearest camera's part.
+3. **Point ownership** (`own_points`): each seed point starts as the part of
+   its nearest camera, then those labels diffuse for 40 rounds over the
+   points' 12 nearest neighbours -- an edge as strong as the share of one
+   point's observers that are, or are covisible with, the other's, so the
+   diffusion does not leak through a wall -- and last, any piece of a part
+   smaller than a quarter of its largest joins the larger piece it borders
+   most. What this replaced, a vote over each point's observers, interleaved
+   two parts wherever both saw a surface: on a two-part classroom 36% of
+   every point's ten neighbours belonged to the other part (1.5% now), and
+   the merge, a salt-and-pepper mix of two models, lost 2.6 dB against its
+   own parts. Measured alternatives, parts trained fresh and scored on
+   held-out views (colour-corrected PSNR / SSIM, one model over everything
+   for reference):
+
+   | scene, steps | one model | nearest observer + smooth | 1/d^2 over observers + smooth | nearest camera | **nearest camera + smooth** |
+   |---|---|---|---|---|---|
+   | classroom, 2 parts, 7k | 19.64 / .741 | 19.43 / .743 | 19.50 / .739 | 19.56 / .744 | 19.54 / .742 |
+   | Atrium, 7 parts, 2k | 21.22 / .764 | 20.95 / .767 | 20.98 / .768 | 21.18 / .771 | 21.14 / .771 |
+
+   Anything built on the tracks loses: a point is tracked in a handful of the
+   frames that see it, so "which part observed it" is mostly noise (on
+   Atrium 47% of points have no observation from their nearest camera's
+   part). The smoothing costs nothing measurable over plain nearest-camera
+   Voronoi and guarantees one coherent region per part. What it gives up: a
+   thin wall's far face, when it is nearer to the other room's cameras than
+   to its own, goes to the other room, whose model never saw it. No capture
+   tried here has that layout; the observer rule would fix it at the cost in
+   the table.
 4. **Owned region** (`LabelField::build`): every point of space belongs to
-   the nearest *seed* -- the cloud's points (strided to `--max-seeds`), each
-   carrying the mean direction toward the cameras that observed it, plus every
-   camera as a seed seen from everywhere. The metric is not Euclidean: the
-   space *behind* a seed, relative to the side it was seen from, counts
-   `kBehindWeight` (8) times farther, and a query that carries a normal facing
-   away from a seed's viewing direction is `kOrientPenalty` (20) times farther
-   (`shaders/region.slang`). So a wall photographed from one room does not
-   claim the other room's air, and a splat on the wall's back -- seen only
-   from the next room -- stays with that room's model. Density-adaptive and
-   unbounded by construction: no grid, no resolution, and a far splat goes to
-   the nearest thing that saw anything. Queried on the host through a BVH
-   over the seeds, and on the device through the same layout.
+   the nearest *seed* -- the labelled points (strided to `--max-seeds`), each
+   carrying the mean direction toward the cameras that observed it; the
+   cameras are seeds only when there are no points, since a camera standing
+   in another part's space would cut a hole in it. The metric is not
+   Euclidean: the space *behind* a seed, relative to the side it was seen
+   from, counts `kBehindWeight` (8) times farther, and a query that carries a
+   normal facing away from a seed's viewing direction is `kOrientPenalty` (20)
+   times farther (`shaders/region.slang`). So a wall photographed from one
+   room does not claim the other room's air, and a splat on the wall's back
+   -- seen only from the next room -- stays with that room's model.
+   Density-adaptive and unbounded by construction: no grid, no resolution,
+   and a far splat goes to the nearest thing that saw anything. Queried on the
+   host through a BVH over the seeds, and on the device through the same
+   layout.
 5. **Ring**: an outside camera joins part k when at least `--ring` of the
    points it sees (and `--ring-min-points` of them) are owned by k. The ring
    sees the seam from outside, so both neighbouring parts learn it under the
@@ -93,7 +120,10 @@ initialization (see "Not done").
    training camera -- and a splat outside draws for relocation and growth
    with `--roi-outside-weight` (1e-4) instead of 1, in both the revised and
    the MCMC path. The model keeps what it has outside but stops growing there.
-   `region_parity` holds the device test to the host mirror.
+   `region_parity` holds the device test to the host mirror. The region is
+   in the dataset's frame and the splats in the training frame
+   (`relative_scale * (p - center)`), so `setup_region` moves the compiled
+   program by that similarity first (`RegionProgram::apply_similarity`).
 
 ## The files
 
@@ -137,7 +167,32 @@ them first. With "merge once all have trained" ticked the list gets a final
 Merge row (`BatchStage::Merge`), which finds the parts' runs under the runs
 folder by their `config.json` and writes `<dataset>_merged_<stamp>.ply`
 there. Rows whose tasks all finished are left unticked when the queue ends;
-"Clear done rows" and "Clear list" both confirm first.
+"Clear done rows" and "Clear list" both confirm first. While the Merge row
+runs the screen follows it to the list, and when the queue ends on a merge
+the merged model opens in the viewer.
+
+Regions are drawn as surfaces (`data/RegionMesh.h`: surface nets over the
+inside test, crossings bisected onto the boundary, open where the region
+leaves the box; `app/webviewer/RegionOverlay.h`): a translucent fill and a
+dashed silhouette. The Partition panel shows every part's boundary in its
+colour, or one part's when soloed. The trainer's viewport shows the run's
+region of interest -- before training in the OpenGL preview, and during
+training in the engine view, where `RenderWorker` rasterizes the mesh on the
+host against the frame's depth so the fill and the outline fade behind
+nearer geometry. The "region" switch beside "grid" hides it; pinhole views
+only.
+
+## Other ways to split, not taken
+
+- Region first (VastGaussian, CityGS): tile the ground plane into cells
+  balanced by camera count, then give each cell every camera that sees
+  enough of it. Compact cells and simple seams, but it assumes a ground
+  plane and one storey, and the camera sets overlap heavily indoors.
+- A joint cut of the bipartite camera-point visibility graph, so a part's
+  cameras and its owned points come out of one optimization instead of
+  cameras first and ownership second.
+- Soft ownership: keep splats a band past the seam from both sides with
+  opacity scaled by distance to the boundary, or fine-tune the band jointly.
 
 ## Not done, on purpose
 

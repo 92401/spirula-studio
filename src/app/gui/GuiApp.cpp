@@ -8,6 +8,8 @@
 #include "checkpoint/SplatMerge.h"
 #include "checkpoint/SplatPly.h"
 #include "data/ScenePartition.h"
+#include "data/RegionMesh.h"
+#include "app/webviewer/RegionOverlay.h"
 #include "data/Json.h"
 #include "app/AppPaths.h"
 #include "app/CrashLog.h"
@@ -1611,6 +1613,7 @@ void GuiApp::record_batch_task() {
             ok = _merge_error.empty();
             error = _merge_error;
             if (ok) t.result = _merge_result;
+            if (ok && !_batch_stop_now) _open_after_batch = _merge_result;
             break;
         }
     }
@@ -1829,6 +1832,11 @@ void GuiApp::finish_batch() {
     run_batch_command(i18n::format(msg::batch_cmd_message,
                                    {(long long)done, (long long)failed,
                                     (long long)other}));
+    // What the queue made last is worth looking at, unless whoever is here
+    // is already looking at a model of their own.
+    std::string merged;
+    merged.swap(_open_after_batch);
+    if (!merged.empty() && _screen != Screen::Viewer) open_splat(merged);
 }
 
 // The whole point of an unattended queue is not watching it, so the one thing
@@ -1873,7 +1881,7 @@ void GuiApp::follow_batch_screen(BatchStage stage) {
         case BatchStage::Dataset: _screen = Screen::NewDataset; break;
         case BatchStage::Train:   _screen = Screen::Train; break;
         case BatchStage::Mesh:    _screen = Screen::Mesh; break;
-        case BatchStage::Merge:   break;
+        case BatchStage::Merge:   _screen = Screen::Batch; break;
     }
 }
 
@@ -2874,6 +2882,7 @@ void GuiApp::frame() {
         if (!_viewport.preview_active() && _runner.session())
             _viewport.attach_preview(*_runner.session());
     }
+    update_roi_overlay();
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(vp->WorkPos);
@@ -7573,6 +7582,7 @@ bool GuiApp::launch_batch_merge(BatchTask& task, const BatchRow& row) {
     _merge_result.clear();
     _merge_error.clear();
     _merge_busy = true;
+    follow_batch_screen(BatchStage::Merge);
     log(i18n::format(pmsg::batch_log_merge, {(long long)(_batch_current + 1), partition}));
     _merge_thread = std::thread([this, partition, outputs] {
         try {
@@ -7601,6 +7611,57 @@ bool GuiApp::launch_batch_merge(BatchTask& task, const BatchRow& row) {
     });
     (void)task;
     return true;
+}
+
+// The session's region as a boundary mesh, sized by the seed cloud. The
+// engine renders in the dataset frame less its centre; the preview draws the
+// points, which carry the relative scale as well.
+void GuiApp::update_roi_overlay() {
+    const TrainRunner::Phase ph = _runner.phase();
+    spirula::TrainerSession* s = _runner.session();
+    const bool settled = ph == TrainRunner::Phase::Ready || _runner.engine_ready();
+    const void* key = settled && s && s->roi ? s->roi.get() : nullptr;
+    if (!settled && key == nullptr && _roi_key != nullptr && s) return;
+    if (key != _roi_key) {
+        _roi_key = key;
+        _viewport.set_region_overlay(nullptr, nullptr);
+        if (_roi_job.valid()) _roi_job.wait();
+        _roi_job = {};
+        if (!key) return;
+        std::shared_ptr<const spirula::Region> roi = s->roi;
+        const double rs = s->cfg.relative_scale.value_or(1.0f);
+        const std::array<double, 3> c = s->ds.center;
+        const int64_t n = s->ds.points.num(), stride = std::max<int64_t>(1, n / 200000);
+        std::vector<float> world;
+        for (int64_t i = 0; i < n; i += stride)
+            for (int r = 0; r < 3; r++) world.push_back((float)(s->ds.points.xyz[(size_t)i * 3 + r] / rs + c[r]));
+        float rgb[3] = {1.0f, 0.55f, 0.1f};
+        if (!s->cfg.partition.empty() && s->cfg.partition_part >= 0)
+            spirula::part_color(s->cfg.partition_part, rgb);
+        _roi_job = std::async(std::launch::async, [roi, world, rs, c, rgb]() {
+            spirula::Aabb box = spirula::robust_bounds(world.data(), (int64_t)world.size() / 3);
+            const spirula::Aabb rb = roi->bounds();
+            if (!rb.empty() && !rb.unbounded())
+                for (int a = 0; a < 3; a++) {
+                    box.lo[a] = std::max(box.lo[a], rb.lo[a] - 0.05 * (rb.hi[a] - rb.lo[a]));
+                    box.hi[a] = std::min(box.hi[a], rb.hi[a] + 0.05 * (rb.hi[a] - rb.lo[a]));
+                }
+            const spirula::RegionMesh m = spirula::region_boundary_mesh(*roi, box, 128);
+            const float to_engine[12] = {1, 0, 0, (float)-c[0], 0, 1, 0, (float)-c[1], 0, 0, 1, (float)-c[2]};
+            const float to_preview[12] = {(float)rs, 0, 0, (float)(-rs * c[0]), 0, (float)rs, 0, (float)(-rs * c[1]),
+                                          0, 0, (float)rs, (float)(-rs * c[2])};
+            auto engine = std::make_shared<spirula::RegionOverlay>();
+            auto preview = std::make_shared<spirula::RegionOverlay>();
+            engine->add(m, rgb, to_engine);
+            preview->add(m, rgb, to_preview);
+            return RoiOverlays{engine, preview};
+        });
+        return;
+    }
+    if (_roi_job.valid() && _roi_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        const RoiOverlays o = _roi_job.get();
+        _viewport.set_region_overlay(o.engine, o.preview);
+    }
 }
 
 // ---- queueing a partition's parts ----
@@ -7803,8 +7864,11 @@ void GuiApp::draw_batch_row(BatchRow& row, int index, int& remove, int& move) {
     ImGui::EndDisabled();
 
     // ---- status, and why ----
+    // A row with no task in this run is not waiting for anything.
     const BatchStatus st = row_status(_batch_tasks, index);
-    if (st != BatchStatus::Pending || _batch_active) {
+    bool in_run = false;
+    for (const BatchTask& t : _batch_tasks) in_run = in_run || t.row == index;
+    if (st != BatchStatus::Pending || (_batch_active && in_run)) {
         ImGui::Indent(ImGui::GetFrameHeight() * 2.0f);
         draw_status_word(st);
         // The newest thing this row has to say: what went wrong if anything

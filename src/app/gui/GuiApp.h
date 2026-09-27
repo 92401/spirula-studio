@@ -37,6 +37,7 @@
 #include <cstdint>
 #include <deque>
 #include <fstream>
+#include <future>
 #include <map>
 #include <atomic>
 #include <string>
@@ -810,6 +811,16 @@ private:
     std::atomic<bool> _merge_busy{false};
     std::string _merge_result, _merge_error;
     bool launch_batch_merge(BatchTask& task, const BatchRow& row);
+    // A merge that ends the queue opens in the viewer once the queue is over.
+    std::string _open_after_batch;
+    // The training session's region of interest as overlays for the trainer
+    // view, built off the GUI thread; keyed by the region it was built from.
+    struct RoiOverlays {
+        std::shared_ptr<const spirula::RegionOverlay> engine, preview;
+    };
+    const void* _roi_key = nullptr;
+    std::future<RoiOverlays> _roi_job;
+    void update_roi_overlay();
     void draw_batch_row_merge(BatchRow& row, int index);
     // Every task of the row ran and finished well.
     bool batch_row_done(int index) const;
