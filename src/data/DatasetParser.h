@@ -360,6 +360,11 @@ PostSplitCameras bake_post_split(const ParsedDataset& ds,
 // ===========================================================================
 namespace dsparse {
 
+// Stray cameras past this many median distances (a failed registration
+// 1700x out on a RealityScan export) are kept but set no scale. Must match
+// kStrayOverMedian in data/FrustumSize.h.
+constexpr float kStrayCameraThreshold = 20.0f;
+
 // T_n_from_camera = scale * [R_align | -R_align @ center] (row-major 4x4)
 // over c2w [N,3,4], orient="up" / center="poses"; returns scale_factor. The
 // viewer remap is inv(that @ applied); `R_out` is R_align alone.
