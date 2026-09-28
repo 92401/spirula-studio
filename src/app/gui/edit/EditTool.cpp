@@ -225,10 +225,10 @@ void EditTool::draw_overlay(ImDrawList* dl, const ImVec2& o) const {
     // The first corner is the one that closes the loop, so it says so: bigger
     // than the rest, and lit when the cursor is near enough to hit it.
     const float dx = _cur[0] - _pts[0], dy = _cur[1] - _pts[1];
-    const bool near = n >= 3 && dx * dx + dy * dy <= kCloseRadius * kCloseRadius;
-    dl->AddCircleFilled(at(0), near ? 8.0f : 5.0f,
-                        near ? IM_COL32(120, 255, 140, 255) : line);
-    if (near) dl->AddCircle(at(0), 12.0f, IM_COL32(120, 255, 140, 200), 0, 2.0f);
+    const bool is_near = n >= 3 && dx * dx + dy * dy <= kCloseRadius * kCloseRadius;
+    dl->AddCircleFilled(at(0), is_near ? 8.0f : 5.0f,
+                        is_near ? IM_COL32(120, 255, 140, 255) : line);
+    if (is_near) dl->AddCircle(at(0), 12.0f, IM_COL32(120, 255, 140, 200), 0, 2.0f);
 }
 
 const spirula::i18n::Msg& EditTool::label() const { return tool_label(_id); }
