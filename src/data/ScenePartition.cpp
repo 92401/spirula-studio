@@ -100,6 +100,14 @@ void say(const PartitionLog& log, const std::string& s) {
     if (log) log(s);
 }
 
+bool cancelled(const std::atomic<bool>* cancel) {
+    return cancel && cancel->load(std::memory_order_relaxed);
+}
+
+void stop_if(const std::atomic<bool>* cancel) {
+    if (cancelled(cancel)) throw PartitionCancelled();
+}
+
 template <typename T>
 void keep_rows(std::vector<T>& v, int64_t n, int stride, const uint8_t* keep) {
     if (v.empty()) return;
@@ -172,11 +180,13 @@ bool frame_sees(const FrameView& f, const double p[3]) {
 // one. Long tracks are strided so one point seen everywhere does not cost a
 // quadratic number of pairs.
 graph::WeightedGraph camera_graph_of(const std::vector<int64_t>& beg,
-                                     const std::vector<int32_t>& frame, size_t n_frames) {
+                                     const std::vector<int32_t>& frame, size_t n_frames,
+                                     const std::atomic<bool>* cancel = nullptr) {
     graph::EdgeAccumulator acc;
     acc.reserve(frame.size() * 4);
     constexpr int64_t kMaxTrack = 48;
     for (size_t i = 0; i + 1 < beg.size(); i++) {
+        if (i % 65536 == 0) stop_if(cancel);
         const int64_t lo = beg[i], hi = beg[i + 1];
         const int64_t m = hi - lo;
         if (m < 2) continue;
@@ -202,7 +212,8 @@ int find_root(std::vector<int32_t>& up, int32_t i) {
 std::vector<int32_t> own_points(const ParsedDataset& ds, const Covisibility& cov,
                                 const std::vector<int32_t>& frame_label,
                                 const std::vector<float>& centers, int parts,
-                                const std::vector<int64_t>& pick, bool tracked) {
+                                const std::vector<int64_t>& pick, bool tracked,
+                                const std::atomic<bool>* cancel) {
     const int64_t n = (int64_t)pick.size();
     const int K = std::max(1, parts);
     std::vector<int32_t> out((size_t)n, 0);
@@ -249,6 +260,7 @@ std::vector<int32_t> own_points(const ParsedDataset& ds, const Covisibility& cov
         const knn::KdTree3 tree(xyz.data(), n);
 #pragma omp parallel for schedule(dynamic, 1024)
         for (int64_t j = 0; j < n; j++) {
+            if (cancelled(cancel)) continue;
             float d2[kNb];
             int32_t idx[kNb];
             const int got = tree.query(&xyz[(size_t)j * 3], (int32_t)j, kNb, d2, idx);
@@ -277,6 +289,7 @@ std::vector<int32_t> own_points(const ParsedDataset& ds, const Covisibility& cov
     }
 
     for (int it = 0; it < 40; it++) {
+        stop_if(cancel);
 #pragma omp parallel for schedule(static)
         for (int64_t j = 0; j < n; j++) {
             float* dst = &t[(size_t)j * K];
@@ -302,6 +315,7 @@ std::vector<int32_t> own_points(const ParsedDataset& ds, const Covisibility& cov
     // Islands: every piece of a part smaller than a quarter of its largest
     // joins the larger piece it borders most, until nothing moves.
     for (int pass = 0; pass < 8; pass++) {
+        stop_if(cancel);
         std::vector<int32_t> up((size_t)n);
         std::iota(up.begin(), up.end(), 0);
         for (int64_t j = 0; j < n; j++)
@@ -357,7 +371,7 @@ struct Visibility {
 
 Visibility visibility_of(const ParsedDataset& ds, const Covisibility& cov,
                          const std::vector<int64_t>& pick, const std::vector<float>& centers,
-                         int64_t n_cam) {
+                         int64_t n_cam, const std::atomic<bool>* cancel) {
     Visibility v;
     const int64_t n = (int64_t)pick.size();
     v.pbeg.assign((size_t)n + 1, 0);
@@ -420,9 +434,11 @@ Visibility visibility_of(const ParsedDataset& ds, const Covisibility& cov,
     constexpr int kNb = Visibility::kNb;
     v.nb.assign((size_t)n * kNb, -1);
     v.nw.assign((size_t)n * kNb, 0.0f);
+    stop_if(cancel);
     const knn::KdTree3 tree(xyz.data(), n);
 #pragma omp parallel for schedule(dynamic, 1024)
     for (int64_t j = 0; j < n; j++) {
+        if (cancelled(cancel)) continue;
         float d2[kNb];
         int32_t idx[kNb];
         const int got = tree.query(&xyz[(size_t)j * 3], (int32_t)j, kNb, d2, idx);
@@ -444,6 +460,7 @@ Visibility visibility_of(const ParsedDataset& ds, const Covisibility& cov,
             v.nw[(size_t)j * kNb + e] = m > 0 ? (float)hits / (float)m : 0.0f;
         }
     }
+    stop_if(cancel);
     return v;
 }
 
@@ -619,7 +636,7 @@ bool covisibility_source_from_name(const std::string& s, CovisibilitySource& out
 namespace {
 
 bool covisibility_from_tracks(const ParsedDataset& ds, const SparseStats& st, Covisibility& out,
-                              const PartitionLog& log) {
+                              const PartitionLog& log, const std::atomic<bool>* cancel) {
     if (st.empty() || (int64_t)st.track_beg.size() - 1 != ds.points.num()) return false;
     const FrameIndex index(ds.image_filenames);
     std::vector<int32_t> image_frame(st.image_names.size(), -1);
@@ -633,20 +650,21 @@ bool covisibility_from_tracks(const ParsedDataset& ds, const SparseStats& st, Co
     out.frame.clear();
     out.frame.reserve(st.track_image.size());
     for (size_t i = 0; i + 1 < st.track_beg.size(); i++) {
+        if (i % 65536 == 0) stop_if(cancel);
         for (int64_t k = st.track_beg[i]; k < st.track_beg[i + 1]; k++) {
             const int32_t f = image_frame[(size_t)st.track_image[(size_t)k]];
             if (f >= 0) out.frame.push_back(f);
         }
         out.beg.push_back((int64_t)out.frame.size());
     }
-    out.cameras = camera_graph_of(out.beg, out.frame, (size_t)ds.num_cameras);
+    out.cameras = camera_graph_of(out.beg, out.frame, (size_t)ds.num_cameras, cancel);
     out.source = CovisibilitySource::Tracks;
     (void)log;
     return true;
 }
 
 bool covisibility_from_projection(const ParsedDataset& ds, const PartitionOptions& opt,
-                                  Covisibility& out) {
+                                  Covisibility& out, const std::atomic<bool>* cancel) {
     const int64_t n_pts = ds.points.num();
     const int64_t n_cam = ds.num_cameras;
     if (n_pts == 0 || n_cam == 0) return false;
@@ -660,11 +678,13 @@ bool covisibility_from_projection(const ParsedDataset& ds, const PartitionOption
     std::vector<std::vector<int32_t>> seen((size_t)n_cam);
 #pragma omp parallel for schedule(dynamic, 4)
     for (int64_t c = 0; c < n_cam; c++) {
+        if (cancelled(cancel)) continue;
         std::vector<int32_t>& s = seen[(size_t)c];
         for (size_t k = 0; k < sample.size(); k++)
             if (frame_sees(views[(size_t)c], &ds.points.xyz[(size_t)sample[k] * 3]))
                 s.push_back((int32_t)k);
     }
+    stop_if(cancel);
     std::vector<int64_t> count(sample.size() + 1, 0);
     for (int64_t c = 0; c < n_cam; c++)
         for (int32_t k : seen[(size_t)c]) count[(size_t)k + 1]++;
@@ -686,13 +706,13 @@ bool covisibility_from_projection(const ParsedDataset& ds, const PartitionOption
         out.beg.push_back((int64_t)out.frame.size());
     }
     // The graph from the sample alone; the copies would only scale it.
-    out.cameras = camera_graph_of(count, frame, (size_t)n_cam);
+    out.cameras = camera_graph_of(count, frame, (size_t)n_cam, cancel);
     out.source = CovisibilitySource::Projection;
     return out.cameras.adj.size() > 0;
 }
 
 void covisibility_from_proximity(const ParsedDataset& ds, const PartitionOptions& opt,
-                                 Covisibility& out) {
+                                 Covisibility& out, const std::atomic<bool>* cancel) {
     const int64_t n = ds.num_cameras;
     const int k = std::max(1, opt.proximity_neighbours);
     std::vector<double> c((size_t)n * 3), dir((size_t)n * 3);
@@ -706,6 +726,7 @@ void covisibility_from_proximity(const ParsedDataset& ds, const PartitionOptions
     std::vector<std::vector<std::pair<double, int32_t>>> nearest((size_t)n);
 #pragma omp parallel for schedule(dynamic, 16)
     for (int64_t i = 0; i < n; i++) {
+        if (cancelled(cancel)) continue;
         std::vector<std::pair<double, int32_t>>& best = nearest[(size_t)i];
         for (int64_t j = 0; j < n; j++) {
             if (j == i) continue;
@@ -724,6 +745,7 @@ void covisibility_from_proximity(const ParsedDataset& ds, const PartitionOptions
             }
         }
     }
+    stop_if(cancel);
     graph::EdgeAccumulator acc;
     for (int64_t i = 0; i < n; i++)
         for (const auto& [d2, j] : nearest[(size_t)i]) {
@@ -740,21 +762,28 @@ void covisibility_from_proximity(const ParsedDataset& ds, const PartitionOptions
 
 }  // namespace
 
+bool tracks_usable(const ParsedDataset& ds, const SparseStats& tracks) {
+    return !tracks.empty() && (int64_t)tracks.track_beg.size() - 1 == ds.points.num();
+}
+
 Covisibility build_covisibility(const ParsedDataset& ds, const SparseStats* tracks,
-                                const PartitionOptions& opt, const PartitionLog& log) {
+                                const PartitionOptions& opt, const PartitionLog& log,
+                                const std::atomic<bool>* cancel) {
     Covisibility out;
     if (ds.num_cameras == 0) return out;
     const CovisibilitySource want = opt.source;
     if ((want == CovisibilitySource::Auto || want == CovisibilitySource::Tracks) && tracks &&
-        covisibility_from_tracks(ds, *tracks, out, log))
+        covisibility_from_tracks(ds, *tracks, out, log, cancel))
         return out;
     if (want == CovisibilitySource::Tracks)
         say(log, "no usable tracks; falling back to projection");
-    if ((want != CovisibilitySource::Proximity) && covisibility_from_projection(ds, opt, out))
+    stop_if(cancel);
+    if ((want != CovisibilitySource::Proximity) && covisibility_from_projection(ds, opt, out, cancel))
         return out;
     if (want == CovisibilitySource::Projection)
         say(log, "no seed points to project; falling back to camera proximity");
-    covisibility_from_proximity(ds, opt, out);
+    stop_if(cancel);
+    covisibility_from_proximity(ds, opt, out, cancel);
     return out;
 }
 
@@ -780,7 +809,8 @@ int64_t ScenePartition::core_count(int part) const {
 }
 
 ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
-                               const PartitionOptions& opt, const PartitionLog& log) {
+                               const PartitionOptions& opt, const PartitionLog& log,
+                               const std::atomic<bool>* cancel) {
     const int64_t n_cam = ds.num_cameras;
     if (n_cam == 0) throw std::runtime_error("partition: the dataset has no cameras");
     ScenePartition p;
@@ -804,7 +834,8 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
     const bool graph_cut = opt.method == PartitionMethod::Graph && tracked && n_pts > 0;
 
     if (graph_cut) {
-        const Visibility vis = visibility_of(ds, cov, pick, p.frame_centers, n_cam);
+        const Visibility vis = visibility_of(ds, cov, pick, p.frame_centers, n_cam, cancel);
+        stop_if(cancel);
         const int64_t min_final = std::max<int64_t>(2, n_cam / 50);
         int32_t n_patch = 0;
         const std::vector<int32_t> patch = patch_points(vis, n_patch);
@@ -831,7 +862,9 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
             co.min_part = 2;
             co.cost = cost.data();
             co.min_final = (size_t)min_final;
+            co.cancel = cancel;
             const std::vector<int32_t> label = graph::cut_labels(joint, co);
+            stop_if(cancel);
             p.frame_label.assign(label.begin(), label.begin() + n_cam);
             own.resize(pick.size());
             for (size_t j = 0; j < pick.size(); j++) own[j] = label[(size_t)(n_cam + patch[j])];
@@ -876,7 +909,9 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
         co.leaf_max = (double)std::max(1, opt.max_images);
         co.min_part = 2;
         co.min_final = (size_t)std::max<int64_t>(2, n_cam / 50);
+        co.cancel = cancel;
         p.frame_label = graph::cut_labels(cov.cameras, co);
+        stop_if(cancel);
 
         // A camera that shares nothing with anyone is a part of its own after the
         // cut; it joins the part of the nearest camera that is in a real one.
@@ -926,6 +961,7 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
         }
     }
     if (p.num_parts > 254) throw std::runtime_error("partition: more than 254 parts");
+    stop_if(cancel);
 
     p.core_pieces.assign((size_t)p.num_parts, 0);
     for (int k = 0; k < p.num_parts; k++) {
@@ -950,7 +986,8 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
     // ---- point ownership, and the field that carries it into space ----
     p.point_label.assign((size_t)n_pts, -1);
     {
-        if (!graph_cut) own = own_points(ds, cov, p.frame_label, p.frame_centers, p.num_parts, pick, tracked);
+        if (!graph_cut)
+            own = own_points(ds, cov, p.frame_label, p.frame_centers, p.num_parts, pick, tracked, cancel);
         std::vector<float> xyz, dirs;
         std::vector<int32_t> lab;
         for (size_t j = 0; j < pick.size(); j++) {
@@ -987,6 +1024,7 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
             if (p.point_label[(size_t)i] < 0)
                 p.point_label[(size_t)i] = p.field->label(&ds.points.xyz[(size_t)i * 3]);
     }
+    stop_if(cancel);
 
     // ---- rings: outside cameras that see enough of a part ----
     p.ring.assign((size_t)p.num_parts, {});
@@ -1038,6 +1076,7 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
         for (int k = 0; k < p.num_parts; k++)
             for (int32_t f : p.frames_of(k)) in_part[(size_t)k][(size_t)f] = 1;
         for (int k = 0; k < p.num_parts; k++) {
+            stop_if(cancel);
             std::vector<uint8_t> take((size_t)n_pts, 0);
             // Outside the region, a hash-stable share of what the cameras see.
             const uint32_t keep = (uint32_t)(std::clamp(opt.outside_seed_fraction, 0.0f, 1.0f) * 65536.0f);

@@ -678,6 +678,72 @@ SS_MSG(status_computing,
     IT("Calcolo della partizione..."), NL("Partitie wordt berekend..."),
     RU("Вычисление разбиения..."), TR("Bölümleme hesaplanıyor..."));
 
+SS_MSG(status_cancelled,
+    EN("Cancelled; the partition shown is the previous one, if any."),
+    JA("中止しました。表示中の分割は前回のもの（あれば）です。"),
+    ZH_HANS("已取消；显示的是之前的分区（如果有）。"),
+    ZH_HANT("已取消；顯示的是先前的分區（如果有）。"),
+    KO("취소했습니다. 보이는 분할은 이전 것입니다(있다면)."),
+    DE("Abgebrochen; angezeigt wird die vorige Partition, falls es eine gibt."),
+    FR("Annulé ; la partition affichée est la précédente, s'il y en a une."),
+    ES("Cancelado; la partición mostrada es la anterior, si la hay."),
+    PT("Cancelado; a partição mostrada é a anterior, se houver."),
+    IT("Annullato; la partizione mostrata è quella precedente, se c'è."),
+    NL("Geannuleerd; de getoonde partitie is de vorige, als die er is."),
+    RU("Отменено; показано предыдущее разбиение, если оно было."),
+    TR("İptal edildi; gösterilen bölümleme, varsa, öncekidir."));
+
+SS_MSG(warn_no_tracks,
+    EN("This dataset has no feature tracks (which camera saw which point), so the "
+       "split guesses visibility by projecting the points into the frames. A COLMAP "
+       "reconstruction of the same capture (sparse/0 with images.bin and points3D.bin) "
+       "has them and gives much better parts."),
+    JA("このデータセットには特徴トラック（どのカメラがどの点を見たか）がないため、"
+       "点をフレームに投影して可視性を推測します。同じ撮影の COLMAP 再構成"
+       "（images.bin と points3D.bin を含む sparse/0）にはトラックがあり、"
+       "はるかに良い分割になります。"),
+    ZH_HANS("此数据集没有特征轨迹（哪台相机看到了哪个点），因此分区只能把点投影到各帧中"
+            "来猜测可见性。同一拍摄的 COLMAP 重建（含 images.bin 和 points3D.bin 的 "
+            "sparse/0）带有轨迹，分区效果会好得多。"),
+    ZH_HANT("此資料集沒有特徵軌跡（哪台相機看到了哪個點），因此分區只能把點投影到各幀中"
+            "來猜測可見性。同一拍攝的 COLMAP 重建（含 images.bin 和 points3D.bin 的 "
+            "sparse/0）帶有軌跡，分區效果會好得多。"),
+    KO("이 데이터셋에는 특징 트랙(어느 카메라가 어느 점을 봤는지)이 없어서, 점을 "
+       "프레임에 투영해 가시성을 추측합니다. 같은 촬영의 COLMAP 재구성(images.bin과 "
+       "points3D.bin이 있는 sparse/0)에는 트랙이 있어 훨씬 나은 분할을 얻습니다."),
+    DE("Dieser Datensatz hat keine Feature-Spuren (welche Kamera welchen Punkt sah), "
+       "daher schätzt die Teilung die Sichtbarkeit, indem sie die Punkte in die Bilder "
+       "projiziert. Eine COLMAP-Rekonstruktion derselben Aufnahme (sparse/0 mit "
+       "images.bin und points3D.bin) hat sie und ergibt viel bessere Teile."),
+    FR("Ce jeu de données n'a pas de pistes de points (quelle caméra a vu quel point) : "
+       "le découpage devine donc la visibilité en projetant les points dans les images. "
+       "Une reconstruction COLMAP de la même prise (sparse/0 avec images.bin et "
+       "points3D.bin) les contient et donne de bien meilleures parties."),
+    ES("Este conjunto de datos no tiene pistas de puntos (qué cámara vio qué punto), "
+       "así que la división adivina la visibilidad proyectando los puntos en los "
+       "fotogramas. Una reconstrucción de COLMAP de la misma captura (sparse/0 con "
+       "images.bin y points3D.bin) las tiene y da partes mucho mejores."),
+    PT("Este conjunto de dados não tem pistas de pontos (que câmara viu que ponto), "
+       "por isso a divisão adivinha a visibilidade projetando os pontos nas imagens. "
+       "Uma reconstrução COLMAP da mesma captura (sparse/0 com images.bin e "
+       "points3D.bin) tem-nas e dá partes muito melhores."),
+    IT("Questo dataset non ha tracce dei punti (quale fotocamera ha visto quale "
+       "punto), quindi la divisione indovina la visibilità proiettando i punti nei "
+       "fotogrammi. Una ricostruzione COLMAP della stessa ripresa (sparse/0 con "
+       "images.bin e points3D.bin) le ha e dà parti molto migliori."),
+    NL("Deze dataset heeft geen puntsporen (welke camera welk punt zag), dus de "
+       "splitsing raadt de zichtbaarheid door de punten in de beelden te projecteren. "
+       "Een COLMAP-reconstructie van dezelfde opname (sparse/0 met images.bin en "
+       "points3D.bin) heeft ze en geeft veel betere delen."),
+    RU("В этом наборе данных нет треков (какая камера видела какую точку), поэтому "
+       "разбиение угадывает видимость, проецируя точки в кадры. Реконструкция COLMAP "
+       "той же съёмки (sparse/0 с images.bin и points3D.bin) содержит их и даёт "
+       "гораздо лучшие части."),
+    TR("Bu veri kümesinde nokta izleri (hangi kameranın hangi noktayı gördüğü) yok; "
+       "bu yüzden bölme, noktaları karelere izdüşürerek görünürlüğü tahmin ediyor. "
+       "Aynı çekimin bir COLMAP yeniden oluşturması (images.bin ve points3D.bin içeren "
+       "sparse/0) bu izleri içerir ve çok daha iyi parçalar verir."));
+
 SS_MSG(status_summary,
     EN("Parts: {0}   cameras: {1}   points: {2}   covisibility cut: {3}%   from {4}"),
     JA("パート: {0}   カメラ: {1}   点: {2}   切れた共視性: {3}%   出どころ {4}"),

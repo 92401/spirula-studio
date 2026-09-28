@@ -13,7 +13,9 @@
 #include "data/LabelField.h"
 #include "data/SparseEdit.h"
 
+#include <atomic>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <string>
 #include <vector>
@@ -65,11 +67,21 @@ struct Covisibility {
 
 using PartitionLog = std::function<void(const std::string&)>;
 
+// Thrown by the calls below that take a `cancel` flag once it is set.
+struct PartitionCancelled : std::exception {
+    const char* what() const noexcept override { return "partition: cancelled"; }
+};
+
 // Builds the covisibility the options ask for. `tracks`, when it has any, is
 // the model's own (read_sparse_stats); Auto takes tracks, then projection of
-// the seed cloud, then proximity. Never throws for a dataset with cameras.
+// the seed cloud, then proximity. Throws only when cancelled.
 Covisibility build_covisibility(const ParsedDataset& ds, const SparseStats* tracks,
-                                const PartitionOptions& opt, const PartitionLog& log = {});
+                                const PartitionOptions& opt, const PartitionLog& log = {},
+                                const std::atomic<bool>* cancel = nullptr);
+
+// Whether `tracks` can serve as the covisibility of `ds`: a COLMAP model's
+// own, one row per seed point.
+bool tracks_usable(const ParsedDataset& ds, const SparseStats& tracks);
 
 struct ScenePartition {
     int num_parts = 0;
@@ -106,9 +118,11 @@ struct ScenePartition {
     std::vector<float> view_share;
 };
 
-// The partition of `ds` by `cov`. Throws when the dataset has no cameras.
+// The partition of `ds` by `cov`. Throws when the dataset has no cameras, and
+// PartitionCancelled once `cancel` is set.
 ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
-                               const PartitionOptions& opt, const PartitionLog& log = {});
+                               const PartitionOptions& opt, const PartitionLog& log = {},
+                               const std::atomic<bool>* cancel = nullptr);
 
 // partition.json beside a `.bin` of the same stem holding the volume and the
 // point tables. `dataset` is recorded as given.
