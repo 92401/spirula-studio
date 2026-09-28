@@ -22,7 +22,11 @@ struct RegionOverlay {
         float rgb[3] = {1.0f, 0.55f, 0.1f};
     };
     std::vector<Layer> layers;
-    bool empty() const { return layers.empty(); }
+    // When set, pixels whose surface lies outside it are greyed: the region's
+    // own frame is the overlay's plus `shift`.
+    std::shared_ptr<const Region> region;
+    double shift[3] = {0, 0, 0};
+    bool empty() const { return layers.empty() && !region; }
 
     // `to_frame` maps the mesh into the overlay's frame, row-major 3x4.
     void add(const RegionMesh& m, const float rgb[3], const float to_frame[12] = nullptr);

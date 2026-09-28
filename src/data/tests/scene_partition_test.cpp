@@ -9,6 +9,7 @@
 #include "data/RegionProgram.h"
 #include "data/ScenePartition.h"
 #include "data/SceneTransform.h"
+#include "external/stb_image.h"
 
 #include <algorithm>
 #include <cmath>
@@ -175,6 +176,7 @@ int main() {
         Corridor room = make_corridor(40, 60, 11, 30.0, 0.1);
         const Covisibility rc = build_covisibility(room.ds, &room.tracks, PartitionOptions{});
         PartitionOptions ro;
+        ro.method = PartitionMethod::ViewGraph;
         ro.parts = 2;
         const ScenePartition rp = partition_scene(room.ds, rc, ro);
         // Interleaving is what blurs a merge: the share of each point's ten
@@ -200,6 +202,32 @@ int main() {
         check(rp.num_parts == 2 && foreign < 0.03,
               std::string("every camera sees the floor: owners do not interleave (") + buf +
                   " of neighbours foreign)");
+    }
+
+    // ---- region masks: a camera over the inside keeps its pixels ----
+    {
+        Corridor c = make_corridor(40, 60, 5);
+        const int64_t n = c.ds.points.num();
+        std::vector<uint8_t> inside((size_t)n);
+        for (int64_t i = 0; i < n; i++) inside[(size_t)i] = c.ds.points.xyz[(size_t)i * 3] < 20.0;
+        const fs::path dir = fs::temp_directory_path() / "spirula_region_masks_test";
+        const std::vector<std::string> files =
+            write_region_masks(c.ds, c.ds.points.xyz.data(), n, inside.data(), dir.string(), false);
+        auto kept = [&](int cam) {
+            int w = 0, h = 0, ch = 0;
+            stbi_uc* img = stbi_load(files[(size_t)cam].c_str(), &w, &h, &ch, 1);
+            if (!img) return -1.0;
+            double k = 0;
+            for (int i = 0; i < w * h; i++) k += img[i] != 0;
+            stbi_image_free(img);
+            return k / (w * h);
+        };
+        check(files.size() == 40 && kept(5) > 0.99, "region masks: a camera over the inside keeps everything");
+        // Pixels no point falls near stay kept: here the strip's two sides.
+        check(kept(35) < 0.35, "region masks: one over the outside keeps little but what nothing covers");
+        check(kept(20) > 0.3 && kept(20) < 0.9, "region masks: one over the boundary keeps its inside half and a margin");
+        std::error_code ec;
+        fs::remove_all(dir, ec);
     }
 
     // ---- max-images mode and the other sources ----

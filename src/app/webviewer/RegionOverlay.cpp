@@ -128,6 +128,33 @@ void draw_region_overlay(const RegionOverlay& ov, uint8_t* rgb, int W, int H, co
         }
     constexpr float kNear = 1e-4f;
 
+    // Outside, greyed and darkened: tested every kStep pixels, where there is
+    // a surface to test.
+    if (ov.region) {
+        constexpr int kStep = 3;
+        const int gw = (W + kStep - 1) / kStep, gh = (H + kStep - 1) / kStep;
+        std::vector<int8_t> out((size_t)gw * gh, -1);
+#pragma omp parallel for schedule(dynamic, 8)
+        for (int gy = 0; gy < gh; gy++)
+            for (int gx = 0; gx < gw; gx++) {
+                const int x = std::min(W - 1, gx * kStep + kStep / 2), y = std::min(H - 1, gy * kStep + kStep / 2);
+                const float z = scene_z[(size_t)y * W + x];
+                if (!std::isfinite(z)) continue;
+                const float cvx = (x + 0.5f - cx) / fx * z, cvy = (y + 0.5f - cy) / fy * z;
+                double p[3];
+                for (int r = 0; r < 3; r++)
+                    p[r] = eye[r] + R[0][r] * cvx + R[1][r] * cvy + R[2][r] * z + ov.shift[r];
+                out[(size_t)gy * gw + gx] = ov.region->contains(p) ? 0 : 1;
+            }
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++) {
+                if (out[(size_t)(y / kStep) * gw + x / kStep] != 1) continue;
+                uint8_t* px = &rgb[((size_t)y * W + x) * 3];
+                const float g = 0.45f * (0.299f * px[0] + 0.587f * px[1] + 0.114f * px[2]);
+                for (int k = 0; k < 3; k++) px[k] = (uint8_t)std::lround(0.2f * px[k] + 0.8f * g);
+            }
+    }
+
     for (const RegionOverlay::Layer& l : ov.layers) {
         const size_t n_v = l.xyz.size() / 3;
         std::vector<float> cam(n_v * 3);
@@ -169,7 +196,7 @@ void draw_region_overlay(const RegionOverlay& ov, uint8_t* rgb, int W, int H, co
         for (size_t i = 0; i < npx; i++) {
             if (inv_z[i] <= 0) continue;
             const bool front = 1.0f / inv_z[i] <= scene_z[i] * 1.01f;
-            blend(&rgb[i * 3], l.rgb, front ? kFillFront : kFillHidden);
+            if (!ov.region) blend(&rgb[i * 3], l.rgb, front ? kFillFront : kFillHidden);
         }
 
         std::vector<float> seg;

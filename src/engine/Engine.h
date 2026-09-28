@@ -61,7 +61,8 @@ void set_data_3dgs(
 // orients normals; host floats copied now. Empty program clears it.
 void engine_set_region(TorchTensorView program, TorchTensorView field_bvh,
                        TorchTensorView field_seeds, TorchTensorView camera_bvh,
-                       TorchTensorView camera_seeds, float outside_weight);
+                       TorchTensorView camera_seeds, float outside_weight,
+                       float outside_opacity_decay = 1.0f);
 
 void set_camera_params(
     int width,

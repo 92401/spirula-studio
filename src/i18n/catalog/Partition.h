@@ -179,29 +179,29 @@ SS_MSG(opt_max_images,
 
 SS_MSG(opt_ring,
     EN("A camera outside a part joins its ring when at least this share of the "
-       "points it sees belongs to the part. Default: 0.05"),
+       "points it sees belongs to the part. Default: 0.2"),
     JA("パート外のカメラは、見ている点のうちこの割合以上がそのパートに属するとき"
-       "リングに加わります。既定: 0.05"),
-    ZH_HANS("分区外的相机所见点中属于该分区的比例达到此值时，加入其外环。默认：0.05"),
-    ZH_HANT("分區外的相機所見點中屬於該分區的比例達到此值時，加入其外環。預設：0.05"),
+       "リングに加わります。既定: 0.2"),
+    ZH_HANS("分区外的相机所见点中属于该分区的比例达到此值时，加入其外环。默认：0.2"),
+    ZH_HANT("分區外的相機所見點中屬於該分區的比例達到此值時，加入其外環。預設：0.2"),
     KO("파트 밖의 카메라는 자신이 보는 점 중 이 비율 이상이 그 파트에 속할 때 고리에 "
-       "들어갑니다. 기본값: 0.05"),
+       "들어갑니다. 기본값: 0.2"),
     DE("Eine Kamera außerhalb eines Teils tritt seinem Ring bei, wenn mindestens "
-       "dieser Anteil der von ihr gesehenen Punkte zum Teil gehört. Standard: 0.05"),
+       "dieser Anteil der von ihr gesehenen Punkte zum Teil gehört. Standard: 0.2"),
     FR("Une caméra hors d'une partie rejoint son anneau quand au moins cette part "
-       "des points qu'elle voit appartient à la partie. Défaut : 0.05"),
+       "des points qu'elle voit appartient à la partie. Défaut : 0.2"),
     ES("Una cámara fuera de una parte entra en su anillo cuando al menos esta "
-       "fracción de los puntos que ve pertenece a la parte. Predeterminado: 0.05"),
+       "fracción de los puntos que ve pertenece a la parte. Predeterminado: 0.2"),
     PT("Uma câmara fora de uma parte entra no seu anel quando pelo menos esta "
-       "fração dos pontos que vê pertence à parte. Predefinição: 0.05"),
+       "fração dos pontos que vê pertence à parte. Predefinição: 0.2"),
     IT("Una fotocamera fuori da una parte entra nel suo anello quando almeno "
-       "questa quota dei punti che vede appartiene alla parte. Predefinito: 0.05"),
+       "questa quota dei punti che vede appartiene alla parte. Predefinito: 0.2"),
     NL("Een camera buiten een deel komt in zijn ring als minstens dit aandeel van "
-       "de punten die ze ziet bij het deel hoort. Standaard: 0.05"),
+       "de punten die ze ziet bij het deel hoort. Standaard: 0.2"),
     RU("Камера вне части входит в её кольцо, если хотя бы такая доля видимых ею "
-       "точек принадлежит части. По умолчанию: 0.05"),
+       "точек принадлежит части. По умолчанию: 0.2"),
     TR("Bir parçanın dışındaki kamera, gördüğü noktaların en az bu payı parçaya "
-       "aitse halkasına katılır. Varsayılan: 0.05"));
+       "aitse halkasına katılır. Varsayılan: 0.2"));
 
 SS_MSG(opt_ring_min,
     EN("...and at least this many of them. Default: 20"),
@@ -243,6 +243,44 @@ SS_MSG(opt_max_seeds,
        "облака; камеры входят всегда. По умолчанию: 1000000"),
     TR("Aidiyet alanının buluttan sabit adımla tuttuğu tohum noktası sayısı; "
        "kameralar her zaman içindedir. Varsayılan: 1000000"));
+
+SS_MSG(opt_method,
+    EN("spatial cuts the point cloud into compact regions and gives each the "
+       "cameras that see enough of it; viewgraph cuts the cameras where they "
+       "share the least and derives the regions. Default: spatial"),
+    JA("spatial は点群をまとまった領域に切り、十分に見ているカメラを各領域に割り当てます。"
+       "viewgraph は共有の最も少ない所でカメラを分け、そこから領域を決めます。既定: spatial"),
+    ZH_HANS("spatial 把点云切成紧凑的区域，再把看得足够多的相机分给每个区域；viewgraph "
+            "在相机共享最少处切分相机，再推出区域。默认：spatial"),
+    ZH_HANT("spatial 把點雲切成緊湊的區域，再把看得足夠多的相機分給每個區域；viewgraph "
+            "在相機共享最少處切分相機，再推出區域。預設：spatial"),
+    KO("spatial은 점 구름을 촘촘한 영역으로 자르고 각 영역을 충분히 보는 카메라를 "
+       "배정합니다. viewgraph는 공유가 가장 적은 곳에서 카메라를 나누고 영역을 "
+       "이끌어 냅니다. 기본값: spatial"),
+    DE("spatial schneidet die Punktwolke in kompakte Bereiche und gibt jedem die "
+       "Kameras, die genug davon sehen; viewgraph trennt die Kameras, wo sie am "
+       "wenigsten teilen, und leitet die Bereiche ab. Standard: spatial"),
+    FR("spatial découpe le nuage en régions compactes et donne à chacune les "
+       "caméras qui en voient assez ; viewgraph coupe les caméras là où elles "
+       "partagent le moins et en déduit les régions. Défaut : spatial"),
+    ES("spatial corta la nube en regiones compactas y da a cada una las cámaras "
+       "que ven bastante de ella; viewgraph corta las cámaras donde menos "
+       "comparten y deduce las regiones. Predeterminado: spatial"),
+    PT("spatial corta a nuvem em regiões compactas e dá a cada uma as câmaras "
+       "que veem o suficiente dela; viewgraph corta as câmaras onde menos "
+       "partilham e deduz as regiões. Predefinição: spatial"),
+    IT("spatial taglia la nuvola in regioni compatte e dà a ciascuna le "
+       "fotocamere che ne vedono abbastanza; viewgraph taglia le fotocamere dove "
+       "condividono meno e ne ricava le regioni. Predefinito: spatial"),
+    NL("spatial snijdt de puntenwolk in compacte gebieden en geeft elk de "
+       "camera's die er genoeg van zien; viewgraph snijdt de camera's waar ze het "
+       "minst delen en leidt de gebieden af. Standaard: spatial"),
+    RU("spatial режет облако точек на компактные области и даёт каждой камеры, "
+       "которые видят её достаточно; viewgraph режет камеры там, где у них меньше "
+       "всего общего, и выводит области. По умолчанию: spatial"),
+    TR("spatial nokta bulutunu derli toplu bölgelere böler ve her birine onu "
+       "yeterince gören kameraları verir; viewgraph kameraları en az paylaştıkları "
+       "yerden böler ve bölgeleri buradan çıkarır. Varsayılan: spatial"));
 
 SS_MSG(opt_source,
     EN("Where covisibility comes from. auto takes the model's own tracks, else "
@@ -457,19 +495,19 @@ SS_MSG(log_summary,
     TR("Parça: {0}   parçalar arasında kesilen ortak görünürlük: %{1}   aidiyet alanı tohumu: {2}"));
 
 SS_MSG(log_part,
-    EN("  part {0}: core {1}   ring {2}   seed points {3}"),
-    JA("  パート {0}: コア {1}   リング {2}   初期点 {3}"),
-    ZH_HANS("  分区 {0}：核心 {1}   外环 {2}   种子点 {3}"),
-    ZH_HANT("  分區 {0}：核心 {1}   外環 {2}   種子點 {3}"),
-    KO("  파트 {0}: 핵심 {1}   고리 {2}   시드 점 {3}"),
-    DE("  Teil {0}: Kern {1}   Ring {2}   Startpunkte {3}"),
-    FR("  partie {0} : cœur {1}   anneau {2}   points d'amorce {3}"),
-    ES("  parte {0}: núcleo {1}   anillo {2}   puntos semilla {3}"),
-    PT("  parte {0}: núcleo {1}   anel {2}   pontos semente {3}"),
-    IT("  parte {0}: nucleo {1}   anello {2}   punti seme {3}"),
-    NL("  deel {0}: kern {1}   ring {2}   zaadpunten {3}"),
-    RU("  часть {0}: ядро {1}   кольцо {2}   начальных точек {3}"),
-    TR("  parça {0}: çekirdek {1}   halka {2}   tohum noktası {3}"));
+    EN("  part {0}: core {1}   ring {2}   seed points {3}   its cameras see {4}% of it"),
+    JA("  パート {0}: コア {1}   リング {2}   初期点 {3}   カメラの視野のうち自パート {4}%"),
+    ZH_HANS("  分区 {0}：核心 {1}   外环 {2}   种子点 {3}   相机视野中本分区占 {4}%"),
+    ZH_HANT("  分區 {0}：核心 {1}   外環 {2}   種子點 {3}   相機視野中本分區佔 {4}%"),
+    KO("  파트 {0}: 핵심 {1}   고리 {2}   시드 점 {3}   카메라 시야 중 자기 파트 {4}%"),
+    DE("  Teil {0}: Kern {1}   Ring {2}   Startpunkte {3}   eigener Anteil der Sicht {4}%"),
+    FR("  partie {0} : cœur {1}   anneau {2}   points d'amorce {3}   part propre de la vue {4} %"),
+    ES("  parte {0}: núcleo {1}   anillo {2}   puntos semilla {3}   parte propia de la vista {4}%"),
+    PT("  parte {0}: núcleo {1}   anel {2}   pontos semente {3}   parte própria da vista {4}%"),
+    IT("  parte {0}: nucleo {1}   anello {2}   punti seme {3}   quota propria della vista {4}%"),
+    NL("  deel {0}: kern {1}   ring {2}   zaadpunten {3}   eigen deel van het zicht {4}%"),
+    RU("  часть {0}: ядро {1}   кольцо {2}   начальных точек {3}   своя доля обзора {4}%"),
+    TR("  parça {0}: çekirdek {1}   halka {2}   tohum noktası {3}   görüşün kendi payı %{4}"));
 
 SS_MSG(log_part_pieces,
     EN("  part {0} is not one piece of the view graph but {1}"),
@@ -648,6 +686,23 @@ SS_MSG(status_summary,
     NL("Delen: {0}   camera's: {1}   punten: {2}   doorgesneden covisibiliteit: {3}%   uit {4}"),
     RU("Частей: {0}   камер: {1}   точек: {2}   разрезанная совидимость: {3}%   из {4}"),
     TR("Parça: {0}   kamera: {1}   nokta: {2}   kesilen ortak görünürlük: %{3}   kaynak {4}"));
+
+SS_MSG(lbl_method,
+    EN("Split"), JA("分割方法"), ZH_HANS("切分方式"), ZH_HANT("切分方式"), KO("분할 방식"),
+    DE("Aufteilung"), FR("Découpe"), ES("División"), PT("Divisão"), IT("Suddivisione"),
+    NL("Opsplitsing"), RU("Разбиение"), TR("Bölme"));
+SS_MSG(meth_spatial,
+    EN("Regions first"), JA("領域を先に"), ZH_HANS("先分区域"), ZH_HANT("先分區域"),
+    KO("영역 먼저"), DE("Bereiche zuerst"), FR("Régions d'abord"), ES("Regiones primero"),
+    PT("Regiões primeiro"), IT("Prima le regioni"), NL("Eerst gebieden"),
+    RU("Сначала области"), TR("Önce bölgeler"));
+SS_MSG(meth_viewgraph,
+    EN("Cameras first (view graph)"), JA("カメラを先に（ビューグラフ）"),
+    ZH_HANS("先分相机（视图图）"), ZH_HANT("先分相機（視圖圖）"), KO("카메라 먼저(뷰 그래프)"),
+    DE("Kameras zuerst (Sichtgraph)"), FR("Caméras d'abord (graphe de vues)"),
+    ES("Cámaras primero (grafo de vistas)"), PT("Câmaras primeiro (grafo de vistas)"),
+    IT("Prima le fotocamere (grafo delle viste)"), NL("Eerst camera's (zichtgraaf)"),
+    RU("Сначала камеры (граф видов)"), TR("Önce kameralar (görüş grafı)"));
 
 SS_MSG(lbl_source,
     EN("Covisibility"), JA("共視性"), ZH_HANS("共视关系"), ZH_HANT("共視關係"),

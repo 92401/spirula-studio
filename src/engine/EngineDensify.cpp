@@ -297,6 +297,8 @@ int engine_densify_step(int step, int max_steps, const DensifyConfig& cfg) {
         region_weight_tensor(cur_num_splats, dv_means, dv_quats, dv_scales, region.camera_bvh,
                              region.camera_seeds, region.program, region.field_bvh,
                              region.field_seeds, region.inside, region.outside, region.weight);
+        // Before the relocation below, so what fades past dead moves inside.
+        region_decay_opacity_tensor(cur_num_splats, region.weight, dv_opacs, region.opacity_decay);
         if (use_revised) {
             auto& score = engine().optim.densify_sample_score;
             if (score.data_ptr() == nullptr) {

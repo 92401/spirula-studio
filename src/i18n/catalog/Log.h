@@ -1770,6 +1770,21 @@ SS_MSG(region_applied,
     RU("Область интереса: узлов программы {0}; сплаты снаружи участвуют в выборке с весом {1}"),
     TR("İlgi bölgesi: program düğümü {0}; dışarıdaki splatlar {1} ağırlığıyla çekilir"));
 
+SS_MSG(region_masks,
+    EN("Region of interest: {0} images masked to what they show of it; {1}% of pixels left out"),
+    JA("関心領域: {0} 枚の画像を領域が写る部分に絞りました。画素の {1}% を除外"),
+    ZH_HANS("感兴趣区域：{0} 张图像只保留拍到区域的部分；排除了 {1}% 的像素"),
+    ZH_HANT("感興趣區域：{0} 張影像只保留拍到區域的部分；排除了 {1}% 的像素"),
+    KO("관심 영역: 이미지 {0}장을 영역이 보이는 부분으로 제한했습니다. 픽셀의 {1}%를 제외"),
+    DE("Interessenbereich: {0} Bilder auf das maskiert, was sie davon zeigen; {1}% der Pixel ausgelassen"),
+    FR("Région d'intérêt : {0} images masquées à ce qu'elles en montrent ; {1} % des pixels écartés"),
+    ES("Región de interés: {0} imágenes enmascaradas a lo que muestran de ella; {1}% de píxeles fuera"),
+    PT("Região de interesse: {0} imagens mascaradas ao que mostram dela; {1}% dos píxeis de fora"),
+    IT("Regione di interesse: {0} immagini mascherate su ciò che ne mostrano; {1}% dei pixel esclusi"),
+    NL("Interessegebied: {0} beelden gemaskeerd tot wat ze ervan tonen; {1}% van de pixels weggelaten"),
+    RU("Область интереса: {0} изображений ограничены тем, что они из неё показывают; исключено {1}% пикселей"),
+    TR("İlgi bölgesi: {0} görüntü bölgeden gösterdikleriyle maskelendi; piksellerin %{1}'i dışarıda"));
+
 SS_MSG(err_partition_part,
     EN("--partition needs --partition-part between 0 and {0}"),
     JA("--partition には 0 から {0} までの --partition-part が必要です"),

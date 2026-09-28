@@ -21,6 +21,52 @@ part grows in front of another part's cameras. The scheme here targets the
 first and the last two directly; appearance drift is left for a later shared
 initialization (see "Not done").
 
+## Regions first (the default, `--method spatial`)
+
+Cutting the *cameras* first (steps 2 and 3 below, `--method viewgraph`)
+groups cameras that look the same way even when they stand far apart, and a
+part's region is then wherever those cameras happened to look. On Atrium at
+800 images a part's cameras saw on average only 23-53% of their own part,
+and each part borrowed a ring 1.3-2.2 times its core. So the default cuts
+*space* first and hands out cameras afterwards (`spatial_cut`, `home_parts`):
+
+- The observed points are cut by a plane, recursively. For the region with
+  the heaviest camera load, the candidates are 13 positions (20th to 80th
+  percentile) across each of its two widest principal axes -- never the
+  thinnest, which would split a floor from its ceiling and leave every camera
+  seeing both; each is scored by the cameras the two halves would need -- a
+  half needs a camera holding `--ring` (0.2) or half of that camera's view --
+  as `(l + r)(1 + |l - r| / (l + r))`: few cameras in total, split evenly.
+  Splitting stops when every region needs at most `--max-images` cameras (or
+  at `--parts` regions).
+- Within 1% of a cut (of the 5th-95th percentile extent -- the full extent,
+  stretched by stray SfM points, once widened the band over the whole region
+  and turned it into a per-point vote), a point goes to the side its
+  observers stand on, so a wall's two photographed faces each stay with
+  their own side.
+- A camera's home (its core part) is the region most of its view is in; it
+  also joins the ring of any other region holding `--ring` of its view. A
+  region no camera calls home goes to the home its observers vote for.
+
+On Atrium at `--max-images 800` this gives 12 compact parts, each needing
+424-772 cameras in all, whose cameras see 44-69% of their own part (the CLI
+prints this per part); ownership interleaves 3% of nearest neighbours.
+Cameras standing together may belong to different parts when they look at
+different regions; that is intended. Without point observations (poses
+only) the view-graph method is used.
+
+Measured on Atrium, 6000 steps per part, every 8th frame held out,
+colour-corrected PSNR / SSIM of the merge against one model trained on
+everything (22.73 / 0.793, 459 s); per-view differences pair views by their
+ground-truth image, since two runs visit held-out views in different orders:
+
+| split | merge | mean dPSNR | views < -3 dB | worst | train time |
+|---|---|---|---|---|---|
+| view graph, ring 0.05 (before) | 22.58 / 0.801 | -0.15 | 3 | -3.9 | 1285 s |
+| regions first | 22.37 / 0.805 | -0.36 | 15 | -4.4 | 1035 s |
+| regions first + region masks (default) | 22.46 / 0.803 | -0.27 | 9 | -4.8 | 884 s |
+| regions first + opacity decay 0.5 | 20.39 / 0.773 | | | | 943 s |
+
 ## The pipeline
 
 1. **Covisibility graph** over the cameras (`build_covisibility`). One node per
@@ -35,7 +81,7 @@ initialization (see "Not done").
      points beside them;
    - poses only: k nearest camera centres, weighted `1 + cos(view angle)`.
    `Auto` takes the first of these that works.
-2. **Cut** (`graph::cut_labels`): recursive normalized-cut bisection by the
+2. **Cut** (view-graph method; `graph::cut_labels`): recursive normalized-cut bisection by the
    Fiedler vector of the normalized Laplacian, the same code the bottom-up SfM
    mapper uses for its atoms, with three things the mapper does not want:
    each side of a bisection must hold at least 30% of the parent (a free
@@ -52,7 +98,7 @@ initialization (see "Not done").
    Frames are identified by the shortest tail of their path that is unique
    in the dataset, never the bare leaf: a rig has `cam0/00123.jpg` and
    `cam1/00123.jpg`.
-3. **Point ownership** (`own_points`): each seed point starts as the part of
+3. **Point ownership** (view-graph method; `own_points`): each seed point starts as the part of
    its nearest camera, then those labels diffuse for 40 rounds over the
    points' 12 nearest neighbours -- an edge as strong as the share of one
    point's observers that are, or are covisible with, the other's, so the
@@ -95,14 +141,16 @@ initialization (see "Not done").
    and a far splat goes to the nearest thing that saw anything. Queried on the
    host through a BVH over the seeds, and on the device through the same
    layout.
-5. **Ring**: an outside camera joins part k when at least `--ring` of the
-   points it sees (and `--ring-min-points` of them) are owned by k. The ring
-   sees the seam from outside, so both neighbouring parts learn it under the
-   same supervision. This is the single change that matters most for seams.
-6. **Seed points per part**: everything the part's core and ring cameras
-   observe, plus what it owns. A ring camera whose image shows another part's
-   region needs geometry there to explain the pixels, or it grows floaters
-   inside the region it was borrowed for; the surplus is cropped at the merge.
+5. **Ring**: an outside camera joins part k when at least `--ring` (0.2) of
+   the points it sees (and `--ring-min-points` of them) are owned by k. The
+   ring sees the seam from outside, so both neighbouring parts learn it under
+   the same supervision. It was 0.05, which let cameras that see a sliver of
+   a part in and doubled the images per part.
+6. **Seed points per part**: everything it owns, and a hash-stable
+   `outside_seed_fraction` (0.2) of what its cameras see outside. A ring
+   camera whose image shows another part's region needs some geometry there
+   to explain the pixels, or it grows floaters inside; all of it would only
+   grow splats the merge discards.
 7. **Training** (`--partition file --partition-part k`): after parsing, the
    trainer keeps the part's frames (matched by image leaf, as `SparseEdit`
    matches them) and its seed points, for both the train and the eval split.
@@ -119,7 +167,19 @@ initialization (see "Not done").
    compiled program at every splat centre -- normal oriented by the nearest
    training camera -- and a splat outside draws for relocation and growth
    with `--roi-outside-weight` (1e-4) instead of 1, in both the revised and
-   the MCMC path. The model keeps what it has outside but stops growing there.
+   the MCMC path. `--roi-outside-opacity-decay` would also scale their
+   opacity at every refine step; it is off (1), because the pixels those
+   splats explained still had to be explained, and the parts grew splats in
+   front of their cameras to do it (-2 dB after the merge, table above).
+   What does work is not supervising those pixels at all: with
+   `--roi-mask-pixels` (on) the trainer projects the partition's whole seed
+   cloud into each training image, labels every quarter-resolution cell by
+   the nearest point over a footprint that grows as points come closer (so a
+   sparse near floor still hides what lies behind it), fills holes from
+   neighbours, keeps what nothing covers, widens what is inside by a margin
+   so the seam stays supervised, ANDs any existing mask, and writes the
+   result under `<run>/roi_masks/` (`write_region_masks`). On Atrium a
+   third of the pixels drop out.
    `region_parity` holds the device test to the host mirror. The region is
    in the dataset's frame and the splats in the training frame
    (`relative_scale * (p - center)`), so `setup_region` moves the compiled
@@ -171,6 +231,12 @@ there. Rows whose tasks all finished are left unticked when the queue ends;
 runs the screen follows it to the list, and when the queue ends on a merge
 the merged model opens in the viewer.
 
+In the trainer's engine view the region of interest is shown by greying
+what lies outside it: each pixel's surface point, from the render's depth,
+is tested against the region (every third pixel, on the host), and the
+region's dashed silhouette is drawn over it. Before training, the preview
+greys the seed points outside the region.
+
 Regions are drawn as surfaces (`data/RegionMesh.h`: surface nets over the
 inside test, crossings bisected onto the boundary, open where the region
 leaves the box; `app/webviewer/RegionOverlay.h`): a translucent fill and a
@@ -184,10 +250,11 @@ only.
 
 ## Other ways to split, not taken
 
-- Region first (VastGaussian, CityGS): tile the ground plane into cells
-  balanced by camera count, then give each cell every camera that sees
-  enough of it. Compact cells and simple seams, but it assumes a ground
-  plane and one storey, and the camera sets overlap heavily indoors.
+- Ground-plane tiles (VastGaussian, CityGS): the regions-first split with
+  cells fixed to a ground grid. The principal-axis planes above reduce to it
+  on a street and still work on several storeys.
+- k-means on the points with Voronoi cells: compact, but the cells know
+  nothing about which cameras they will need, and nothing about walls.
 - A joint cut of the bipartite camera-point visibility graph, so a part's
   cameras and its owned points come out of one optimization instead of
   cameras first and ownership second.

@@ -73,7 +73,8 @@ public:
     // renders, `preview` in the frame of the preview's points. Kept across
     // attaches; null for none.
     void set_region_overlay(std::shared_ptr<const spirula::RegionOverlay> engine,
-                            std::shared_ptr<const spirula::RegionOverlay> preview);
+                            std::shared_ptr<const spirula::RegionOverlay> preview,
+                            std::shared_ptr<const std::vector<uint8_t>> points_inside = nullptr);
     // Engine renderer over a file (SplatViewer): `key` keeps the pose across
     // a reopen and `radius` is the scene radius in the client frame; the
     // centering menu comes from cfg.centers.
@@ -405,6 +406,7 @@ private:
     bool _show_cams = false;
     bool _show_roi = true;
     std::shared_ptr<const spirula::RegionOverlay> _roi_engine, _roi_preview;
+    std::shared_ptr<const std::vector<uint8_t>> _roi_points_inside;
     bool _show_grid = false;         // axes + ground-plane grid overlay
     float _frustum_scale = 1.0f;     // camera-frustum size multiplier
     // 0 = auto (see render_scale), 1 = 50%, 2 = 75%, 3 = 100%

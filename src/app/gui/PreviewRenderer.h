@@ -117,6 +117,9 @@ public:
     // A region's boundary drawn over the cloud (app/webviewer/RegionOverlay.h),
     // in the frame the built points are in; null for none. Survives a rebuild.
     void set_overlay(std::shared_ptr<const spirula::RegionOverlay> ov, bool visible);
+    // Greys the points whose flag (one per point of the parsed cloud) is 0;
+    // `on` false puts the colours back. Uploads only on a change.
+    void dim_points_outside(std::shared_ptr<const std::vector<uint8_t>> flags, bool on);
 
     // Base frustum size (camhost::frustum_display_size, normalized frame).
     float base_camera_size() const { return _base_cam_size; }
@@ -181,6 +184,10 @@ private:
     // Host copy of the displayed (stride-sampled, normalized-frame) points
     // for double-click picking. CPU RAM only.
     std::vector<float> _pick_xyz;
+    std::vector<float> _pts_rgb;   // the displayed points' own colours
+    int64_t _pts_stride = 1;
+    bool _pts_tinted = false;
+    std::shared_ptr<const std::vector<uint8_t>> _tint_flags;
     // Frustum verts, in draw order: the selected cameras' lines, then the
     // rest's borders and anchors, then the rest's dimmed interior gridlines.
     int64_t _num_cam_verts = 0;

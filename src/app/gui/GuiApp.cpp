@@ -7631,10 +7631,10 @@ void GuiApp::update_roi_overlay() {
         std::shared_ptr<const spirula::Region> roi = s->roi;
         const double rs = s->cfg.relative_scale.value_or(1.0f);
         const std::array<double, 3> c = s->ds.center;
-        const int64_t n = s->ds.points.num(), stride = std::max<int64_t>(1, n / 200000);
-        std::vector<float> world;
-        for (int64_t i = 0; i < n; i += stride)
-            for (int r = 0; r < 3; r++) world.push_back((float)(s->ds.points.xyz[(size_t)i * 3 + r] / rs + c[r]));
+        const int64_t n = s->ds.points.num();
+        std::vector<float> world((size_t)n * 3);
+        for (int64_t i = 0; i < n; i++)
+            for (int r = 0; r < 3; r++) world[(size_t)i * 3 + r] = (float)(s->ds.points.xyz[(size_t)i * 3 + r] / rs + c[r]);
         float rgb[3] = {1.0f, 0.55f, 0.1f};
         if (!s->cfg.partition.empty() && s->cfg.partition_part >= 0)
             spirula::part_color(s->cfg.partition_part, rgb);
@@ -7653,14 +7653,18 @@ void GuiApp::update_roi_overlay() {
             auto engine = std::make_shared<spirula::RegionOverlay>();
             auto preview = std::make_shared<spirula::RegionOverlay>();
             engine->add(m, rgb, to_engine);
+            engine->region = roi;
+            for (int r = 0; r < 3; r++) engine->shift[r] = c[r];
             preview->add(m, rgb, to_preview);
-            return RoiOverlays{engine, preview};
+            auto inside = std::make_shared<std::vector<uint8_t>>(world.size() / 3);
+            roi->contains_many(world.data(), (int64_t)inside->size(), inside->data());
+            return RoiOverlays{engine, preview, inside};
         });
         return;
     }
     if (_roi_job.valid() && _roi_job.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         const RoiOverlays o = _roi_job.get();
-        _viewport.set_region_overlay(o.engine, o.preview);
+        _viewport.set_region_overlay(o.engine, o.preview, o.points_inside);
     }
 }
 

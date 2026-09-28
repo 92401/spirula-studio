@@ -6,6 +6,8 @@
 #include "data/Json.h"
 #include "data/JsonWrite.h"
 #include "data/Knn.h"
+#include "external/stb_image.h"
+#include "external/stb_image_write.h"
 
 #include <algorithm>
 #include <cmath>
@@ -341,6 +343,243 @@ std::vector<int32_t> own_points(const ParsedDataset& ds, const Covisibility& cov
     return out;
 }
 
+// Unit eigenvectors of a symmetric 3x3 (rows of `vec`), by Jacobi rotations.
+void eigen3(double a[3][3], double vec[3][3]) {
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++) vec[i][j] = i == j;
+    for (int sweep = 0; sweep < 32; sweep++) {
+        const double off = a[0][1] * a[0][1] + a[0][2] * a[0][2] + a[1][2] * a[1][2];
+        if (off < 1e-24) break;
+        for (int p = 0; p < 2; p++)
+            for (int q = p + 1; q < 3; q++) {
+                if (std::fabs(a[p][q]) < 1e-300) continue;
+                const double th = 0.5 * std::atan2(2 * a[p][q], a[q][q] - a[p][p]);
+                const double c = std::cos(th), s = std::sin(th);
+                for (int k = 0; k < 3; k++) {
+                    const double akp = a[k][p], akq = a[k][q];
+                    a[k][p] = c * akp - s * akq;
+                    a[k][q] = s * akp + c * akq;
+                }
+                for (int k = 0; k < 3; k++) {
+                    const double apk = a[p][k], aqk = a[q][k];
+                    a[p][k] = c * apk - s * aqk;
+                    a[q][k] = s * apk + c * aqk;
+                }
+                for (int k = 0; k < 3; k++) {
+                    const double vp = vec[p][k], vq = vec[q][k];
+                    vec[p][k] = c * vp - s * vq;
+                    vec[q][k] = s * vp + c * vq;
+                }
+            }
+    }
+}
+
+// Region-first split, one leaf per point of `pick`: recursive plane cuts that
+// leave the halves needing the fewest cameras, near equally. A region needs a
+// camera holding `ring_fraction`, or half, of its view (scene-partition.md).
+std::vector<int32_t> spatial_cut(const ParsedDataset& ds, const Covisibility& cov,
+                                 const PartitionOptions& opt, const std::vector<int64_t>& pick,
+                                 const std::vector<float>& centers, int64_t n_cam) {
+    const int64_t n = (int64_t)pick.size();
+    std::vector<int32_t> leaf((size_t)n, 0);
+    if (n == 0) return leaf;
+    std::vector<int64_t> total((size_t)n_cam, 0);
+    for (int64_t i : pick)
+        for (int64_t k = cov.beg[(size_t)i]; k < cov.beg[(size_t)i + 1]; k++) total[(size_t)cov.frame[(size_t)k]]++;
+    const float tau = std::max(0.0f, opt.ring_fraction);
+    auto needs = [&](int64_t mine, int32_t c) {
+        return mine > 0 && ((double)mine >= tau * (double)total[(size_t)c] || 2 * mine >= total[(size_t)c]);
+    };
+    // Cameras a set of points needs on its own.
+    std::vector<int64_t> cnt((size_t)n_cam, 0);
+    auto load_of = [&](const std::vector<int32_t>& idx) {
+        std::vector<int32_t> touched;
+        for (int32_t j : idx)
+            for (int64_t k = cov.beg[(size_t)pick[(size_t)j]]; k < cov.beg[(size_t)pick[(size_t)j] + 1]; k++) {
+                const int32_t c = cov.frame[(size_t)k];
+                if (cnt[(size_t)c]++ == 0) touched.push_back(c);
+            }
+        int64_t load = 0;
+        for (int32_t c : touched) {
+            load += needs(cnt[(size_t)c], c);
+            cnt[(size_t)c] = 0;
+        }
+        return load;
+    };
+    auto pos = [&](int32_t j, int r) { return ds.points.xyz[(size_t)pick[(size_t)j] * 3 + r]; };
+
+    std::vector<std::vector<int32_t>> regs(1);
+    regs[0].resize((size_t)n);
+    std::iota(regs[0].begin(), regs[0].end(), 0);
+    std::vector<int64_t> loads = {load_of(regs[0])};
+    std::vector<char> done = {0};
+    std::vector<int64_t> left_cnt((size_t)n_cam, 0), right_cnt((size_t)n_cam, 0);
+    for (;;) {
+        int r = -1;
+        for (int i = 0; i < (int)regs.size(); i++)
+            if (!done[(size_t)i] && (r < 0 || loads[(size_t)i] > loads[(size_t)r])) r = i;
+        if (r < 0 || (int)regs.size() >= 254) break;
+        if (opt.parts > 0 ? (int)regs.size() >= opt.parts : loads[(size_t)r] <= opt.max_images) break;
+        const std::vector<int32_t>& R = regs[(size_t)r];
+        if (R.size() < 64) { done[(size_t)r] = 1; continue; }
+
+        // Principal axes of the region's points.
+        double mean[3] = {0, 0, 0}, C[3][3] = {};
+        for (int32_t j : R)
+            for (int a = 0; a < 3; a++) mean[a] += pos(j, a);
+        for (double& m : mean) m /= (double)R.size();
+        for (int32_t j : R)
+            for (int a = 0; a < 3; a++)
+                for (int b = 0; b < 3; b++) C[a][b] += (pos(j, a) - mean[a]) * (pos(j, b) - mean[b]);
+        double axes[3][3];
+        eigen3(C, axes);
+        // Across the two widest axes only: a cut along the thinnest one (a
+        // floor from its ceiling) leaves every camera seeing both halves.
+        int thinnest = 0;
+        for (int a = 1; a < 3; a++)
+            if (C[a][a] < C[thinnest][thinnest]) thinnest = a;
+
+        double best_score = 1e300, best_t = 0;
+        int best_axis = -1;
+        std::vector<double> proj(R.size()), sorted;
+        for (int a = 0; a < 3; a++) {
+            if (a == thinnest) continue;
+            for (size_t i = 0; i < R.size(); i++)
+                proj[i] = pos(R[i], 0) * axes[a][0] + pos(R[i], 1) * axes[a][1] + pos(R[i], 2) * axes[a][2];
+            sorted = proj;
+            std::sort(sorted.begin(), sorted.end());
+            for (int qi = 4; qi <= 16; qi++) {
+                const double t = sorted[(size_t)((double)qi / 20.0 * (double)(sorted.size() - 1))];
+                std::vector<int32_t> touched;
+                for (size_t i = 0; i < R.size(); i++) {
+                    std::vector<int64_t>& side = proj[i] < t ? left_cnt : right_cnt;
+                    const int64_t i0 = pick[(size_t)R[i]];
+                    for (int64_t k = cov.beg[(size_t)i0]; k < cov.beg[(size_t)i0 + 1]; k++) {
+                        const int32_t c = cov.frame[(size_t)k];
+                        if (left_cnt[(size_t)c] == 0 && right_cnt[(size_t)c] == 0) touched.push_back(c);
+                        side[(size_t)c]++;
+                    }
+                }
+                int64_t ll = 0, lr = 0;
+                for (int32_t c : touched) {
+                    ll += needs(left_cnt[(size_t)c], c);
+                    lr += needs(right_cnt[(size_t)c], c);
+                    left_cnt[(size_t)c] = right_cnt[(size_t)c] = 0;
+                }
+                if (ll == 0 || lr == 0) continue;
+                const double sum = (double)(ll + lr);
+                const double score = sum * (1.0 + std::fabs((double)(ll - lr)) / sum);
+                if (score < best_score) { best_score = score; best_axis = a; best_t = t; }
+            }
+        }
+        if (best_axis < 0) { done[(size_t)r] = 1; continue; }
+
+        // Near the plane (1% of the 5-95th percentile extent; one stray point
+        // must not widen it) a point goes to the side its observers stand on,
+        // so a wall's two faces each stay with the side that photographed them.
+        const double* ax = axes[best_axis];
+        for (size_t i = 0; i < R.size(); i++)
+            proj[i] = pos(R[i], 0) * ax[0] + pos(R[i], 1) * ax[1] + pos(R[i], 2) * ax[2];
+        sorted = proj;
+        std::sort(sorted.begin(), sorted.end());
+        const double band = 0.01 * (sorted[(size_t)(0.95 * (double)(sorted.size() - 1))] -
+                                    sorted[(size_t)(0.05 * (double)(sorted.size() - 1))]);
+        std::vector<int32_t> A, B;
+        for (int32_t j : R) {
+            double v = pos(j, 0) * ax[0] + pos(j, 1) * ax[1] + pos(j, 2) * ax[2];
+            if (std::fabs(v - best_t) < band) {
+                const int64_t i0 = pick[(size_t)j];
+                double s = 0;
+                int64_t m = 0;
+                for (int64_t k = cov.beg[(size_t)i0]; k < cov.beg[(size_t)i0 + 1]; k++, m++) {
+                    const float* c = &centers[(size_t)cov.frame[(size_t)k] * 3];
+                    s += c[0] * ax[0] + c[1] * ax[1] + c[2] * ax[2];
+                }
+                if (m > 0) v = s / (double)m;
+            }
+            (v < best_t ? A : B).push_back(j);
+        }
+        if (A.empty() || B.empty()) { done[(size_t)r] = 1; continue; }
+        regs[(size_t)r] = std::move(A);
+        loads[(size_t)r] = load_of(regs[(size_t)r]);
+        regs.push_back(std::move(B));
+        loads.push_back(load_of(regs.back()));
+        done.push_back(0);
+    }
+    for (size_t r = 0; r < regs.size(); r++)
+        for (int32_t j : regs[r]) leaf[(size_t)j] = (int32_t)r;
+    return leaf;
+}
+
+// Each camera's home is the region most of its view is in; a region no camera
+// calls home joins the one its observers vote for. `own` is renumbered too.
+std::vector<int32_t> home_parts(const Covisibility& cov, const std::vector<int64_t>& pick,
+                                std::vector<int32_t>& own, const std::vector<float>& centers,
+                                int64_t n_cam) {
+    std::vector<int32_t> home((size_t)n_cam, -1);
+    for (int round = 0; round < 4; round++) {
+        int K = 0;
+        for (int32_t l : own) K = std::max(K, l + 1);
+        std::vector<int64_t> cnt((size_t)n_cam * K, 0);
+        for (size_t j = 0; j < pick.size(); j++)
+            for (int64_t k = cov.beg[(size_t)pick[j]]; k < cov.beg[(size_t)pick[j] + 1]; k++)
+                cnt[(size_t)cov.frame[(size_t)k] * K + own[j]]++;
+        std::vector<int64_t> cores((size_t)K, 0);
+        for (int64_t c = 0; c < n_cam; c++) {
+            const int64_t* row = &cnt[(size_t)c * K];
+            const int64_t best = std::max_element(row, row + K) - row;
+            home[(size_t)c] = row[best] > 0 ? (int32_t)best : -1;
+            if (home[(size_t)c] >= 0) cores[(size_t)best]++;
+        }
+        bool moved = false;
+        for (size_t j = 0; j < pick.size(); j++) {
+            if (cores[(size_t)own[j]] > 0) continue;
+            std::vector<int32_t> votes((size_t)K, 0);
+            for (int64_t k = cov.beg[(size_t)pick[j]]; k < cov.beg[(size_t)pick[j] + 1]; k++) {
+                const int32_t h = home[(size_t)cov.frame[(size_t)k]];
+                if (h >= 0) votes[(size_t)h]++;
+            }
+            const int32_t best = (int32_t)(std::max_element(votes.begin(), votes.end()) - votes.begin());
+            if (votes[(size_t)best] > 0) { own[j] = best; moved = true; }
+        }
+        if (!moved) break;
+    }
+    std::vector<float> seen_xyz;
+    std::vector<int32_t> seen_idx;
+    for (int64_t c = 0; c < n_cam; c++)
+        if (home[(size_t)c] >= 0) {
+            seen_xyz.insert(seen_xyz.end(), &centers[(size_t)c * 3], &centers[(size_t)c * 3] + 3);
+            seen_idx.push_back((int32_t)c);
+        }
+    if (!seen_idx.empty()) {
+        const knn::KdTree3 tree(seen_xyz.data(), (int64_t)seen_idx.size());
+        for (int64_t c = 0; c < n_cam; c++) {
+            if (home[(size_t)c] >= 0) continue;
+            float d2;
+            int32_t at = -1;
+            if (tree.query(&centers[(size_t)c * 3], -1, 1, &d2, &at) == 1)
+                home[(size_t)c] = home[(size_t)seen_idx[(size_t)at]];
+        }
+    }
+    for (int32_t& h : home) h = std::max(h, 0);
+    int K = 0;
+    for (int32_t h : home) K = std::max(K, h + 1);
+    std::vector<int64_t> count((size_t)K, 0);
+    for (int32_t h : home) count[(size_t)h]++;
+    std::vector<int> order((size_t)K);
+    std::iota(order.begin(), order.end(), 0);
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return count[(size_t)a] > count[(size_t)b]; });
+    std::vector<int32_t> remap((size_t)std::max(K, 1), -1);
+    int next = 0;
+    for (int k : order)
+        if (count[(size_t)k] > 0) remap[(size_t)k] = next++;
+    for (int32_t& h : home) h = remap[(size_t)h];
+    // Points of a region that kept no camera (none left after the votes)
+    // follow their nearest owned neighbour through the field later.
+    for (int32_t& l : own) l = l >= 0 && l < K ? remap[(size_t)l] : -1;
+    return home;
+}
+
 }  // namespace
 
 // ===========================================================================
@@ -355,6 +594,16 @@ const char* covisibility_source_name(CovisibilitySource s) {
         case CovisibilitySource::Proximity: return "proximity";
     }
     return "auto";
+}
+
+const char* partition_method_name(PartitionMethod m) {
+    return m == PartitionMethod::ViewGraph ? "viewgraph" : "spatial";
+}
+
+bool partition_method_from_name(const std::string& s, PartitionMethod& out) {
+    for (PartitionMethod m : {PartitionMethod::Spatial, PartitionMethod::ViewGraph})
+        if (s == partition_method_name(m)) { out = m; return true; }
+    return false;
 }
 
 bool covisibility_source_from_name(const std::string& s, CovisibilitySource& out) {
@@ -540,59 +789,82 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
     p.source = cov.source;
     p.frame_names = FrameIndex(ds.image_filenames).unique_tails();
 
-    // ---- the cut ----
-    graph::LabelCutOptions co;
-    co.parts = opt.parts > 0 ? (size_t)opt.parts : 0;
-    co.leaf_max = (double)std::max(1, opt.max_images);
-    co.min_part = 2;
-    co.min_final = (size_t)std::max<int64_t>(2, n_cam / 50);
-    p.frame_label = graph::cut_labels(cov.cameras, co);
-
-    // A camera that shares nothing with anyone is a part of its own after the
-    // cut; it joins the part of the nearest camera that is in a real one.
+    const int64_t n_pts = ds.points.num();
+    const bool tracked = cov.has_tracks() && cov.num_points() == n_pts;
+    const bool spatial = opt.method == PartitionMethod::Spatial && tracked && n_pts > 0;
+    p.frame_centers.resize((size_t)n_cam * 3);
+    for (int64_t i = 0; i < n_cam; i++)
+        for (int r = 0; r < 3; r++) p.frame_centers[(size_t)i * 3 + r] = ds.c2w[(size_t)i * 12 + r * 4 + 3];
+    std::vector<int64_t> pick;
     {
+        const int64_t stride = std::max<int64_t>(1, (n_pts + std::max(1, opt.max_seeds) - 1) /
+                                                        std::max(1, opt.max_seeds));
+        for (int64_t i = 0; i < n_pts; i += stride)
+            if (!tracked || cov.beg[(size_t)i] < cov.beg[(size_t)i + 1]) pick.push_back(i);
+    }
+    std::vector<int32_t> own;
+
+    if (spatial) {
+        own = spatial_cut(ds, cov, opt, pick, p.frame_centers, n_cam);
+        p.frame_label = home_parts(cov, pick, own, p.frame_centers, n_cam);
         int n_parts = 0;
         for (int32_t l : p.frame_label) n_parts = std::max(n_parts, l + 1);
-        std::vector<int64_t> size((size_t)n_parts, 0);
-        for (int32_t l : p.frame_label) size[(size_t)l]++;
-        std::vector<char> tiny((size_t)n_parts, 0);
-        int n_real = 0;
-        for (int k = 0; k < n_parts; k++) {
-            tiny[(size_t)k] = size[(size_t)k] < (int64_t)co.min_final;
-            n_real += !tiny[(size_t)k];
-        }
-        if (n_real > 0 && n_real < n_parts) {
-            for (int64_t i = 0; i < n_cam; i++) {
-                if (!tiny[(size_t)p.frame_label[(size_t)i]]) continue;
-                const float* a = &ds.c2w[(size_t)i * 12];
-                double best = 1e300;
-                int32_t pick = -1;
-                for (int64_t j = 0; j < n_cam; j++) {
-                    if (tiny[(size_t)p.frame_label[(size_t)j]]) continue;
-                    const float* b = &ds.c2w[(size_t)j * 12];
-                    double d2 = 0;
-                    for (int r = 0; r < 3; r++) {
-                        const double d = (double)a[r * 4 + 3] - b[r * 4 + 3];
-                        d2 += d * d;
-                    }
-                    if (d2 < best) { best = d2; pick = p.frame_label[(size_t)j]; }
-                }
-                if (pick >= 0) p.frame_label[(size_t)i] = pick;
+        p.num_parts = n_parts;
+    } else {
+        // ---- the cut ----
+        graph::LabelCutOptions co;
+        co.parts = opt.parts > 0 ? (size_t)opt.parts : 0;
+        co.leaf_max = (double)std::max(1, opt.max_images);
+        co.min_part = 2;
+        co.min_final = (size_t)std::max<int64_t>(2, n_cam / 50);
+        p.frame_label = graph::cut_labels(cov.cameras, co);
+
+        // A camera that shares nothing with anyone is a part of its own after the
+        // cut; it joins the part of the nearest camera that is in a real one.
+        {
+            int n_parts = 0;
+            for (int32_t l : p.frame_label) n_parts = std::max(n_parts, l + 1);
+            std::vector<int64_t> size((size_t)n_parts, 0);
+            for (int32_t l : p.frame_label) size[(size_t)l]++;
+            std::vector<char> tiny((size_t)n_parts, 0);
+            int n_real = 0;
+            for (int k = 0; k < n_parts; k++) {
+                tiny[(size_t)k] = size[(size_t)k] < (int64_t)co.min_final;
+                n_real += !tiny[(size_t)k];
             }
+            if (n_real > 0 && n_real < n_parts) {
+                for (int64_t i = 0; i < n_cam; i++) {
+                    if (!tiny[(size_t)p.frame_label[(size_t)i]]) continue;
+                    const float* a = &ds.c2w[(size_t)i * 12];
+                    double best = 1e300;
+                    int32_t pick = -1;
+                    for (int64_t j = 0; j < n_cam; j++) {
+                        if (tiny[(size_t)p.frame_label[(size_t)j]]) continue;
+                        const float* b = &ds.c2w[(size_t)j * 12];
+                        double d2 = 0;
+                        for (int r = 0; r < 3; r++) {
+                            const double d = (double)a[r * 4 + 3] - b[r * 4 + 3];
+                            d2 += d * d;
+                        }
+                        if (d2 < best) { best = d2; pick = p.frame_label[(size_t)j]; }
+                    }
+                    if (pick >= 0) p.frame_label[(size_t)i] = pick;
+                }
+            }
+            // Dense labels, largest part first.
+            std::vector<int64_t> count((size_t)n_parts, 0);
+            for (int32_t l : p.frame_label) count[(size_t)l]++;
+            std::vector<int> order((size_t)n_parts);
+            std::iota(order.begin(), order.end(), 0);
+            std::stable_sort(order.begin(), order.end(),
+                             [&](int a, int b) { return count[(size_t)a] > count[(size_t)b]; });
+            std::vector<int32_t> remap((size_t)n_parts, -1);
+            int next = 0;
+            for (int k : order)
+                if (count[(size_t)k] > 0) remap[(size_t)k] = next++;
+            for (int32_t& l : p.frame_label) l = remap[(size_t)l];
+            p.num_parts = next;
         }
-        // Dense labels, largest part first.
-        std::vector<int64_t> count((size_t)n_parts, 0);
-        for (int32_t l : p.frame_label) count[(size_t)l]++;
-        std::vector<int> order((size_t)n_parts);
-        std::iota(order.begin(), order.end(), 0);
-        std::stable_sort(order.begin(), order.end(),
-                         [&](int a, int b) { return count[(size_t)a] > count[(size_t)b]; });
-        std::vector<int32_t> remap((size_t)n_parts, -1);
-        int next = 0;
-        for (int k : order)
-            if (count[(size_t)k] > 0) remap[(size_t)k] = next++;
-        for (int32_t& l : p.frame_label) l = remap[(size_t)l];
-        p.num_parts = next;
     }
     if (p.num_parts > 254) throw std::runtime_error("partition: more than 254 parts");
 
@@ -617,23 +889,13 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
     }
 
     // ---- point ownership, and the field that carries it into space ----
-    const int64_t n_pts = ds.points.num();
     p.point_label.assign((size_t)n_pts, -1);
-    p.frame_centers.resize((size_t)n_cam * 3);
-    for (int64_t i = 0; i < n_cam; i++)
-        for (int r = 0; r < 3; r++) p.frame_centers[(size_t)i * 3 + r] = ds.c2w[(size_t)i * 12 + r * 4 + 3];
     {
-        const bool tracked = cov.has_tracks() && cov.num_points() == n_pts;
-        const int64_t stride = std::max<int64_t>(1, (n_pts + std::max(1, opt.max_seeds) - 1) /
-                                                        std::max(1, opt.max_seeds));
-        std::vector<int64_t> pick;
-        for (int64_t i = 0; i < n_pts; i += stride)
-            if (!tracked || cov.beg[(size_t)i] < cov.beg[(size_t)i + 1]) pick.push_back(i);
-        const std::vector<int32_t> own =
-            own_points(ds, cov, p.frame_label, p.frame_centers, p.num_parts, pick, tracked);
+        if (!spatial) own = own_points(ds, cov, p.frame_label, p.frame_centers, p.num_parts, pick, tracked);
         std::vector<float> xyz, dirs;
         std::vector<int32_t> lab;
         for (size_t j = 0; j < pick.size(); j++) {
+            if (own[j] < 0) continue;
             const int64_t i = pick[j];
             const double* q = &ds.points.xyz[(size_t)i * 3];
             float d[3] = {0, 0, 0};
@@ -718,14 +980,34 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
             for (int32_t f : p.frames_of(k)) in_part[(size_t)k][(size_t)f] = 1;
         for (int k = 0; k < p.num_parts; k++) {
             std::vector<uint8_t> take((size_t)n_pts, 0);
+            // Outside the region, a hash-stable share of what the cameras see.
+            const uint32_t keep = (uint32_t)(std::clamp(opt.outside_seed_fraction, 0.0f, 1.0f) * 65536.0f);
             for (int64_t i = 0; i < n_pts; i++) {
                 if (p.point_label[(size_t)i] == k) { take[(size_t)i] = 1; continue; }
-                if (!cov.has_tracks() || cov.num_points() != n_pts) continue;
+                if (!tracked || ((uint32_t)((uint64_t)i * 2654435761u) >> 16) >= keep) continue;
                 for (int64_t t = cov.beg[(size_t)i]; t < cov.beg[(size_t)i + 1]; t++)
                     if (in_part[(size_t)k][(size_t)cov.frame[(size_t)t]]) { take[(size_t)i] = 1; break; }
             }
             for (int64_t i = 0; i < n_pts; i++)
                 if (take[(size_t)i]) p.part_points[(size_t)k].push_back(i);
+        }
+    }
+
+    // ---- how much of what a part's cameras see is the part's own ----
+    p.view_share.assign((size_t)p.num_parts, 0.0f);
+    if (tracked) {
+        std::vector<int64_t> seen((size_t)n_cam, 0), mine((size_t)n_cam * p.num_parts, 0);
+        for (int64_t i = 0; i < n_pts; i++)
+            for (int64_t k = cov.beg[(size_t)i]; k < cov.beg[(size_t)i + 1]; k++) {
+                seen[(size_t)cov.frame[(size_t)k]]++;
+                mine[(size_t)cov.frame[(size_t)k] * p.num_parts + p.point_label[(size_t)i]]++;
+            }
+        for (int k = 0; k < p.num_parts; k++) {
+            const std::vector<int32_t> f = p.frames_of(k);
+            double sum = 0;
+            for (int32_t c : f)
+                if (seen[(size_t)c] > 0) sum += (double)mine[(size_t)c * p.num_parts + k] / (double)seen[(size_t)c];
+            p.view_share[(size_t)k] = f.empty() ? 0.0f : (float)(sum / (double)f.size());
         }
     }
 
@@ -736,14 +1018,132 @@ ScenePartition partition_scene(const ParsedDataset& ds, const Covisibility& cov,
                       100.0 * p.cut_fraction);
         log(buf);
         for (int k = 0; k < p.num_parts; k++) {
-            std::snprintf(buf, sizeof buf, "  part %d: core %lld, ring %lld, points %lld%s", k,
+            std::snprintf(buf, sizeof buf, "  part %d: core %lld, ring %lld, points %lld, own share of view %.0f%%%s", k,
                           (long long)p.core_count(k), (long long)p.ring[(size_t)k].size(),
-                          (long long)p.part_points[(size_t)k].size(),
+                          (long long)p.part_points[(size_t)k].size(), 100.0 * p.view_share[(size_t)k],
                           p.core_pieces[(size_t)k] > 1 ? " (not one piece)" : "");
             log(buf);
         }
     }
     return p;
+}
+
+// ===========================================================================
+// Region masks
+// ===========================================================================
+
+std::vector<std::string> write_region_masks(const ParsedDataset& ds, const double* xyz, int64_t n_pts,
+                                            const uint8_t* point_inside,
+                                            const std::string& dir, bool flip_existing,
+                                            double* masked_share) {
+    constexpr int kScale = 4;
+    const int64_t n_cam = ds.num_cameras;
+    std::vector<std::string> out((size_t)n_cam);
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    double masked = 0, total = 0;
+    // Typical spacing between neighbouring points: a point covers that much
+    // around it, so near surfaces hide what lies behind their sparse samples.
+    double spacing = 0;
+    {
+        std::vector<float> sample;
+        const int64_t step = std::max<int64_t>(1, n_pts / 20000);
+        for (int64_t p = 0; p < n_pts; p += step)
+            for (int r = 0; r < 3; r++) sample.push_back((float)xyz[(size_t)p * 3 + r]);
+        const int64_t m = (int64_t)sample.size() / 3;
+        if (m > 8) {
+            const knn::KdTree3 tree(sample.data(), m);
+            std::vector<float> nn;
+            for (int64_t j = 0; j < m; j++) {
+                float d2[2];
+                if (tree.query(&sample[(size_t)j * 3], (int32_t)j, 1, d2) == 1) nn.push_back(std::sqrt(d2[0]));
+            }
+            std::nth_element(nn.begin(), nn.begin() + nn.size() / 2, nn.end());
+            // The sample is `step` times sparser than the cloud.
+            spacing = nn[nn.size() / 2] / std::cbrt((double)step);
+        }
+    }
+#pragma omp parallel for schedule(dynamic, 4) reduction(+ : masked, total)
+    for (int64_t i = 0; i < n_cam; i++) {
+        const FrameView f = frame_view(ds, i);
+        const int gw = std::max(1, (f.cam.width + kScale - 1) / kScale);
+        const int gh = std::max(1, (f.cam.height + kScale - 1) / kScale);
+        // Nearest point per cell over its footprint: -1 none, 0 out, 1 in.
+        std::vector<float> depth((size_t)gw * gh, 3.0e38f);
+        std::vector<int8_t> cell((size_t)gw * gh, -1);
+        for (int64_t p = 0; p < n_pts; p++) {
+            const double* q = &xyz[(size_t)p * 3];
+            const double d[3] = {q[0] - f.t[0], q[1] - f.t[1], q[2] - f.t[2]};
+            double ray[3];
+            for (int r = 0; r < 3; r++) ray[r] = f.R[r * 3] * d[0] + f.R[r * 3 + 1] * d[1] + f.R[r * 3 + 2] * d[2];
+            const double len = std::sqrt(ray[0] * ray[0] + ray[1] * ray[1] + ray[2] * ray[2]);
+            if (!(len > 1e-12) || (f.cos_max > -1.5 && ray[2] / len < f.cos_max)) continue;
+            double px[2];
+            if (!camhost::ray_in_frame(f.cam, ray, px)) continue;
+            const int cx = (int)(px[0] / kScale), cy = (int)(px[1] / kScale);
+            const int rad = (int)std::clamp(2.0 * spacing * f.cam.fx / (len * kScale), 1.0, 16.0);
+            for (int dy = -rad; dy <= rad; dy++)
+                for (int dx = -rad; dx <= rad; dx++) {
+                    const int x = cx + dx, y = cy + dy;
+                    if (x < 0 || y < 0 || x >= gw || y >= gh) continue;
+                    const size_t c = (size_t)y * gw + x;
+                    if ((float)len < depth[c]) {
+                        depth[c] = (float)len;
+                        cell[c] = point_inside[p] ? 1 : 0;
+                    }
+                }
+        }
+        // Holes take a labelled neighbour's; what stays unknown is kept.
+        for (int pass = 0; pass < 6; pass++) {
+            std::vector<int8_t> next = cell;
+            for (int y = 0; y < gh; y++)
+                for (int x = 0; x < gw; x++) {
+                    if (cell[(size_t)y * gw + x] >= 0) continue;
+                    for (int k = 0; k < 4; k++) {
+                        const int xx = x + (k == 0) - (k == 1), yy = y + (k == 2) - (k == 3);
+                        if (xx >= 0 && yy >= 0 && xx < gw && yy < gh && cell[(size_t)yy * gw + xx] >= 0) {
+                            next[(size_t)y * gw + x] = cell[(size_t)yy * gw + xx];
+                            break;
+                        }
+                    }
+                }
+            cell.swap(next);
+        }
+        // Keep a margin past the region's edge in the image, so the seam is
+        // still supervised from this side.
+        const int margin = std::max(2, gw / 40);
+        std::vector<uint8_t> keep((size_t)gw * gh, 0);
+        for (int y = 0; y < gh; y++)
+            for (int x = 0; x < gw; x++)
+                if (cell[(size_t)y * gw + x] != 0) {
+                    for (int yy = std::max(0, y - margin); yy <= std::min(gh - 1, y + margin); yy++)
+                        for (int xx = std::max(0, x - margin); xx <= std::min(gw - 1, x + margin); xx++)
+                            keep[(size_t)yy * gw + xx] = 255;
+                }
+        if (i < (int64_t)ds.mask_filenames.size() && !ds.mask_filenames[(size_t)i].empty()) {
+            int w = 0, h = 0, ch = 0;
+            if (stbi_uc* img = stbi_load(ds.mask_filenames[(size_t)i].c_str(), &w, &h, &ch, 1)) {
+                for (int y = 0; y < gh; y++)
+                    for (int x = 0; x < gw; x++) {
+                        const int sx = std::min(w - 1, x * w / gw), sy = std::min(h - 1, y * h / gh);
+                        const bool user = (img[(size_t)sy * w + sx] != 0) != flip_existing;
+                        if (!user) keep[(size_t)y * gw + x] = 0;
+                    }
+                stbi_image_free(img);
+            }
+        }
+        for (uint8_t k : keep) masked += k == 0;
+        total += (double)keep.size();
+        // Written in the loader's polarity: it flips every mask when asked to.
+        if (flip_existing)
+            for (uint8_t& k : keep) k = (uint8_t)(255 - k);
+        char name[32];
+        std::snprintf(name, sizeof name, "%06lld.png", (long long)i);
+        out[(size_t)i] = (fs::path(dir) / name).string();
+        stbi_write_png(out[(size_t)i].c_str(), gw, gh, 1, keep.data(), gw);
+    }
+    if (masked_share) *masked_share = total > 0 ? masked / total : 0.0;
+    return out;
 }
 
 // ===========================================================================
@@ -817,10 +1217,12 @@ void write_partition(const ScenePartition& p, const std::string& json_path,
     w.field("dataset", dataset);
     w.field("source", covisibility_source_name(p.source));
     w.key("options").object();
+    w.field("method", partition_method_name(p.options.method));
     w.field("parts", p.options.parts);
     w.field("max_images", p.options.max_images);
     w.field("ring_fraction", p.options.ring_fraction);
     w.field("ring_min_points", p.options.ring_min_points);
+    w.field("outside_seed_fraction", p.options.outside_seed_fraction);
     w.field("max_seeds", p.options.max_seeds);
     w.field("source", covisibility_source_name(p.options.source));
     w.field("max_projected_points", p.options.max_projected_points);
@@ -865,6 +1267,10 @@ ScenePartition read_partition(const std::string& json_path, std::string* dataset
         p.options.parts = (int)o->find("parts")->as_int(0);
         p.options.max_images = (int)o->get_double("max_images", p.options.max_images);
         p.options.ring_fraction = (float)o->get_double("ring_fraction", p.options.ring_fraction);
+        p.options.outside_seed_fraction =
+            (float)o->get_double("outside_seed_fraction", p.options.outside_seed_fraction);
+        if (const JsonValue* m = o->find("method"))
+            partition_method_from_name(m->as_string(), p.options.method);
         p.options.ring_min_points = (int)o->get_double("ring_min_points", p.options.ring_min_points);
         p.options.max_seeds = (int)o->get_double("max_seeds", p.options.max_seeds);
         if (const JsonValue* s = o->find("source"))

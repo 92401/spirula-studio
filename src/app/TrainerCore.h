@@ -251,6 +251,10 @@ public:
     // The region the run may grow in (data/Region.h): the partition's part,
     // or --roi-region. Null for all of space.
     std::shared_ptr<const Region> roi;
+    // The whole seed cloud (parsed frame) and which of it the part owns, kept
+    // from before the partition cut it down: what the region masks project.
+    std::vector<double> roi_cloud;
+    std::vector<uint8_t> roi_cloud_inside;
     void setup_region();
 
     // Create the output dir, dump config.json, reset + seed the engine,

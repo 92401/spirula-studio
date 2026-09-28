@@ -817,6 +817,7 @@ private:
     // view, built off the GUI thread; keyed by the region it was built from.
     struct RoiOverlays {
         std::shared_ptr<const spirula::RegionOverlay> engine, preview;
+        std::shared_ptr<const std::vector<uint8_t>> points_inside;
     };
     const void* _roi_key = nullptr;
     std::future<RoiOverlays> _roi_job;

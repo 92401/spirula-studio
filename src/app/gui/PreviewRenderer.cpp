@@ -961,6 +961,14 @@ bool PreviewRenderer::build(const ParsedDataset& ds, const PostSplitCameras& pos
     };
     make_vao(_vao_pts, _vbo_pts, pts.data(), pts.size() * sizeof(V),
              sizeof(V), false);
+    _pts_stride = stride;
+    _pts_rgb.resize(pts.size() * 3);
+    for (size_t i = 0; i < pts.size(); i++) {
+        _pts_rgb[i * 3] = pts[i].ax;
+        _pts_rgb[i * 3 + 1] = pts[i].ay;
+        _pts_rgb[i * 3 + 2] = pts[i].az;
+    }
+    _pts_tinted = false;
     make_vao(_vao_cam, _vbo_cam, cams.data(), cams.size() * sizeof(VL),
              sizeof(VL), true);
 
@@ -1190,6 +1198,36 @@ void PreviewRenderer::destroy_mesh_gl() {
 void PreviewRenderer::set_overlay(std::shared_ptr<const spirula::RegionOverlay> ov, bool visible) {
     _ov = std::move(ov);
     _ov_visible = visible;
+}
+
+void PreviewRenderer::dim_points_outside(std::shared_ptr<const std::vector<uint8_t>> flags, bool on) {
+    on = on && flags;
+    if (!_vbo_pts || _pts_rgb.empty() || (!on && !_pts_tinted) ||
+        (on && _pts_tinted && flags == _tint_flags))
+        return;
+    static const std::vector<uint8_t> none;
+    const std::vector<uint8_t>& inside = flags ? *flags : none;
+    std::vector<V> pts(_pts_rgb.size() / 3);
+    for (size_t i = 0; i < pts.size(); i++) {
+        V& v = pts[i];
+        v.px = _pick_xyz[i * 3];
+        v.py = _pick_xyz[i * 3 + 1];
+        v.pz = _pick_xyz[i * 3 + 2];
+        float c[3] = {_pts_rgb[i * 3], _pts_rgb[i * 3 + 1], _pts_rgb[i * 3 + 2]};
+        const size_t src = i * (size_t)_pts_stride;
+        if (on && src < inside.size() && !inside[src]) {
+            const float g = 0.3f * (0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2]);
+            for (float& x : c) x = 0.15f * x + 0.85f * g;
+        }
+        v.ax = c[0];
+        v.ay = c[1];
+        v.az = c[2];
+    }
+    glx::BindBuffer(GL_ARRAY_BUFFER, (GLuint)_vbo_pts);
+    glx::BufferData(GL_ARRAY_BUFFER, (glx::glSizeiptr)(pts.size() * sizeof(V)), pts.data(), GL_STATIC_DRAW);
+    glx::BindBuffer(GL_ARRAY_BUFFER, 0);
+    _pts_tinted = on;
+    _tint_flags = on ? flags : nullptr;
 }
 
 void PreviewRenderer::destroy_overlay_gl() {

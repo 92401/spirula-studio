@@ -708,6 +708,12 @@ void TrainerSession::apply_partition_config(ParsedDataset& d) {
     const ScenePartition p = read_partition(cfg.partition);
     if (cfg.partition_part < 0 || cfg.partition_part >= p.num_parts)
         throw std::runtime_error(lfmt(lmsg::err_partition_part, {p.num_parts}));
+    if (&d == &ds && (int64_t)p.point_label.size() == d.points.num()) {
+        roi_cloud = d.points.xyz;
+        roi_cloud_inside.resize(p.point_label.size());
+        for (size_t i = 0; i < p.point_label.size(); i++)
+            roi_cloud_inside[i] = p.point_label[i] == cfg.partition_part;
+    }
     PartitionApplied a;
     apply_partition(d, p, cfg.partition_part, a);
     log(lfmt(lmsg::partition_applied,
@@ -753,7 +759,7 @@ void TrainerSession::setup_region() {
     };
     engine_set_region(tv(prog.nodes), tv(prog.field ? prog.field->nodes : none),
                       tv(prog.field ? prog.field->seeds : none), tv(cams.nodes), tv(cams.seeds),
-                      cfg.roi_outside_weight);
+                      cfg.roi_outside_weight, cfg.roi_outside_opacity_decay);
     log(lfmt(lmsg::region_applied, {prog.num_nodes(), cfg.roi_outside_weight}));
 }
 
@@ -1051,6 +1057,31 @@ void TrainerSession::setup_engine() {
     // Binning granularity for the splat-tile intersection (0 = automatic).
     engine_set_bin_tile_size(cfg.bin_tile_size);
     setup_region();
+    // Pixels showing only what lies outside the region train nothing the
+    // merge keeps, and pull splats in front of the camera to explain them.
+    if (roi && cfg.roi_mask_pixels) {
+        // The partition's own labels over its whole cloud when there is one;
+        // otherwise the region asked about the part's seed points.
+        const double rs = cfg.relative_scale.value_or(1.0f);
+        std::vector<double> xyz = roi_cloud.empty() ? ds.points.xyz : roi_cloud;
+        std::vector<uint8_t> inside = roi_cloud_inside;
+        if (roi_cloud.empty()) {
+            std::vector<double> world(xyz.size());
+            for (size_t k = 0; k < world.size(); k++) world[k] = xyz[k] / rs + ds.center[k % 3];
+            inside.resize(xyz.size() / 3);
+            roi->contains_many(world.data(), (int64_t)inside.size(), inside.data());
+        } else {
+            for (double& v : xyz) v *= rs;
+        }
+        if (!has_mask) ds.mask_filenames.clear();
+        double share = 0;
+        ds.mask_filenames = write_region_masks(ds, xyz.data(), (int64_t)inside.size(), inside.data(),
+                                               (out_dir / "roi_masks").string(), cfg.flip_mask, &share);
+        has_mask = true;
+        char pct[16];
+        std::snprintf(pct, sizeof pct, "%.0f", 100.0 * share);
+        log(lfmt(lmsg::region_masks, {(long long)ds.num_cameras, pct}));
+    }
 
     // Background blending.
     if (cfg.background_mode == "noise")

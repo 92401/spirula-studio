@@ -24,7 +24,14 @@ enum class CovisibilitySource { Auto = 0, Tracks, Projection, Proximity };
 const char* covisibility_source_name(CovisibilitySource s);
 bool covisibility_source_from_name(const std::string& s, CovisibilitySource& out);
 
+// Spatial cuts the point cloud and gives each part the cameras that see it;
+// ViewGraph cuts the cameras by covisibility and derives the regions.
+enum class PartitionMethod { Spatial = 0, ViewGraph };
+const char* partition_method_name(PartitionMethod m);
+bool partition_method_from_name(const std::string& s, PartitionMethod& out);
+
 struct PartitionOptions {
+    PartitionMethod method = PartitionMethod::Spatial;
     // Exactly `parts` parts when > 0; otherwise as many as it takes to keep
     // every part at or under `max_images` cameras.
     int parts = 0;
@@ -32,10 +39,12 @@ struct PartitionOptions {
     // A camera outside a part joins its ring when at least this fraction of
     // the points it sees, and at least `ring_min_points` of them, belong to
     // the part.
-    float ring_fraction = 0.05f;
+    float ring_fraction = 0.2f;
     int ring_min_points = 20;
-    // The ownership field keeps at most this many seed points (strided);
-    // cameras are always seeds.
+    // Of the seed points a part's cameras see outside its region, the share
+    // it starts from; the rest would only grow splats the merge discards.
+    float outside_seed_fraction = 0.2f;
+    // The ownership field keeps at most this many seed points (strided).
     int max_seeds = 1000000;
     CovisibilitySource source = CovisibilitySource::Auto;
     // Projection covisibility subsamples the cloud to this many points.
@@ -92,6 +101,9 @@ struct ScenePartition {
     // Sum of cut edge weight over total edge weight: how much covisibility the
     // partition severed, 0..1.
     double cut_fraction = 0.0;
+    // Per part: of what its cameras see, the share that is its own, averaged
+    // over the cameras (0..1; 0 without tracks). Not saved.
+    std::vector<float> view_share;
 };
 
 // The partition of `ds` by `cov`. Throws when the dataset has no cameras.
@@ -116,6 +128,14 @@ struct PartitionApplied {
 // leaf; train/val indices follow. False when `part` is out of range.
 bool apply_partition(ParsedDataset& ds, const ScenePartition& p, int part,
                      PartitionApplied& out);
+
+// Per frame of `ds`, a quarter-size PNG under `dir` keeping the pixels whose
+// nearest of the `n` points (`xyz`, ds's frame) is inside, plus a margin, ANDed
+// with the frame's own mask. `masked_share` gets the share of pixels left out.
+std::vector<std::string> write_region_masks(const ParsedDataset& ds, const double* xyz, int64_t n,
+                                            const uint8_t* point_inside,
+                                            const std::string& dir, bool flip_existing,
+                                            double* masked_share = nullptr);
 
 // A distinct colour per part for displays, 0..1 RGB, stable across runs.
 void part_color(int part, float rgb[3]);

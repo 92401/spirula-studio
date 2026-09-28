@@ -235,6 +235,7 @@ bool PartitionPanel::options_changed() const {
     const spirula::PartitionOptions& b = _opt;
     return a.parts != b.parts || a.max_images != b.max_images ||
            a.ring_fraction != b.ring_fraction || a.ring_min_points != b.ring_min_points ||
+           a.method != b.method || a.outside_seed_fraction != b.outside_seed_fraction ||
            a.max_seeds != b.max_seeds ||
            a.source != b.source;
 }
@@ -378,6 +379,13 @@ void PartitionPanel::draw_controls() {
 
     ImGui::BeginDisabled(busy || !_loaded);
     // ---- options ----
+    {
+        int m = _opt.method == spirula::PartitionMethod::ViewGraph ? 1 : 0;
+        ImGui::SetNextItemWidth(px(-8.0f));
+        if (ui::Combo(pmsg::lbl_method, &m, {&pmsg::meth_spatial, &pmsg::meth_viewgraph}))
+            _opt.method = m == 1 ? spirula::PartitionMethod::ViewGraph : spirula::PartitionMethod::Spatial;
+        ui::help_on_hover(pmsg::opt_method);
+    }
     ImGui::SetNextItemWidth(px(-8.0f));
     if (ui::Combo(pmsg::lbl_source, &_source_idx,
                   {&pmsg::src_auto, &pmsg::src_tracks, &pmsg::src_projection, &pmsg::src_proximity}))
