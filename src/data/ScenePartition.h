@@ -1,11 +1,11 @@
 #pragma once
 
 // Splitting a reconstruction into parts that train separately and merge back:
-// a covisibility graph over the cameras (from the model's tracks, from the seed
-// cloud projected into the frames, or from camera proximity when there is
-// nothing else), the normalized cut of it into parts, the region of space each
-// part owns (a LabelField over the points its cameras see), and the ring of
-// outside cameras each part borrows so a seam is trained from both sides.
+// who sees what (the model's tracks, the seed cloud projected into the frames,
+// or camera proximity when there is nothing else), a normalized cut of the
+// joint camera-point graph into parts under the image cap, the region of space
+// each part owns (a LabelField over its points), and the ring of outside
+// cameras each part borrows so a seam is trained from both sides.
 // docs/notes/scene-partition.md has the design and the file format.
 
 #include "core/GraphCut.h"
@@ -24,22 +24,22 @@ enum class CovisibilitySource { Auto = 0, Tracks, Projection, Proximity };
 const char* covisibility_source_name(CovisibilitySource s);
 bool covisibility_source_from_name(const std::string& s, CovisibilitySource& out);
 
-// Spatial cuts the point cloud and gives each part the cameras that see it;
-// ViewGraph cuts the cameras by covisibility and derives the regions.
-enum class PartitionMethod { Spatial = 0, ViewGraph };
+// Graph cuts the joint camera-point visibility graph; ViewGraph cuts the
+// cameras by covisibility and derives the regions from camera positions.
+enum class PartitionMethod { Graph = 0, ViewGraph };
 const char* partition_method_name(PartitionMethod m);
 bool partition_method_from_name(const std::string& s, PartitionMethod& out);
 
 struct PartitionOptions {
-    PartitionMethod method = PartitionMethod::Spatial;
+    PartitionMethod method = PartitionMethod::ViewGraph;
     // Exactly `parts` parts when > 0; otherwise as many as it takes to keep
     // every part at or under `max_images` cameras.
     int parts = 0;
-    int max_images = 800;
+    int max_images = 2000;
     // A camera outside a part joins its ring when at least this fraction of
     // the points it sees, and at least `ring_min_points` of them, belong to
     // the part.
-    float ring_fraction = 0.2f;
+    float ring_fraction = 0.1f;
     int ring_min_points = 20;
     // Of the seed points a part's cameras see outside its region, the share
     // it starts from; the rest would only grow splats the merge discards.

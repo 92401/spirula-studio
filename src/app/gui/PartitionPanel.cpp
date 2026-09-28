@@ -381,12 +381,12 @@ void PartitionPanel::draw_controls() {
     // ---- options ----
     {
         int m = _opt.method == spirula::PartitionMethod::ViewGraph ? 1 : 0;
-        ImGui::SetNextItemWidth(px(-8.0f));
-        if (ui::Combo(pmsg::lbl_method, &m, {&pmsg::meth_spatial, &pmsg::meth_viewgraph}))
-            _opt.method = m == 1 ? spirula::PartitionMethod::ViewGraph : spirula::PartitionMethod::Spatial;
+        ImGui::SetNextItemWidth(px(-80.0f));
+        if (ui::Combo(pmsg::lbl_method, &m, {&pmsg::meth_graph, &pmsg::meth_viewgraph}))
+            _opt.method = m == 1 ? spirula::PartitionMethod::ViewGraph : spirula::PartitionMethod::Graph;
         ui::help_on_hover(pmsg::opt_method);
     }
-    ImGui::SetNextItemWidth(px(-8.0f));
+    ImGui::SetNextItemWidth(px(-80.0f));
     if (ui::Combo(pmsg::lbl_source, &_source_idx,
                   {&pmsg::src_auto, &pmsg::src_tracks, &pmsg::src_projection, &pmsg::src_proximity}))
         _opt.source = kSources[std::clamp(_source_idx, 0, 3)];
@@ -413,9 +413,9 @@ void PartitionPanel::draw_controls() {
         if (ui::InputIntRaw("##maximages", &mx)) _opt.max_images = std::max(10, mx);
     }
 
-    ImGui::SetNextItemWidth(px(160.0f));
-    ui::SliderFloat(pmsg::lbl_ring, &_opt.ring_fraction, 0.0f, 0.5f, "%.2f");
-    ui::help_on_hover(pmsg::lbl_ring_help);
+    // ImGui::SetNextItemWidth(px(160.0f));
+    // ui::SliderFloat(pmsg::lbl_ring, &_opt.ring_fraction, 0.0f, 0.5f, "%.2f");
+    // ui::help_on_hover(pmsg::lbl_ring_help);
     {
         static const int kSeeds[] = {250000, 500000, 1000000, 2000000, 4000000};
         static const char* kSeedNames[] = {"250k", "500k", "1M", "2M", "4M"};
