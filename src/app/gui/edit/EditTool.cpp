@@ -40,15 +40,15 @@ ShapeKind shape_of(ToolId t) {
 
 const ToolRow* tool_table() {
     static const ToolRow rows[kNumTools] = {
-        {ToolId::Navigate, "Q", ImGuiKey_Q, true},
-        {ToolId::Box,      "B", ImGuiKey_B, false},
-        {ToolId::Ellipse,  "E", ImGuiKey_E, true},
-        {ToolId::Lasso,    "L", ImGuiKey_L, false},
-        {ToolId::Polygon,  "P", ImGuiKey_P, false},
-        {ToolId::Brush,    "C", ImGuiKey_C, false},
-        {ToolId::Piece,    "F", ImGuiKey_F, false},
-        {ToolId::Transform,  "T", ImGuiKey_T, false},
-        {ToolId::Eyedropper, "K", ImGuiKey_K, false},
+        {ToolId::Navigate, "Q", ImGuiKey_Q},
+        {ToolId::Box,      "B", ImGuiKey_B},
+        {ToolId::Ellipse,  "E", ImGuiKey_E},
+        {ToolId::Lasso,    "L", ImGuiKey_L},
+        {ToolId::Polygon,  "P", ImGuiKey_P},
+        {ToolId::Brush,    "C", ImGuiKey_C},
+        {ToolId::Piece,    "F", ImGuiKey_F},
+        {ToolId::Transform,  "T", ImGuiKey_T},
+        {ToolId::Eyedropper, "K", ImGuiKey_K},
     };
     return rows;
 }
