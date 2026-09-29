@@ -51,8 +51,8 @@ tools/guictl.py             drive the GUI from a script -- list the widgets on
                               screen, click them, read the framebuffer back.
                               tools/gui_mcp.py is the same surface as an MCP
                               server; docs/notes/gui-automation.md
-reference/scripts/          dataset preprocessing CLI tools (Python, standalone;
-                              mask.py is embedded into the GUI binary)
+reference/scripts/          dataset preprocessing CLI tools (Python, standalone,
+                              run by hand; nothing in the build uses them)
 reference/python/           hand-run tools on NO code path: eval_lpips.py,
                               benchmark.py, camera_utils.py (the unported
                               orientation_method / center_method reference,

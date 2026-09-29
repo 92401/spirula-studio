@@ -380,7 +380,6 @@ void GuiApp::load_settings() {
             _model_recents.push_back(v);
         else if (k == "colmap_exe" && !v.empty()) _colmap_exe = v;
         else if (k == "ffmpeg_exe" && !v.empty()) _ffmpeg_exe = v;
-        else if (k == "python_exe" && !v.empty()) _python_exe = v;
         else if (k == "sfm_engine") _engine = v == "colmap" ? Engine::Colmap
                                                             : Engine::BuiltIn;
         else if (k == "batch_command") _batch_cmd = unescape_setting(v);
@@ -432,7 +431,6 @@ void GuiApp::save_settings() {
         std::fprintf(f, "recent_model=%s\n", r.c_str());
     std::fprintf(f, "colmap_exe=%s\n", _colmap_exe.c_str());
     std::fprintf(f, "ffmpeg_exe=%s\n", _ffmpeg_exe.c_str());
-    std::fprintf(f, "python_exe=%s\n", _python_exe.c_str());
     std::fprintf(f, "sfm_engine=%s\n",
                  _engine == Engine::Colmap ? "colmap" : "builtin");
     std::fprintf(f, "batch_command=%s\n", escape_setting(_batch_cmd).c_str());
@@ -676,7 +674,6 @@ void GuiApp::write_run_settings(std::ofstream& f) {
     line("ba_cpu", cfg_str(j.ba_cpu));
     line("subprocess", cfg_str(j.subprocess));
     line("force_external_decode", cfg_str(j.prep.force_external_decode));
-    line("force_external_masking", cfg_str(j.prep.force_external_masking));
     line("video_fps", cfg_str(j.prep.video_fps));
     line("adaptive_fps", cfg_str(j.prep.adaptive_fps));
     if (j.prep.adaptive_fps) line("adaptive_range", cfg_str(j.prep.adaptive_range));
@@ -939,7 +936,7 @@ void GuiApp::apply_dataset_settings(const DatasetSettings& in) {
     _resume = s.sfm.prep.resume;
     _photo_import = s.sfm.prep.photo_import;
     _flip_found_masks = s.sfm.prep.flip_found_masks;
-    _mask_enable = s.sfm.prep.mask_enable;
+    _mask_enable = s.sfm.prep.mask_enable && backends().builtin_masking;
     _mask_memory = s.sfm.prep.mask_memory;
     _mask_detect_every = s.sfm.prep.mask_detect_every;
     _mask_memory_frames = s.sfm.prep.mask_memory_frames;
@@ -2382,8 +2379,8 @@ void GuiApp::add_existing_dataset(const std::string& dir) {
 // What this run draws on its inputs, kept in the output folder for next time.
 void GuiApp::save_run_stencils() {
     if (!_border_enable || _workspace.empty()) return;
-    std::vector<std::pair<std::string, std::vector<app::MaskShape>>> inputs;
-    for (const PrepInput& in : _sources) inputs.push_back({in.path, in.stencil.mask.shapes});
+    std::vector<std::pair<std::string, app::MaskSet>> inputs;
+    for (const PrepInput& in : _sources) inputs.push_back({in.path, app::mask_set_of(in.stencil)});
     std::string err;
     const std::vector<std::string> written = save_dataset_stencils(_workspace, inputs, err);
     if (!err.empty()) log(i18n::format(dmsg::stencil_save_failed, {err}));
@@ -2392,15 +2389,15 @@ void GuiApp::save_run_stencils() {
 
 void GuiApp::apply_frame_shapes(size_t first_input) {
     if (_frame_shapes.empty()) return;
-    std::vector<app::MaskShape> shapes;
+    app::MaskSet set;
     std::string err;
-    if (!load_stencil_preset(_frame_shapes, shapes, err)) {
+    if (!load_stencil_preset(_frame_shapes, set, err)) {
         log(i18n::format(dmsg::stencil_load_failed, {err}));
         _frame_shapes.clear();
         return;
     }
     for (size_t i = first_input; i < _sources.size(); i++)
-        _sources[i].stencil.mask.shapes = shapes;
+        app::apply_mask_set(_sources[i].stencil, set);
 }
 
 // A folder of EXRs declares its own colour space, and the picker for it is
@@ -2743,7 +2740,9 @@ std::string GuiApp::state_json() {
     out += kDownload[(int)_download.state()];
     out += "\",\"license_prompt\":" + quoted(_license_prompt);
     // Index order is the declaration order of mask::CanvasMode.
-    static const char* kCanvasModes[] = {"shape", "eraser", "path", "sam"};
+    static const char* kCanvasModes[] = {"shape", "eraser", "path", "pen", "sam"};
+    static_assert(sizeof(kCanvasModes) / sizeof(kCanvasModes[0]) == (size_t)mask::CanvasMode::Sam + 1,
+                  "one name per mask::CanvasMode");
     const mask::MaskDoc* mdoc = _mask_editor.doc();
     out += ",\"mask_editor_mode\":\"";
     out += kCanvasModes[(int)_mask_editor.mode()];
@@ -2779,6 +2778,7 @@ std::string GuiApp::state_json() {
            std::to_string(_mask_editor.sam_click_y()) + "]";
     out += ",\"mask_editor_canvas_h\":" + std::to_string(_mask_editor.canvas_height());
     out += ",\"mask_editor_anchors\":" + std::to_string(_mask_editor.path_anchors());
+    out += ",\"mask_editor_pen_anchors\":" + std::to_string(_mask_editor.pen_anchors());
     out += ",\"sam_margin\":" + std::to_string(_mask_editor.sam_margin());
     out += ",\"mask_dilate_ratio\":" + std::to_string(_mask.dilate_ratio);
     // The dataset screen's clicked objects, which no editor click may reach,
@@ -3354,8 +3354,7 @@ void GuiApp::request_model_download(const std::string& id, const std::string& de
 // download, not something the run can do anything about, so it is asked before
 // starting rather than reported twenty minutes in.
 bool GuiApp::mask_model_missing() const {
-    if (!_mask_enable || _sfm_job.prep.force_external_masking) return false;
-    if (!backends().builtin_masking) return false;
+    if (!_mask_enable) return false;
     // Inputs that arrived with their own masks are never segmented, so a job
     // made only of those needs no model at all.
     bool all_bring_masks = !_sources.empty();
@@ -3399,7 +3398,6 @@ void GuiApp::sync_dataset_jobs() {
     prep.force_external_decode = _sfm_job.prep.force_external_decode;
     prep.sync_tracks = _sfm_job.prep.sync_tracks;
     prep.ffmpeg_exe = _ffmpeg_exe;
-    prep.python_exe = _python_exe;
     prep.mask_enable = _mask_enable;
     prep.flip_found_masks = _use_found_masks && _flip_found_masks;
     prep.photo_import = _photo_import;
@@ -3419,9 +3417,6 @@ void GuiApp::sync_dataset_jobs() {
     prep.mask_model_path = mask_model.model;
     prep.mask_detector_path = mask_model.detector;
     prep.mask_detector_threshold = _mask.box_threshold;
-    prep.force_external_masking = _sfm_job.prep.force_external_masking;
-    if (const ModelEntry* e = find_model(_model_id))
-        prep.mask_model_name = e->legacy_name;
     // The one frozen choice, re-applied here because this function rebuilds
     // prep from panel state and would otherwise drop it. Empty before the
     // freeze, which is exactly what an unstarted job wants.
@@ -3442,10 +3437,8 @@ void GuiApp::sync_dataset_jobs() {
     _colmap_job.max_frames = prep.max_frames;
     _colmap_job.force_external_decode = prep.force_external_decode;
     _colmap_job.photo_import = prep.photo_import;
-    _colmap_job.force_external_masking = prep.force_external_masking;
     _colmap_job.colmap_exe = _colmap_exe;
     _colmap_job.ffmpeg_exe = _ffmpeg_exe;
-    _colmap_job.python_exe = _python_exe;
     _colmap_job.mask_enable = prep.mask_enable;
     _colmap_job.mask_prompt = prep.mask_prompt;
     _colmap_job.mask_negative_prompt = prep.mask_negative_prompt;
@@ -3461,7 +3454,6 @@ void GuiApp::sync_dataset_jobs() {
     _colmap_job.mask_model_path = prep.mask_model_path;
     _colmap_job.mask_detector_path = prep.mask_detector_path;
     _colmap_job.mask_detector_threshold = prep.mask_detector_threshold;
-    _colmap_job.mask_model = prep.mask_model_name;
 
     _sfm_job.prep.redo_frames = _colmap_job.redo_frames = _redo_frames;
     _sfm_job.prep.redo_masks = _colmap_job.redo_masks = _redo_masks;
@@ -4758,17 +4750,25 @@ void GuiApp::draw_masking_options() {
                                    {with_masks, (int)_sources.size()});
     }
 
+    ImGui::BeginDisabled(!backends().builtin_masking);
     ui::Checkbox(dmsg::mask_enable, &_mask_enable);
-    ui::help_on_hover(dmsg::mask_enable_help);
+    ImGui::EndDisabled();
+    if (backends().builtin_masking) {
+        ui::help_on_hover(dmsg::mask_enable_help);
+    } else {
+        ui::TextDisabledWrapped(dmsg::mask_objects_need_segmentation);
+        ui::help_on_hover_raw(backends().masking_reason.c_str());
+    }
 
     // A sibling, not a child: the stencil is geometry, so it works with no
     // model downloaded and on a build with no segmentation in it at all.
     if (ui::Checkbox(dmsg::mask_border_enable, &_border_enable) && _border_enable) {
         // Ticking it has to do something on its own. The fisheye border is
         // what it is for, so an input with nothing drawn on it yet gets the
-        // fit switched on; one that has been edited is left alone.
+        // fit, unless it is a GoPro's sphere, whose views have no border.
         for (PrepInput& in : _sources)
-            if (in.stencil.empty()) in.stencil.detect_border = true;
+            if (in.stencil.empty() && !in.pano360.valid() && !is_pano360_path(in.path))
+                in.stencil.detect_border = true;
     }
     ui::help_on_hover(dmsg::mask_border_enable_help);
     if (_border_enable) {
@@ -4781,7 +4781,7 @@ void GuiApp::draw_masking_options() {
             if (ui::Selectable(dmsg::stencil_areas_per_input, _frame_shapes.empty()))
                 _frame_shapes.clear();
             for (const StencilPreset& p : _frame_shapes_list)
-                if (ui::SelectableRaw(p.name, p.name == _frame_shapes)) {
+                if (ui::SelectableRaw(stencil_preset_label(p), p.name == _frame_shapes)) {
                     _frame_shapes = p.name;
                     apply_frame_shapes();
                 }
@@ -4803,9 +4803,8 @@ void GuiApp::draw_masking_options() {
     ImGui::Indent();
 
     const ModelEntry* entry = find_model(_model_id);
-    const bool builtin_masking = backends().builtin_masking;
 
-    if (_mask_enable && builtin_masking) {
+    if (_mask_enable) {
         const ModelEntry* before = entry;
         draw_mask_model_picker(_model_id, &_mask_detector_id, _download, [this] {
             request_model_download(_model_id, _mask_detector_id);
@@ -4842,9 +4841,6 @@ void GuiApp::draw_masking_options() {
                 ui::TextColoredWrapped(kWarn, dmsg::mask_inputs_need_clicks,
                                        {unprompted});
         }
-    } else if (_mask_enable) {
-        ui::TextWrappedRaw(backends().masking_note);
-        ui::help_on_hover_raw(backends().masking_reason.c_str());
     }
 
     const bool mask_preview_busy = native_work_busy();
@@ -6145,10 +6141,6 @@ void GuiApp::draw_sfm_advanced() {
     ImGui::EndDisabled();
     ui::help_on_hover(backends().builtin_video ? dmsg::use_ffmpeg_help
                                                : dmsg::use_ffmpeg_always);
-    ImGui::BeginDisabled(!backends().builtin_masking);
-    ui::Checkbox(dmsg::use_python_masking, &_sfm_job.prep.force_external_masking);
-    ImGui::EndDisabled();
-    ui::help_on_hover(dmsg::use_python_masking_help);
 
     ui::Checkbox(dmsg::sfm_ba_cpu, &_sfm_job.ba_cpu);
     ui::help_on_hover(dmsg::sfm_ba_cpu_help);
@@ -6303,9 +6295,6 @@ void GuiApp::draw_tool_locations() {
         ui::help_on_hover(backends().builtin_video
                               ? dmsg::ffmpeg_executable_help_fallback
                               : dmsg::ffmpeg_executable_help_always);
-        ImGui::SetNextItemWidth(px(300.0f));
-        ch |= ui::InputText(dmsg::python_executable, &_python_exe);
-        ui::help_on_hover(dmsg::python_executable_help);
         if (ffmpeg_changed) mark_source_metadata_dirty();
         if (ch) save_settings();
     }

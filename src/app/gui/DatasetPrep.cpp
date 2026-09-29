@@ -12,8 +12,6 @@
 #include "app/gui/FrameSelect.h"
 #include "app/gui/Subprocess.h"
 
-#include "app_generated/mask_py.h"   // kMaskPy[], from reference/scripts/mask.py
-
 #include "core/ExrImage.h"
 #include "core/ImageOrient.h"
 #include "sfm/core/Exif.h"
@@ -332,11 +330,12 @@ public:
                 .push_back(f.string());
         }
         for (auto& [camera, group] : groups) {
-            app::FrameMask fm = st.mask;
+            const app::CameraStencil& cs = st.for_camera(camera);
+            app::FrameMask fm = cs.mask;
             app::BorderDetect border;
-            if (st.detect_border) {
+            if (cs.detect_border) {
                 app::BorderDetectOptions o;
-                o.shrink = st.shrink;
+                o.shrink = cs.shrink;
                 border = app::detect_fisheye_border(group, o);
                 // First, so the shapes drawn on top are applied to it in order.
                 if (border.found) fm.shapes.insert(fm.shapes.begin(), border.shape);
@@ -980,11 +979,6 @@ const Backends& backends() {
 #else
         b.masking_reason = "built without the segmentation module "
                            "(-DSS_BUILD_SAM=OFF)";
-        b.masking_note =
-            "Masks are made by an external Python script "
-            "(reference/scripts/mask.py with lang-segment-anything, which "
-            "needs a CUDA PyTorch). Set the Python path under Tool "
-            "locations if it is not on PATH.";
 #endif
         return b;
     }();
@@ -1158,7 +1152,6 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
     // can run per input (see generate_masks) instead of over one flat tree.
     struct Prepared {
         std::string images, masks;      // absolute
-        std::string images_rel, masks_rel;  // relative to the workspace
         // This input's masks already exist: brought along by the input, taken
         // from its alpha channel, or kept by a resumed run.
         bool have_masks = false;
@@ -1190,13 +1183,12 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
         // are what says so, since this path copies nothing.
         if (camera_subfolders(out.image_dir).size() > 1)
             out.per_folder_cameras = true;
-        per[0].images = per[0].images_rel = out.image_dir;
+        per[0].images = out.image_dir;
         if (in.mask_dir.empty()) {
             // Nothing came with them, so anything generated goes in the
             // dataset, next to the reconstruction rather than next to the
             // photos -- a folder we were only asked to read.
             per[0].masks = (ws / "masks").string();
-            per[0].masks_rel = "masks";
             skip_dir = per[0].masks;
         } else {
             const std::string bundled = fs::absolute(in.mask_dir, ec).string();
@@ -1205,7 +1197,7 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
             if (in.stencil.empty()) {
                 // Nothing to fold in, so they are read where they lie and keep
                 // whichever convention they arrived in.
-                per[0].masks = per[0].masks_rel = bundled;
+                per[0].masks = out.mask_dir_cfg = bundled;
                 out.mask_dir_flipped = job.flip_found_masks;
             } else {
                 // The stencil has to go somewhere, and a masks/ under the
@@ -1215,10 +1207,9 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
                 const bool under_images =
                     inside(fs::path(bundled), fs::path(out.image_dir));
                 per[0].masks = under_images ? bundled : (ws / "masks").string();
-                per[0].masks_rel = under_images ? bundled : std::string("masks");
+                out.mask_dir_cfg = under_images ? bundled : std::string("masks");
             }
             out.mask_dir = per[0].masks;
-            out.mask_dir_cfg = per[0].masks_rel;
             skip_dir = per[0].masks;
         }
     } else {
@@ -1233,8 +1224,6 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
             Prepared& p = per[i];
             p.images = under(out.image_dir, in.subdir).string();
             p.masks = under((ws / "masks").string(), in.subdir).string();
-            p.images_rel = under("images", in.subdir).generic_string();
-            p.masks_rel = under("masks", in.subdir).generic_string();
             // Folded in from where they lie, not from the copies gathered next
             // to the images: a second run would otherwise fold the fold.
             if (!in.mask_dir.empty() &&
@@ -1314,8 +1303,7 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
         // A subject model (BiRefNet) finds what to mask by itself.
         bool subject = false;
 #ifdef SS_BUILD_SAM
-        subject = !job.force_external_masking && backends().builtin_masking &&
-                  sam::is_subject_model(job.mask_model_path);
+        subject = sam::is_subject_model(job.mask_model_path);
 #endif
         if (!subject && job.mask_prompt.empty() && job.mask_clicks.empty()) {
             error = lmsg::err_mask_no_target.get();
@@ -1345,8 +1333,7 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
     // The step's bar covers the stencil pass as well as segmentation, so both
     // are planned before either runs. A stencil the built-in masker folds in
     // is not a pass: planned and dropped afterwards, it doubled the total.
-    const bool folds = job.mask_enable && !job.force_external_masking &&
-                       backends().builtin_masking;
+    const bool folds = job.mask_enable && backends().builtin_masking;
     std::vector<int64_t> stencil_planned(job.inputs.size(), 0);
     for (size_t i = 0; i < job.inputs.size(); i++) {
         if (folds && !per[i].have_masks && !job.inputs[i].stencil.empty())
@@ -1369,8 +1356,7 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
             // input arrived with. Segmenting over those would replace an
             // answer the user already has.
             if (per[i].have_masks) continue;
-            if (!generate_masks(job, job.inputs[i], per[i].images,
-                                per[i].images_rel, per[i].masks, per[i].masks_rel,
+            if (!generate_masks(job, job.inputs[i], per[i].images, per[i].masks,
                                 per[i].stencil_folded, error))
                 return false;
             _masks_tally.settle(mask_planned[i], mask_planned[i]);
@@ -2523,32 +2509,17 @@ bool DatasetPrep::split_packed_frames(const PrepInput& in,
 
 bool DatasetPrep::generate_masks(const PrepJob& job, const PrepInput& in,
                                  const std::string& images,
-                                 const std::string& images_rel,
                                  const std::string& masks,
-                                 const std::string& masks_rel,
                                  bool& folded, std::string& error) {
-    if (!job.force_external_masking && backends().builtin_masking) {
-        // A missing checkpoint is a download, not an install. Falling through
-        // to the Python masker answered "the model is not here" with "pip
-        // install lang-segment-anything", which is advice for another problem.
-        if (job.mask_model_path.empty()) {
-            error = lmsg::err_mask_model_not_downloaded.get();
-            return false;
-        }
-        return generate_masks_builtin(job, in, images, masks, folded, error);
-    }
-    if (job.mask_model_name.empty()) {
-        error = lmsg::err_subject_needs_builtin.get();
+    if (!backends().builtin_masking) {
+        error = lmsg::err_no_builtin_segmentation.get();
         return false;
     }
-    if (!job.mask_clicks.empty()) {
-        // The Python fallback is lang-segment-anything: text in, masks out. It
-        // has no way to take a click, so saying so beats writing masks that
-        // quietly ignore half of what the user asked for.
-        error = lmsg::err_clicks_need_builtin.get();
+    if (job.mask_model_path.empty()) {
+        error = lmsg::err_mask_model_not_downloaded.get();
         return false;
     }
-    return generate_masks_python(job, images_rel, masks_rel, error);
+    return generate_masks_builtin(job, in, images, masks, folded, error);
 }
 
 bool DatasetPrep::generate_masks_builtin(const PrepJob& job, const PrepInput& in,
@@ -2625,7 +2596,7 @@ bool DatasetPrep::generate_masks_builtin(const PrepJob& job, const PrepInput& in
                       [&](const std::string& camera, const app::BorderDetect& d) {
                           const std::string name =
                               camera.empty() ? in.path : camera;
-                          if (!in.stencil.detect_border) return;
+                          if (!in.stencil.for_camera(camera).detect_border) return;
                           if (!d.found) {
                               log(fmt(lmsg::frame_mask_no_border, {name}), false);
                               return;
@@ -2764,7 +2735,7 @@ bool DatasetPrep::apply_stencil(const PrepJob& job, const PrepInput& in,
     };
     sinks.resolved = [&](const std::string& camera, const app::FrameMask&,
                          const app::BorderDetect& d) {
-        if (!in.stencil.detect_border) return;
+        if (!in.stencil.for_camera(camera).detect_border) return;
         const std::string name = camera.empty() ? in.path : camera;
         if (!d.found) {
             log(fmt(lmsg::frame_mask_no_border, {name}), /*detail=*/false);
@@ -2781,76 +2752,6 @@ bool DatasetPrep::apply_stencil(const PrepJob& job, const PrepInput& in,
         return false;
     }
     if (in_place && job.flip_found_masks) std::ofstream(marker.string());
-    return true;
-}
-
-// The Python fallback: the embedded reference/scripts/mask.py run through an
-// external interpreter with lang-segment-anything. It prints an install hint
-// and exits 0 when the packages are missing, so that is detected from its
-// output rather than its exit code.
-bool DatasetPrep::generate_masks_python(const PrepJob& job,
-                                        const std::string& images_rel,
-                                        const std::string& masks_rel,
-                                        std::string& error) {
-    enter(Stage::Masks, lmsg::stage_masks_python.get());
-    if (!command_exists(job.python_exe)) {
-        error = fmt(lmsg::err_python_missing, {job.python_exe});
-        return false;
-    }
-    const fs::path ws = job.workspace;
-    const fs::path script = ws / ".spirula_mask.py";
-    {
-        FILE* f = std::fopen(script.string().c_str(), "wb");
-        if (!f) {
-            error = fmt(lmsg::err_cannot_write, {script.string()});
-            return false;
-        }
-        std::fwrite(kMaskPy, 1, kMaskPySize, f);
-        std::fclose(f);
-    }
-    std::vector<std::string> argv = {
-        job.python_exe, script.string(), ws.string(),
-        "--prompt", job.mask_prompt,
-        "--images", images_rel,
-        "--masks", masks_rel,
-        "--max_image_size", std::to_string(job.mask_max_image_size),
-        "--model", job.mask_model_name,
-    };
-    if (!job.mask_negative_prompt.empty()) {
-        argv.push_back("--negative_prompt");
-        argv.push_back(job.mask_negative_prompt);
-    }
-    // Without this the external path silently ignores the polarity and always
-    // removes what the prompt named -- the exact opposite of what an object
-    // capture asked for.
-    if (job.mask_keep_subject) argv.push_back("--keep_prompted");
-    std::string install_hint;
-    std::string cmd;
-    for (const auto& a : argv) cmd += (cmd.empty() ? "$ " : " ") + a;
-    log(cmd);
-    const int rc = run_process(argv, "", [&](const std::string& l) {
-        log(l);
-        if (l.find("not found or not installed properly") != std::string::npos ||
-            l.find("ModuleNotFoundError") != std::string::npos)
-            install_hint = l;
-    }, _cancel);
-    if (rc == kCancelled) { error = lmsg::err_cancelled.get(); return false; }
-
-    std::error_code ec;
-    const bool have_masks = fs::is_directory(ws / masks_rel, ec) &&
-                            !fs::is_empty(ws / masks_rel, ec);
-    if (!install_hint.empty() || rc != 0 || !have_masks) {
-        // Three whole sentences rather than one with tails appended: the
-        // install advice is the message when there is any, and which advice
-        // depends on the model.
-        if (install_hint.empty())
-            error = lmsg::err_mask_generation_failed.get();
-        else if (job.mask_model_name == "sam3")
-            error = lmsg::err_mask_missing_packages_sam3.get();
-        else
-            error = lmsg::err_mask_missing_packages.get();
-        return false;
-    }
     return true;
 }
 

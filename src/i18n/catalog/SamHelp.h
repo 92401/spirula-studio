@@ -1402,41 +1402,55 @@ SS_MSG(mh_out,
 SS_MSG(mh_shape,
     EN("use these shapes instead of looking for a border; ';' separates them "
        "and a leading '-' cuts one out again. A path ending in .svg reads the "
-       "shapes the GUI saves"),
+       "shapes the GUI saves; a file saved for one camera brings the rest of its "
+       "set, each for its own camera folder"),
     JA("枠を探す代わりにこの図形を使います。';' で区切り、先頭の '-' はその"
        "図形の内側を逆に取り除きます。.svg で終わるパスは GUI が保存した"
-       "図形を読み込みます"),
+       "図形を読み込みます。カメラ 1 台分として保存したファイルは、同じ組の"
+       "ほかのファイルも読み込み、それぞれ自分のカメラのフォルダーに使います"),
     ZH_HANS("用这些图形，而不是去找边框；用 ';' 分隔，开头的 '-' 表示反过来去掉"
-            "该图形内部。以 .svg 结尾的路径会读取 GUI 保存的图形"),
+            "该图形内部。以 .svg 结尾的路径会读取 GUI 保存的图形；为某一台相机保存的"
+            "文件会连同同组的其他文件一起读取，各自用于自己的相机文件夹"),
     ZH_HANT("用這些圖形，而不是去找邊框；用 ';' 分隔，開頭的 '-' 表示反過來去掉"
-            "該圖形內部。以 .svg 結尾的路徑會讀取 GUI 儲存的圖形"),
+            "該圖形內部。以 .svg 結尾的路徑會讀取 GUI 儲存的圖形；為某一台相機儲存的"
+            "檔案會連同同組的其他檔案一起讀取，各自用於自己的相機資料夾"),
     KO("테두리를 찾는 대신 이 도형을 씁니다. ';' 로 나누고, 앞의 '-' 는 그 "
        "도형 안쪽을 도로 없앱니다. .svg 로 끝나는 경로는 GUI 가 저장한 "
-       "도형을 읽습니다"),
+       "도형을 읽습니다. 카메라 한 대용으로 저장한 파일은 같은 묶음의 나머지 "
+       "파일도 함께 읽어 각자 자기 카메라 폴더에 씁니다"),
     DE("diese Formen benutzen statt einen Rand zu suchen; ';' trennt sie, ein "
        "vorangestelltes '-' schneidet eine wieder heraus. Ein Pfad auf .svg "
-       "liest die Formen, die die GUI speichert"),
+       "liest die Formen, die die GUI speichert; eine für eine Kamera gespeicherte "
+       "Datei bringt den Rest ihres Satzes mit, jede für ihren eigenen Kameraordner"),
     FR("utiliser ces formes au lieu de chercher un bord ; ';' les sépare, un "
        "'-' en tête en retire une au contraire. Un chemin en .svg lit les "
-       "formes que l'interface enregistre"),
+       "formes que l'interface enregistre ; un fichier enregistré pour une caméra "
+       "amène le reste de son ensemble, chacun pour son propre dossier de caméra"),
     ES("usar estas formas en vez de buscar un borde; ';' las separa y un '-' "
        "delante recorta una en lugar de conservarla. Una ruta terminada en .svg "
-       "lee las formas que guarda la interfaz"),
+       "lee las formas que guarda la interfaz; un archivo guardado para una cámara "
+       "trae el resto de su juego, cada uno para su propia carpeta de cámara"),
     PT("usar estas formas em vez de procurar uma borda; ';' as separa e um '-' "
        "à frente recorta uma em vez de mantê-la. Um caminho terminado em .svg "
-       "lê as formas que a interface salva"),
+       "lê as formas que a interface salva; um arquivo salvo para uma câmera "
+       "traz o resto do seu conjunto, cada um para a sua pasta de câmera"),
     IT("usare queste forme invece di cercare un bordo; ';' le separa e un '-' "
        "davanti ne ritaglia una invece di tenerla. Un percorso che termina in "
-       ".svg legge le forme salvate dall'interfaccia"),
+       ".svg legge le forme salvate dall'interfaccia; un file salvato per una "
+       "fotocamera porta con sé il resto del suo insieme, ognuno per la propria "
+       "cartella di fotocamera"),
     NL("deze vormen gebruiken in plaats van een rand te zoeken; ';' scheidt "
        "ze, een '-' ervoor snijdt er juist een weg. Een pad op .svg leest de "
-       "vormen die de GUI opslaat"),
+       "vormen die de GUI opslaat; een bestand dat voor één camera is opgeslagen "
+       "brengt de rest van zijn set mee, elk voor zijn eigen cameramap"),
     RU("взять эти фигуры вместо поиска края; ';' разделяет их, а '-' в начале "
        "наоборот вырезает фигуру. Путь, оканчивающийся на .svg, читает фигуры, "
-       "сохранённые в интерфейсе"),
+       "сохранённые в интерфейсе; файл, сохранённый для одной камеры, подтягивает "
+       "остальные файлы своего набора, каждый для своей папки камеры"),
     TR("kenar aramak yerine bu biçimleri kullan; ';' ayırır, baştaki '-' ise "
        "biçimin içini tersine keser. .svg ile biten bir yol, arayüzün kaydettiği "
-       "biçimleri okur"));
+       "biçimleri okur; tek bir kamera için kaydedilmiş bir dosya, takımının geri "
+       "kalanını da getirir, her biri kendi kamera klasörü için"));
 
 SS_MSG(mh_shrink,
     EN("pull the found boundary inwards, as a fraction of its radius "

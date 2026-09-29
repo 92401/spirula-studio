@@ -680,12 +680,15 @@ int cmd_mask(const Options& o) {
         std::string bad, title;
         const bool svg = o.shape_spec.size() > 4 &&
                          o.shape_spec.compare(o.shape_spec.size() - 4, 4, ".svg") == 0;
-        if (svg ? !app::load_mask_svg(o.shape_spec, run.stencil.mask.shapes, title, bad)
-                : !app::parse_mask_shapes(o.shape_spec, run.stencil.mask.shapes, bad)) {
+        // A file the GUI saved for one camera brings its set's other cameras.
+        app::MaskSet set;
+        if (svg ? !app::load_mask_svg_set(o.shape_spec, set, title, bad)
+                : !app::parse_mask_shapes(o.shape_spec, set.shapes, bad)) {
             std::fprintf(stderr, "%s\n",
                          format(cmsg::sam_mask_bad_shape, {bad}).c_str());
             return 2;
         }
+        app::apply_mask_set(run.stencil, set);
     } else {
         run.stencil.detect_border = true;
     }

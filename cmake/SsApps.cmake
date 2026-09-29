@@ -29,7 +29,7 @@
 function(ss_configure_app target)
     target_include_directories(${target} PRIVATE
         ${SS_SRC}
-        ${CMAKE_BINARY_DIR}      # app_generated/{viewer_html,mask_py}.h
+        ${CMAKE_BINARY_DIR}      # app_generated/*.h
         ${CUDAToolkit_INCLUDE_DIRS}
     )
     target_link_libraries(${target} PRIVATE ${SS_APP_LIBS})
@@ -198,14 +198,6 @@ if(SS_BUILD_GUI)
     target_link_libraries(imgui_glfw PUBLIC glfw)
     set_property(TARGET imgui_glfw PROPERTY CXX_STANDARD 17)
 
-    # Embed reference/scripts/mask.py (AI masking helper, run via external
-    # Python) so the exe is self-contained. Same mechanism as the
-    # viewer.html embed.
-    ss_embed_file(
-        ${SS_ROOT}/reference/scripts/mask.py
-        ${CMAKE_BINARY_DIR}/app_generated/mask_py.h
-        MaskPy)
-
     # ---- fonts (src/app/gui/Fonts.h, docs/i18n.md) ----
     #
     # The Latin/Cyrillic face IS embedded: at 59 KB it costs nothing, and
@@ -257,11 +249,9 @@ if(SS_BUILD_GUI)
         list(APPEND SS_TOOL_LIBS "-framework AppKit")
     endif()
 
-    # In-process segmentation (interactive preview + dataset masking) and, when
-    # patented modules are enabled, in-process video decoding. Both are
-    # optional: DatasetPrep falls back to python + reference/scripts/mask.py
-    # and to ffmpeg, and the GUI hides what this build cannot do rather than
-    # failing at run time.
+    # In-process segmentation and, with SS_ENABLE_PATENTED, video decoding.
+    # Without them the GUI masks only fixed areas of the frame and decodes with
+    # ffmpeg, and says so rather than failing at run time.
     if(SS_BUILD_SAM)
         list(APPEND SS_TOOL_DEFS SS_BUILD_SAM=1)
         if(SS_ENABLE_PATENTED)
@@ -466,6 +456,7 @@ if(SS_BUILD_GUI)
         ${SS_SRC}/app/FrameLook.cpp
         ${SS_SRC}/app/gui/mask/Livewire.cpp
         ${SS_SRC}/app/gui/mask/PathTool.cpp
+        ${SS_SRC}/app/gui/mask/PenTool.cpp
         ${SS_SRC}/app/gui/Picture.cpp
         ${SS_SRC}/app/gui/mask/MaskSlideshow.cpp)
     ss_configure_app(mask_doc_test)

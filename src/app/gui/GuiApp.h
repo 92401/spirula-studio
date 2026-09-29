@@ -906,11 +906,6 @@ private:
     std::map<std::string, std::string> _dialog_dirs;
     std::string _colmap_exe = "colmap";
     std::string _ffmpeg_exe = "ffmpeg";
-#ifdef _WIN32
-    std::string _python_exe = "python";
-#else
-    std::string _python_exe = "python3";
-#endif
 
     // Log console. `_log_dropped` counts the lines trimmed off the front since
     // the panel was last drawn: every one of them moves the remaining text up

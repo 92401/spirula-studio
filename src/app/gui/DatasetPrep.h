@@ -2,27 +2,15 @@
 
 // DatasetPrep -- everything between "the user picked a video or a folder of
 // photos" and "there is an image directory (and maybe a mask directory) ready
-// for structure-from-motion".
+// for structure-from-motion": frame extraction and selection, splitting
+// multi-lens captures, AI masking, and the resume rules. Both dataset paths --
+// the built-in SfM and the external COLMAP -- run it first.
 //
-// It was the half of ColmapRunner that had nothing to do with COLMAP: frame
-// extraction, sharpest-frame selection, splitting a multi-track 360 file into
-// one folder per lens, AI masking, and the resume rules that let an
-// interrupted run reuse what it left behind. Both dataset paths -- the
-// built-in SfM and the external COLMAP -- run it first, so a change to how
-// frames are chosen cannot apply to only one of them.
-//
-// Each stage has a built-in implementation and an external fallback:
-//
-//   frames   in-process VK_KHR_video_decode_* (SS_ENABLE_PATENTED)
-//            -> ffmpeg subprocess
-//   masks    in-process SAM 2 / SAM 3          (SS_BUILD_SAM)
-//            -> python + reference/scripts/mask.py
-//
-// The built-in path is the default when it is compiled in and the device
-// supports it; the fallback is picked automatically otherwise, and can be
-// forced (a codec the driver cannot decode, an HDR transfer ffmpeg handles
-// better). `Backends` reports what this build and this machine can actually
-// do, so the GUI can say so instead of failing at run time.
+// Frames decode in-process (SS_ENABLE_PATENTED) or through ffmpeg, which can
+// be forced for a codec the driver cannot decode or an HDR transfer ffmpeg
+// handles better. Masks come from SAM 2 / SAM 3 in-process (SS_BUILD_SAM);
+// without it only the fixed-area stencil applies. `Backends` says which, so
+// the GUI can say so instead of failing at run time.
 
 #include "app/FfmpegVideo.h"
 #include "app/FrameLook.h"
@@ -249,7 +237,7 @@ struct PrepJob {
 
     // The device request for built-in decoding and masking: "auto", an ordinal,
     // a name substring or "uuid:<32 hex>". Frozen at the top of run(); a bad
-    // value fails the run. External Python masking does not read this.
+    // value fails the run.
     std::string device;
 
     // ---- video extraction ----
@@ -311,15 +299,11 @@ struct PrepJob {
     // its own, and run() refuses the job rather than half-mask the capture.
     std::vector<MaskClick> mask_clicks;
 
-    // Built-in: checkpoint files (ModelCache resolves them), with the text
-    // detector when one is paired. External: the name reference/scripts/mask.py understands,
-    // "" when it has none (BiRefNet).
+    // Checkpoint files (ModelCache resolves them), with the text detector when
+    // one is paired.
     std::string mask_model_path;
     std::string mask_detector_path;
     float mask_detector_threshold = 0.3f;   // sam::MaskOptions::detector_threshold
-    std::string mask_model_name = "sam2.1_hiera_large";
-    bool  force_external_masking = false;
-    std::string python_exe = "python3";
 };
 
 // The rate a row is actually extracted at (0 = every frame). A row's 0 means
@@ -452,12 +436,9 @@ inline ReconStamp frames_stamp(const PrepJob& job) {
     return st;
 }
 
-// What this build, on this machine, can do without an external tool.
-//
-// Two strings per stage on purpose: `*_reason` names the option or the missing
-// device feature and belongs in a log or a tooltip; `*_note` is the sentence
-// shown on the screen, which should tell a user what will happen rather than
-// which CMake flag was off when the binary was made.
+// What this build can do in-process. `*_reason` names the missing option or
+// device feature, for a log or a tooltip; the screen says what happens instead
+// (`video_note`, dataset::mask_objects_need_segmentation).
 struct Backends {
     // Build-level answers only. The runtime answers (can THIS device decode?)
     // are not here: probing them creates the inference context, which must wait
@@ -467,7 +448,6 @@ struct Backends {
     std::string video_note;
     bool builtin_masking = false;
     std::string masking_reason;
-    std::string masking_note;
 };
 // What this binary was built with. Creates no device, so it is safe on the UI
 // thread and before a GPU choice exists.
@@ -732,14 +712,11 @@ private:
     // the masks as they were produced, which is what lets apply_stencil be
     // skipped -- it would otherwise decode and re-encode every mask again.
     bool generate_masks(const PrepJob& job, const PrepInput& in,
-                        const std::string& images, const std::string& images_rel,
-                        const std::string& masks, const std::string& masks_rel,
+                        const std::string& images, const std::string& masks,
                         bool& folded, std::string& error);
     bool generate_masks_builtin(const PrepJob& job, const PrepInput& in,
                                 const std::string& images, const std::string& masks,
                                 bool& folded, std::string& error);
-    bool generate_masks_python(const PrepJob& job, const std::string& images_rel,
-                               const std::string& masks_rel, std::string& error);
     // The static stencil on its own, for the masks segmentation did not make.
     // `merge_from` names the masks it folds in when they are not the ones it
     // writes -- the tree the photos arrived with; "" is `masks` itself.
