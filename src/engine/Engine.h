@@ -508,6 +508,7 @@ void engine_debug_forward(
 void engine_copy_accum_buffer(TorchTensorView dst);
 int64_t engine_get_cur_num_splats();
 int64_t engine_get_max_num_splats();
+int engine_get_num_sh();   // non-DC SH coefficients per channel
 
 // `out_rgb_raw` is the pre-color-space-conversion render (linear / wide-gamut)
 // stashed by the color-space forward hook. Null OK; when the engine has no

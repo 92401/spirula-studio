@@ -1275,7 +1275,7 @@ void TrainerSession::restore_checkpoint() {
     // which setup_engine() resolved into `st`.
     ckpt::TargetLayout target;
     target.max_num_splats = engine_get_max_num_splats();
-    target.num_sh         = (cfg.sh_degree + 1) * (cfg.sh_degree + 1);
+    target.num_sh         = engine_get_num_sh();
     target.num_images     = (int)post.n_post;
     auto lhw = [](const std::array<int, 3>& xyw) {
         return std::array<int, 3>{xyw[2], xyw[1], xyw[0]};   // (X,Y,W)->(L,H,W)
