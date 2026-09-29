@@ -3128,6 +3128,56 @@ SS_MSG(err_ffmpeg_split_failed,
     RU("ffmpeg не смог разделить дорожки (см. журнал)."),
     TR("ffmpeg izleri ayıramadı (günlüğe bakın)."));
 
+SS_MSG(err_ffmpeg_not_found,
+    EN("ffmpeg was not found ('{0}'). Install it, or pass --ffmpeg with its path."),
+    JA("ffmpeg が見つかりません（'{0}'）。インストールするか、--ffmpeg でパスを指定してください。"),
+    ZH_HANS("找不到 ffmpeg（'{0}'）。请安装它，或用 --ffmpeg 指定其路径。"),
+    ZH_HANT("找不到 ffmpeg（'{0}'）。請安裝它，或用 --ffmpeg 指定其路徑。"),
+    KO("ffmpeg 을 찾지 못했습니다('{0}'). 설치하거나 --ffmpeg 로 경로를 지정하세요."),
+    DE("ffmpeg wurde nicht gefunden ('{0}'). Installieren Sie es oder geben Sie "
+       "seinen Pfad mit --ffmpeg an."),
+    FR("ffmpeg est introuvable ('{0}'). Installez-le, ou indiquez son chemin avec "
+       "--ffmpeg."),
+    ES("No se encontró ffmpeg ('{0}'). Instálalo o indica su ruta con --ffmpeg."),
+    PT("O ffmpeg não foi encontrado ('{0}'). Instale-o ou indique o caminho com "
+       "--ffmpeg."),
+    IT("ffmpeg non trovato ('{0}'). Lo installi o ne indichi il percorso con --ffmpeg."),
+    NL("ffmpeg is niet gevonden ('{0}'). Installeer het of geef het pad op met "
+       "--ffmpeg."),
+    RU("ffmpeg не найден ('{0}'). Установите его или укажите путь через --ffmpeg."),
+    TR("ffmpeg bulunamadı ('{0}'). Kurun ya da yolunu --ffmpeg ile verin."));
+
+SS_MSG(err_no_video_decoder,
+    EN("Frames cannot be decoded in-process here ({0}), and ffmpeg was not found "
+       "('{1}'). Install ffmpeg, or pass --ffmpeg with its path."),
+    JA("ここではプロセス内でフレームをデコードできず（{0}）、ffmpeg も見つかりません"
+       "（'{1}'）。ffmpeg をインストールするか、--ffmpeg でパスを指定してください。"),
+    ZH_HANS("此处无法在进程内解码帧（{0}），也找不到 ffmpeg（'{1}'）。请安装 ffmpeg，"
+            "或用 --ffmpeg 指定其路径。"),
+    ZH_HANT("此處無法在行程內解碼影格（{0}），也找不到 ffmpeg（'{1}'）。請安裝 ffmpeg，"
+            "或用 --ffmpeg 指定其路徑。"),
+    KO("여기서는 프레임을 프로세스 안에서 디코딩할 수 없고({0}), ffmpeg 도 찾지 "
+       "못했습니다('{1}'). ffmpeg 을 설치하거나 --ffmpeg 로 경로를 지정하세요."),
+    DE("Einzelbilder lassen sich hier nicht im Prozess dekodieren ({0}), und ffmpeg "
+       "wurde nicht gefunden ('{1}'). Installieren Sie ffmpeg oder geben Sie seinen "
+       "Pfad mit --ffmpeg an."),
+    FR("Les images ne peuvent pas être décodées dans le processus ici ({0}), et "
+       "ffmpeg est introuvable ('{1}'). Installez ffmpeg, ou indiquez son chemin "
+       "avec --ffmpeg."),
+    ES("Aquí no se pueden decodificar los fotogramas dentro del proceso ({0}) y no "
+       "se encontró ffmpeg ('{1}'). Instala ffmpeg o indica su ruta con --ffmpeg."),
+    PT("Aqui os quadros não podem ser decodificados no processo ({0}) e o ffmpeg não "
+       "foi encontrado ('{1}'). Instale o ffmpeg ou indique o caminho com --ffmpeg."),
+    IT("Qui i fotogrammi non si possono decodificare nel processo ({0}) e ffmpeg non "
+       "è stato trovato ('{1}'). Installi ffmpeg o ne indichi il percorso con "
+       "--ffmpeg."),
+    NL("Beelden kunnen hier niet in het proces worden gedecodeerd ({0}) en ffmpeg is "
+       "niet gevonden ('{1}'). Installeer ffmpeg of geef het pad op met --ffmpeg."),
+    RU("Здесь кадры нельзя декодировать внутри процесса ({0}), и ffmpeg не найден "
+       "('{1}'). Установите ffmpeg или укажите путь через --ffmpeg."),
+    TR("Kareler burada süreç içinde çözülemiyor ({0}) ve ffmpeg bulunamadı ('{1}'). "
+       "ffmpeg'i kurun ya da yolunu --ffmpeg ile verin."));
+
 SS_MSG(err_ffmpeg_extract_failed,
     EN("ffmpeg could not extract the frames (see the log)."),
     JA("ffmpeg がフレームを取り出せませんでした（ログを参照）。"),

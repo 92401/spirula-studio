@@ -145,7 +145,8 @@ src/
 │   │                         sfm_main.cpp (sfm), sam_main.cpp (sam),
 │   │                         geometry_main.cpp (depth + normals)
 │   ├── FrameExtract.{h,cpp}  video -> sharp frames (`spirula sam extract` also
-│   │                         masks them in the same pass; the GUI masks after)
+│   │                         masks them in the same pass; the GUI masks after),
+│   │                         decoded by Vulkan Video or ffmpeg (FrameDecode.h)
 │   ├── Pano360.{h,cpp}     a 360 camera's own frame layout (the GoPro MAX
 │   │                         .360 EAC packing) and the views a dataset wants
 │   │                         out of it -- one implementation, both decode paths

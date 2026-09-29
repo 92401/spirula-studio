@@ -67,6 +67,7 @@ list(APPEND SS_TOOL_SOURCES
      ${SS_SRC}/app/FrameMaskSvg.cpp
      ${SS_SRC}/app/FrameLook.cpp
      ${SS_SRC}/app/FrameMotion.cpp
+     ${SS_SRC}/app/FrameSharpness.cpp
      ${SS_SRC}/app/Pano360.cpp
      ${SS_SRC}/app/AppPaths.cpp
      ${SS_SRC}/app/CrashLog.cpp)
@@ -111,13 +112,19 @@ endif()
 
 if(SS_BUILD_SAM)
     # ---- segmentation / frame extraction ----
-    list(APPEND SS_TOOL_SOURCES ${SS_SRC}/app/cli/sam_main.cpp)
+    # Frame extraction decodes with ffmpeg when the in-process decoder is not
+    # built or the device has no video queue (app/FrameDecode.h).
+    list(APPEND SS_TOOL_SOURCES
+         ${SS_SRC}/app/cli/sam_main.cpp
+         ${SS_SRC}/app/cli/sam_extract.cpp
+         ${SS_SRC}/app/FrameExtract.cpp
+         ${SS_SRC}/app/FrameDecodeFfmpeg.cpp
+         ${SS_SRC}/app/FfmpegVideo.cpp
+         ${SS_SRC}/app/gui/Subprocess.cpp)
     list(APPEND SS_TOOL_DEFS SS_TOOL_SAM=1)
     list(APPEND SS_TOOL_LIBS ss_sam)
     if(SS_ENABLE_PATENTED)
-        list(APPEND SS_TOOL_SOURCES
-             ${SS_SRC}/app/cli/sam_extract.cpp
-             ${SS_SRC}/app/FrameExtract.cpp)
+        list(APPEND SS_TOOL_SOURCES ${SS_SRC}/app/FrameDecodeVulkan.cpp)
         list(APPEND SS_TOOL_LIBS ss_video)
         # ---- video encoding: what the GUI's render mode pipes frames into ----
         list(APPEND SS_TOOL_SOURCES ${SS_SRC}/app/cli/encode_main.cpp)
@@ -230,7 +237,7 @@ if(SS_BUILD_GUI)
     file(GLOB SS_GUI_SOURCES CONFIGURE_DEPENDS
         ${SS_SRC}/app/gui/*.cpp ${SS_SRC}/app/gui/edit/*.cpp
         ${SS_SRC}/app/gui/render/*.cpp ${SS_SRC}/app/gui/mask/*.cpp)
-    list(APPEND SS_TOOL_SOURCES ${SS_GUI_SOURCES})
+    list(APPEND SS_TOOL_SOURCES ${SS_GUI_SOURCES} ${SS_SRC}/app/FfmpegVideo.cpp)
     list(APPEND SS_TOOL_DEFS SS_TOOL_GUI=1)
     list(APPEND SS_TOOL_LIBS imgui_glfw OpenGL::GL)
 
@@ -258,7 +265,7 @@ if(SS_BUILD_GUI)
     if(SS_BUILD_SAM)
         list(APPEND SS_TOOL_DEFS SS_BUILD_SAM=1)
         if(SS_ENABLE_PATENTED)
-            list(APPEND SS_TOOL_SOURCES ${SS_SRC}/app/FrameExtract.cpp)
+            list(APPEND SS_TOOL_SOURCES ${SS_SRC}/app/FrameDecodeVulkan.cpp)
         endif()
     endif()
 endif()
@@ -266,7 +273,8 @@ endif()
 # ---------------------------------------------------------------------------
 # spirula -- the executable
 # ---------------------------------------------------------------------------
-# FrameExtract is claimed by both the segmentation tool and the GUI.
+# The frame extraction and ffmpeg files are claimed by both the segmentation
+# tool and the GUI.
 list(REMOVE_DUPLICATES SS_TOOL_SOURCES)
 list(REMOVE_DUPLICATES SS_TOOL_LIBS)
 
@@ -328,11 +336,13 @@ if(SS_SEPARATE_TOOLS)
         set(_sam_src ${SS_SRC}/app/cli/sam_main.cpp ${SS_SRC}/app/FrameMask.cpp
                      ${SS_SRC}/app/FrameMaskSvg.cpp
                      ${SS_SRC}/app/FrameLook.cpp ${SS_SRC}/app/FrameMotion.cpp
-                     ${SS_SRC}/app/Pano360.cpp)
+                     ${SS_SRC}/app/FrameSharpness.cpp ${SS_SRC}/app/Pano360.cpp
+                     ${SS_SRC}/app/cli/sam_extract.cpp ${SS_SRC}/app/FrameExtract.cpp
+                     ${SS_SRC}/app/FrameDecodeFfmpeg.cpp ${SS_SRC}/app/FfmpegVideo.cpp
+                     ${SS_SRC}/app/gui/Subprocess.cpp)
         set(_sam_lib ss_sam)
         if(SS_ENABLE_PATENTED)
-            list(APPEND _sam_src ${SS_SRC}/app/cli/sam_extract.cpp
-                                 ${SS_SRC}/app/FrameExtract.cpp)
+            list(APPEND _sam_src ${SS_SRC}/app/FrameDecodeVulkan.cpp)
             list(APPEND _sam_lib ss_video)
         endif()
         ss_tool_exe(spirula-sam "${_sam_src}" "SS_TOOL_SAM=1" "${_sam_lib}")
@@ -466,6 +476,8 @@ if(SS_BUILD_GUI)
         ${SS_SRC}/app/gui/tests/dataset_prep_test.cpp
         ${SS_SRC}/app/gui/DatasetPrep.cpp
         ${SS_SRC}/app/gui/FrameSelect.cpp
+        ${SS_SRC}/app/FrameSharpness.cpp
+        ${SS_SRC}/app/FfmpegVideo.cpp
         ${SS_SRC}/app/gui/PrepProgress.cpp
         ${SS_SRC}/app/gui/ReconStamp.cpp
         ${SS_SRC}/app/gui/Subprocess.cpp

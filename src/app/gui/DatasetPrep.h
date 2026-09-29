@@ -24,6 +24,7 @@
 // better). `Backends` reports what this build and this machine can actually
 // do, so the GUI can say so instead of failing at run time.
 
+#include "app/FfmpegVideo.h"
 #include "app/FrameLook.h"
 #include "app/FrameMask.h"
 #include "app/Pano360.h"
@@ -502,27 +503,11 @@ inline bool has_fisheye_lens(const PrepInput& in) {
 int probe_packed_lenses(const std::string& dir);
 
 // ---- the ffmpeg fallback, for callers that are not a preparation run -------
-//
-// Everything the GUI does to a video without the built-in decoder goes through
-// an external ffmpeg, and the mask preview needs the same two answers a
-// preparation run does -- how long the capture is, and what one frame of it
-// looks like -- without running one. Only `ffmpeg_exe` is needed (ffprobe is
-// not assumed to be installed beside it): `ffmpeg -i` prints the stream table
-// on its way to complaining that no output file was named.
+// A capture's length and one frame of it, without the built-in decoder or a
+// run (app/FfmpegVideo.h).
 
-// What an external ffmpeg says about a video. A zero means it did not say.
-struct VideoFacts {
-    double duration = 0.0;    // seconds
-    double fps = 0.0;
-    long long frames = 0;     // duration * fps; the container's own count is
-                              // not printed by `ffmpeg -i`
-    int width = 0, height = 0;   // one frame, before any scaling
-    // One entry per video stream, in the order ffmpeg lists them, which is the
-    // order `[0:v:N]` and the built-in demuxer both number them by.
-    std::vector<std::pair<int, int>> tracks;
-};
-bool ffmpeg_probe_video(const std::string& ffmpeg_exe, const std::string& path,
-                        VideoFacts& out, const std::atomic<bool>& cancel);
+using app::VideoFacts;
+using app::ffmpeg_probe_video;
 
 // What one still has to reproduce of the run's own ffmpeg invocation.
 struct FfmpegStillOpts {

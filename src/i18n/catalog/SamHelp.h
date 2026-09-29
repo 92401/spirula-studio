@@ -1049,6 +1049,50 @@ SS_MSG(xh_threads,
     RU("потоки кодировщика изображений (по умолчанию: ядра - 1)"),
     TR("görüntü kodlayıcı iş parçacıkları (varsayılan: çekirdek - 1)"));
 
+SS_MSG(xh_decoder,
+    EN("`auto` (default) decodes in-process where the build and the device can, else "
+       "with ffmpeg; `builtin` or `ffmpeg` insists on one"),
+    JA("`auto`（既定）はビルドとデバイスが対応していればプロセス内で、そうでなければ "
+       "ffmpeg でデコードします。`builtin` か `ffmpeg` でどちらかに固定します"),
+    ZH_HANS("`auto`（默认）在构建和设备支持时于进程内解码，否则用 ffmpeg；`builtin` 或 "
+            "`ffmpeg` 固定使用其一"),
+    ZH_HANT("`auto`（預設）在建置與裝置支援時於行程內解碼，否則用 ffmpeg；`builtin` 或 "
+            "`ffmpeg` 固定使用其一"),
+    KO("`auto`(기본값)는 빌드와 장치가 지원하면 프로세스 안에서, 아니면 ffmpeg 으로 "
+       "디코딩합니다. `builtin` 이나 `ffmpeg` 은 한쪽으로 고정합니다"),
+    DE("`auto` (Vorgabe) dekodiert im Prozess, wo Build und Gerät es können, sonst mit "
+       "ffmpeg; `builtin` oder `ffmpeg` besteht auf einem"),
+    FR("`auto` (défaut) décode dans le processus quand la compilation et le "
+       "périphérique le permettent, sinon avec ffmpeg ; `builtin` ou `ffmpeg` impose "
+       "l'un des deux"),
+    ES("`auto` (por defecto) decodifica dentro del proceso cuando la compilación y el "
+       "dispositivo lo permiten, si no con ffmpeg; `builtin` o `ffmpeg` obliga a uno"),
+    PT("`auto` (padrão) decodifica no processo quando a compilação e o dispositivo "
+       "permitem, senão com ffmpeg; `builtin` ou `ffmpeg` obriga a um deles"),
+    IT("`auto` (predefinito) decodifica nel processo dove build e dispositivo lo "
+       "consentono, altrimenti con ffmpeg; `builtin` o `ffmpeg` ne impone uno"),
+    NL("`auto` (standaard) decodeert in het proces waar build en apparaat dat kunnen, "
+       "anders met ffmpeg; `builtin` of `ffmpeg` dwingt er één af"),
+    RU("`auto` (по умолчанию) декодирует внутри процесса, где это позволяют сборка и "
+       "устройство, иначе через ffmpeg; `builtin` или `ffmpeg` требует одного из них"),
+    TR("`auto` (varsayılan) derleme ve aygıt destekliyorsa süreç içinde, değilse "
+       "ffmpeg ile çözer; `builtin` ya da `ffmpeg` birini zorunlu kılar"));
+
+SS_MSG(xh_ffmpeg,
+    EN("the ffmpeg executable (default: `ffmpeg` on PATH)"),
+    JA("ffmpeg の実行ファイル（既定: PATH 上の `ffmpeg`）"),
+    ZH_HANS("ffmpeg 可执行文件（默认：PATH 中的 `ffmpeg`）"),
+    ZH_HANT("ffmpeg 執行檔（預設：PATH 中的 `ffmpeg`）"),
+    KO("ffmpeg 실행 파일(기본값: PATH 의 `ffmpeg`)"),
+    DE("die ffmpeg-Programmdatei (Vorgabe: `ffmpeg` im PATH)"),
+    FR("l'exécutable ffmpeg (défaut : `ffmpeg` dans le PATH)"),
+    ES("el ejecutable de ffmpeg (por defecto: `ffmpeg` en el PATH)"),
+    PT("o executável do ffmpeg (padrão: `ffmpeg` no PATH)"),
+    IT("l'eseguibile di ffmpeg (predefinito: `ffmpeg` nel PATH)"),
+    NL("het ffmpeg-programma (standaard: `ffmpeg` in PATH)"),
+    RU("исполняемый файл ffmpeg (по умолчанию: `ffmpeg` из PATH)"),
+    TR("ffmpeg yürütülebilir dosyası (varsayılan: PATH'teki `ffmpeg`)"));
+
 SS_MSG(xh_model,
     EN("SAM 3 checkpoint"),
     JA("SAM 3 のチェックポイント"),

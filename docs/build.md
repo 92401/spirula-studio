@@ -92,14 +92,15 @@ the H.264 / H.265 encoder — is the one part of it carrying third-party patent
 exposure (H.264/H.265 via MPEG LA and Access Advance, AV1 via the claims
 asserted against AOMedia). With it off, that directory is neither compiled nor
 linked, and everything that wanted it falls back to an external **ffmpeg**:
-`spirula sam extract` and `spirula sam video` say so and exit, the GUI
-extracts frames with ffmpeg and tells the user why, and the render mode
+`spirula sam extract` and the GUI extract frames with ffmpeg (the GUI tells
+the user why), `spirula sam video` says so and exits, and the render mode
 encodes its videos with ffmpeg (or writes frames when there is none).
 
 Turning it on buys in-process GPU decoding and encoding: roughly 15× faster
 frame extraction (a 127-second 1080p30 clip in ten seconds rather than
-minutes), `spirula sam extract`'s masking riding along on the same device
-pass, `spirula encode` for the render mode's videos, and no ffmpeg to install.
+minutes), `spirula encode` for the render mode's videos, and no ffmpeg to
+install. A device without a video queue -- MoltenVK on every Mac -- decodes
+with ffmpeg even then.
 Nothing else in the build changes.
 
 If you distribute binaries, decide for your jurisdiction and your users before
