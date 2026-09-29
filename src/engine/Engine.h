@@ -679,6 +679,12 @@ std::vector<std::tuple<std::string, std::string, size_t, size_t>>
 engine_get_pool_breakdown_categorized();
 size_t engine_get_scratch_bytes();
 
+// GPU seconds the next step spends in its splat stages (forward, raster and
+// projection backward, optimizer, densify) for the trainer's ETA model. Arm
+// before the step, read after; < 0 if not armed or the device has no timer.
+void engine_step_timing_arm();
+double engine_step_timing_read();
+
 // Formatted per-category pool report (SS_PROFILE). Reads the pool's
 // high-water capacities, so it is a peak, not an instantaneous figure.
 std::string engine_vram_report();

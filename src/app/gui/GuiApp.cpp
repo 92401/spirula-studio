@@ -18,6 +18,7 @@
 #include "app/gui/Subprocess.h"
 #include "mesh/MeshImport.h"
 #include "app/gui/Ui.h"
+#include "app/gui/VramForecastView.h"
 
 #include "i18n/Locale.h"
 #include "i18n/catalog/Brand.h"
@@ -9355,8 +9356,35 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
                     format_gib(m.total_bytes) + " GiB"
               : "VRAM " + part(m.has_process, m.process_bytes) + " GiB";
 
+    // A run in progress (or just finished) has a forecast: its risk goes in
+    // front of the bar, and hovering either shows the projection behind it.
+    spirula::TrainerSession* session = nullptr;
+    {
+        const TrainRunner::Phase ph = _runner.phase();
+        if ((ph == TrainRunner::Phase::Training || ph == TrainRunner::Phase::Done) &&
+            _runner.engine_ready())
+            session = _runner.session();
+    }
+    const spirula::VramForecast brief =
+        session ? session->forecast().vram(false) : spirula::VramForecast{};
+    const spirula::i18n::Msg* risk = session ? oom_risk_label(brief.risk) : nullptr;
+    auto hover = [&] {
+        if (!session) { ui::help_on_hover(msg::vram_help); return; }
+        if (!ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort |
+                                  ImGuiHoveredFlags_NoSharedDelay) ||
+            !ImGui::BeginTooltip())
+            return;
+        ImGui::PushTextWrapPos(px(480.0f));
+        ui::TextDisabled(msg::vram_help);
+        ImGui::PopTextWrapPos();
+        ImGui::Separator();
+        vram_forecast_card(session->forecast().vram(), session->cfg.num_iterations);
+        ImGui::EndTooltip();
+    };
+
     const ImGuiStyle& st = ImGui::GetStyle();
-    const float text_w = ImGui::CalcTextSize(label.c_str()).x;
+    float text_w = ImGui::CalcTextSize(label.c_str()).x;
+    if (risk) text_w += ImGui::CalcTextSize(risk->get()).x + st.ItemSpacing.x;
     ImGui::SameLine();
     // The bar is the first thing to give when the row is short -- the numbers
     // beside it say everything it does. Without this the readout ran off the
@@ -9370,6 +9398,11 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
     }
     if (target > ImGui::GetCursorPosX()) ImGui::SetCursorPosX(target);
 
+    if (risk) {
+        ui::TextColored(oom_risk_color(brief.risk), *risk);
+        hover();
+        ImGui::SameLine();
+    }
     if (bar_w > 0.0f) {
         const float h = ImGui::GetTextLineHeight();
         const ImVec2 p = ImGui::GetCursorScreenPos();
@@ -9389,11 +9422,11 @@ void GuiApp::draw_vram_readout(float x0, float avail) {
         dl->AddRect(p, ImVec2(p.x + bar_w, p.y + h),
                     ImGui::GetColorU32(ImGuiCol_Border), r);
         ui::InvisibleButtonRaw("##vram", ImVec2(bar_w, h));
-        ui::help_on_hover(msg::vram_help);
+        hover();
         ImGui::SameLine(0.0f, gap);
     }
     ui::TextColoredRaw(sized ? kDim : color, label);
-    ui::help_on_hover(msg::vram_help);
+    hover();
 }
 
 // ---------------------------------------------------------------------------
