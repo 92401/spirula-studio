@@ -174,6 +174,8 @@ src/
 │                             seeding -> step loop -> eval. Both the CLI and
 │                             the GUI drive this; it lives in the engine
 │                             library (cmake/sources.txt), not the app targets.
+│                             TrainForecast.{h,cpp} beside it is the run's ETA
+│                             and VRAM forecast -- docs/notes/train-forecast.md
 ├── config/                 TrainConfig.h — the training config's single source
 │                             of truth: one X-macro row per flag, hand-written.
 │                             TrainConfigJson.h is the one flat-JSON encoding
@@ -583,7 +585,10 @@ no ceremony — do not ask, do not leave a note saying you removed it.
   `SS_POOL_ALIAS_POISON=1` fills the arena at every phase switch so a read
   that outlives its phase becomes NaNs a parity test catches, and
   `SS_POOL_ALIAS=0` turns the whole thing off. Read
-  `docs/notes/vram-splat-x-img.md` before adding a row.
+  `docs/notes/vram-splat-x-img.md` before adding a row. A buffer whose
+  length follows the LIVE splat count goes in `POOL_LIVE_SPLAT_TABLE`, so it
+  is sized for `cap_max` once: the trainer's VRAM forecast assumes only
+  `splat x img` grows during a run.
 - **`SS_PROFILE=1`** enables the per-stage backend timing breakdown
   (H2D / D2H / D2D / memset / device / host), header-only, both backends, plus
   a per-category VRAM breakdown after any run that trained. What the biggest

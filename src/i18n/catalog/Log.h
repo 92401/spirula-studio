@@ -1725,6 +1725,45 @@ SS_MSG(train_finished,
     RU("Обучение завершено. Шагов: {0}   Время: {1}"),
     TR("Eğitim tamamlandı. Adım: {0}   Süre: {1}"));
 
+SS_MSG(vram_forecast_warn,
+    EN("Warning: training may run out of GPU memory. Projected peak: {0} ± {1} GiB   "
+       "free for training: {2} GiB   chance of running out: {3}%. Lower --cap-max, "
+       "or close other programs using the GPU."),
+    JA("警告: 学習中に GPU メモリが不足する可能性があります。予測ピーク: {0} ± {1} GiB   "
+       "学習に使える量: {2} GiB   不足する確率: {3}%。--cap-max を下げるか、GPU を"
+       "使っている他のプログラムを閉じてください。"),
+    ZH_HANS("警告：训练可能会耗尽显存。预计峰值：{0} ± {1} GiB   可供训练：{2} GiB   "
+            "耗尽的概率：{3}%。请调低 --cap-max，或关闭其他占用 GPU 的程序。"),
+    ZH_HANT("警告：訓練可能會耗盡顯示記憶體。預計峰值：{0} ± {1} GiB   可供訓練：{2} GiB   "
+            "耗盡的機率：{3}%。請調低 --cap-max，或關閉其他佔用 GPU 的程式。"),
+    KO("경고: 학습 중 GPU 메모리가 부족할 수 있습니다. 예상 최대치: {0} ± {1} GiB   "
+       "학습에 쓸 수 있는 양: {2} GiB   부족할 확률: {3}%. --cap-max를 낮추거나 GPU를 "
+       "쓰는 다른 프로그램을 닫으세요."),
+    DE("Warnung: Dem Training kann der Grafikspeicher ausgehen. Erwartete Spitze: "
+       "{0} ± {1} GiB   für das Training frei: {2} GiB   Wahrscheinlichkeit: {3} %. "
+       "Senken Sie --cap-max oder schließen Sie andere Programme, die die GPU nutzen."),
+    FR("Avertissement : l'entraînement risque de manquer de mémoire GPU. Pic prévu : "
+       "{0} ± {1} Gio   disponible pour l'entraînement : {2} Gio   probabilité : {3} %. "
+       "Réduisez --cap-max ou fermez les autres programmes qui utilisent le GPU."),
+    ES("Aviso: el entrenamiento puede quedarse sin memoria de GPU. Pico previsto: "
+       "{0} ± {1} GiB   libre para entrenar: {2} GiB   probabilidad: {3} %. Reduzca "
+       "--cap-max o cierre otros programas que usen la GPU."),
+    PT("Aviso: o treinamento pode ficar sem memória de GPU. Pico previsto: {0} ± {1} GiB   "
+       "livre para o treinamento: {2} GiB   probabilidade: {3}%. Reduza --cap-max ou "
+       "feche outros programas que usam a GPU."),
+    IT("Attenzione: l'addestramento potrebbe esaurire la memoria GPU. Picco previsto: "
+       "{0} ± {1} GiB   libera per l'addestramento: {2} GiB   probabilità: {3}%. Riduci "
+       "--cap-max o chiudi gli altri programmi che usano la GPU."),
+    NL("Waarschuwing: de training kan zonder GPU-geheugen komen te zitten. Verwachte piek: "
+       "{0} ± {1} GiB   vrij voor training: {2} GiB   kans: {3}%. Verlaag --cap-max of "
+       "sluit andere programma's die de GPU gebruiken."),
+    RU("Предупреждение: обучению может не хватить видеопамяти. Ожидаемый пик: "
+       "{0} ± {1} ГиБ   доступно для обучения: {2} ГиБ   вероятность нехватки: {3} %. "
+       "Уменьшите --cap-max или закройте другие программы, использующие GPU."),
+    TR("Uyarı: eğitimin GPU belleği yetmeyebilir. Beklenen tepe: {0} ± {1} GiB   "
+       "eğitim için boş: {2} GiB   yetmeme olasılığı: %{3}. --cap-max değerini düşürün "
+       "ya da GPU kullanan diğer programları kapatın."));
+
 SS_MSG(partition_applied,
     EN("Partition part {0}: cameras {1} (core {2}, ring {3}), seed points {4}"),
     JA("分割パート {0}: カメラ {1}（コア {2}、リング {3}）、初期点 {4}"),
