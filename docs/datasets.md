@@ -79,6 +79,31 @@ still learns the sky.
 
 ## Seed points
 
+`seed_pointcloud` replaces the dataset's seed cloud with an external ordinary
+PLY (ASCII or binary little-endian), for example a registered LiDAR cloud.
+It requires `x`, `y`, `z`, `red`, `green`, `blue`; coordinates must be finite
+and the cloud nonempty. Integer RGB is 0–255; floating RGB is 0–1.
+Relative paths resolve from the dataset directory; absolute paths also work.
+The GUI's training options include **Seed point cloud PLY** with a file picker;
+the CLI equivalent is `--seed-pointcloud lidar.ply`.
+Switching built-in training presets preserves this selection. **Use dataset
+points** clears the override and reloads the dataset's cloud. The GUI shows
+the initialization source and warns when another setting bypasses the selected
+external cloud.
+
+The external cloud replaces, rather than appends to, the format's own cloud.
+It must already align with the cameras in the source dataset coordinate frame
+(for Nerfstudio, before undoing `applied_transform`). It passes through the
+same centering, scaling and region filtering as the native cloud, including
+when the evaluation camera subset is parsed. Camera files and sparse points
+on disk are not modified. This path is saved in training presets and config.json.
+
+`init_ply` remains the entry for an already-trained Gaussian PLY.
+With `init_ply`, the seed cloud contributes only if `init_ply_add_points` is
+enabled; resume restores checkpoint splats instead. `random_init=always`
+still replaces the selected cloud with random points. Leave `seed_pointcloud`
+empty to retain the format's existing behavior.
+
 The splats start from the dataset's point cloud. `random_init` decides when
 they start from points drawn at random around the cameras instead: `auto` (the
 default) when the dataset has no point cloud or an empty one, `always` in place

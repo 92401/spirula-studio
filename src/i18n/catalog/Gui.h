@@ -9522,6 +9522,80 @@ SS_MSG(fd_replace_yes,
     TR("Değiştir"));
 
 
+SS_MSG(seed_cloud_restore,
+    EN("Use dataset points"), JA("データセットの点群に戻す"), ZH_HANS("恢复数据集点云"), ZH_HANT("恢復資料集點雲"),
+    KO("데이터셋 점 구름 복원"), DE("Datensatzpunkte verwenden"), FR("Utiliser les points du jeu de données"),
+    ES("Usar puntos del conjunto de datos"), PT("Usar pontos do conjunto de dados"), IT("Usa i punti del set di dati"),
+    NL("Datasetpunten gebruiken"), RU("Использовать точки набора данных"), TR("Veri kümesi noktalarını kullan"));
+SS_MSG(seed_source_dataset,
+    EN("Point source: dataset point cloud."), JA("点群の読み込み元：データセット。"),
+    ZH_HANS("点云来源：数据集自带点云。"), ZH_HANT("點雲來源：資料集自帶點雲。"), KO("점 구름 출처: 데이터셋."),
+    DE("Punktquelle: Datensatzpunktwolke."), FR("Source des points : nuage du jeu de données."),
+    ES("Origen de puntos: nube del conjunto de datos."), PT("Origem dos pontos: nuvem do conjunto de dados."),
+    IT("Origine dei punti: nuvola del set di dati."), NL("Puntbron: datasetpuntenwolk."),
+    RU("Источник точек: облако набора данных."), TR("Nokta kaynağı: veri kümesi bulutu."));
+SS_MSG(seed_source_external,
+    EN("Point source: external PLY ({0})."), JA("点群の読み込み元：外部 PLY（{0}）。"),
+    ZH_HANS("点云来源：外部 PLY（{0}）。"), ZH_HANT("點雲來源：外部 PLY（{0}）。"), KO("점 구름 출처: 외부 PLY ({0})."),
+    DE("Punktquelle: externes PLY ({0})."), FR("Source des points : PLY externe ({0})."),
+    ES("Origen de puntos: PLY externo ({0})."), PT("Origem dos pontos: PLY externo ({0})."),
+    IT("Origine dei punti: PLY esterno ({0})."), NL("Puntbron: extern PLY ({0})."),
+    RU("Источник точек: внешний PLY ({0})."), TR("Nokta kaynağı: harici PLY ({0})."));
+SS_MSG(seed_source_random,
+    EN("Point source: random initialization."), JA("点群の読み込み元：ランダム初期化。"),
+    ZH_HANS("点云来源：随机初始化。"), ZH_HANT("點雲來源：隨機初始化。"), KO("점 구름 출처: 무작위 초기화."),
+    DE("Punktquelle: zufällige Initialisierung."), FR("Source des points : initialisation aléatoire."),
+    ES("Origen de puntos: inicialización aleatoria."), PT("Origem dos pontos: inicialização aleatória."),
+    IT("Origine dei punti: inizializzazione casuale."), NL("Puntbron: willekeurige initialisatie."),
+    RU("Источник точек: случайная инициализация."), TR("Nokta kaynağı: rastgele başlatma."));
+SS_MSG(seed_source_auto,
+    EN("Point source: dataset cloud, or random points if none is available."),
+    JA("点群の読み込み元：データセット。点群がない場合はランダムに初期化します。"),
+    ZH_HANS("点云来源：数据集；没有点云时自动随机初始化。"), ZH_HANT("點雲來源：資料集；沒有點雲時自動隨機初始化。"),
+    KO("점 구름 출처: 데이터셋. 점 구름이 없으면 무작위로 초기화합니다."),
+    DE("Punktquelle: Datensatz; ohne Punktwolke zufällige Punkte."),
+    FR("Source des points : jeu de données, ou points aléatoires en l'absence de nuage."),
+    ES("Origen de puntos: conjunto de datos, o puntos aleatorios si no hay nube."),
+    PT("Origem dos pontos: conjunto de dados, ou pontos aleatórios se não houver nuvem."),
+    IT("Origine dei punti: set di dati, o punti casuali se non è disponibile una nuvola."),
+    NL("Puntbron: dataset, of willekeurige punten als er geen puntenwolk is."),
+    RU("Источник точек: набор данных; при отсутствии облака — случайные точки."),
+    TR("Nokta kaynağı: veri kümesi; bulut yoksa rastgele noktalar."));
+SS_MSG(seed_source_resume,
+    EN("Initialization: restore Gaussians from the checkpoint."), JA("初期化：チェックポイントのガウシアンを復元します。"),
+    ZH_HANS("初始化来源：恢复检查点中的高斯。"), ZH_HANT("初始化來源：恢復檢查點中的高斯。"), KO("초기화: 체크포인트의 가우시안을 복원합니다."),
+    DE("Initialisierung: Gaussians aus dem Checkpoint wiederherstellen."), FR("Initialisation : restaurer les gaussiennes du checkpoint."),
+    ES("Inicialización: restaurar gaussianas del checkpoint."), PT("Inicialização: restaurar gaussianas do checkpoint."),
+    IT("Inizializzazione: ripristina le gaussiane dal checkpoint."), NL("Initialisatie: Gaussians uit checkpoint herstellen."),
+    RU("Инициализация: восстановление гауссиан из контрольной точки."), TR("Başlatma: kontrol noktasından Gaussianları geri yükle."));
+SS_MSG(seed_source_splat,
+    EN("Initialization: existing Gaussian PLY."), JA("初期化：既存のガウシアン PLY。"),
+    ZH_HANS("初始化来源：已有高斯 PLY。"), ZH_HANT("初始化來源：已有高斯 PLY。"), KO("초기화: 기존 가우시안 PLY."),
+    DE("Initialisierung: vorhandenes Gaussian-PLY."), FR("Initialisation : PLY gaussien existant."),
+    ES("Inicialización: PLY gaussiano existente."), PT("Inicialização: PLY gaussiano existente."),
+    IT("Inizializzazione: PLY gaussiano esistente."), NL("Initialisatie: bestaand Gaussian-PLY."),
+    RU("Инициализация: существующий PLY гауссиан."), TR("Başlatma: mevcut Gaussian PLY."));
+SS_MSG(seed_source_splat_add,
+    EN("Initialization: existing Gaussian PLY plus point seeds."), JA("初期化：既存のガウシアン PLY に初期点群を追加します。"),
+    ZH_HANS("初始化来源：已有高斯 PLY，同时追加点云。"), ZH_HANT("初始化來源：已有高斯 PLY，同時追加點雲。"), KO("초기화: 기존 가우시안 PLY에 초기 점 구름 추가."),
+    DE("Initialisierung: vorhandenes Gaussian-PLY mit zusätzlichen Startpunkten."),
+    FR("Initialisation : PLY gaussien existant et points initiaux supplémentaires."),
+    ES("Inicialización: PLY gaussiano existente y puntos iniciales adicionales."),
+    PT("Inicialização: PLY gaussiano existente e pontos iniciais adicionais."),
+    IT("Inizializzazione: PLY gaussiano esistente e punti iniziali aggiuntivi."),
+    NL("Initialisatie: bestaand Gaussian-PLY plus startpunten."),
+    RU("Инициализация: существующий PLY гауссиан с добавлением начальных точек."), TR("Başlatma: mevcut Gaussian PLY ve ek başlangıç noktaları."));
+SS_MSG(seed_cloud_unused,
+    EN("The selected external cloud is not used for this initialization."), JA("選択した外部点群は今回の初期化には使われません。"),
+    ZH_HANS("所选外部点云不参与本次初始化。"), ZH_HANT("所選外部點雲不參與本次初始化。"), KO("선택한 외부 점 구름은 이번 초기화에 사용되지 않습니다."),
+    DE("Die gewählte externe Punktwolke wird für diese Initialisierung nicht verwendet."),
+    FR("Le nuage externe sélectionné n'est pas utilisé pour cette initialisation."),
+    ES("La nube externa seleccionada no se usa en esta inicialización."),
+    PT("A nuvem externa selecionada não é usada nesta inicialização."),
+    IT("La nuvola esterna selezionata non viene usata per questa inizializzazione."),
+    NL("De geselecteerde externe puntenwolk wordt niet voor deze initialisatie gebruikt."),
+    RU("Выбранное внешнее облако не используется для этой инициализации."), TR("Seçilen harici bulut bu başlatmada kullanılmaz."));
+
 }  // namespace gui
 }  // namespace msg
 }  // namespace i18n

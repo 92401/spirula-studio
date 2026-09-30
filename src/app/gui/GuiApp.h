@@ -115,7 +115,7 @@ private:
         BatchMeshPresetFile, BatchSourceImages, BatchSourceVideo, BatchModel,
         MeshSource, MeshPhotos, MeshOutput, AddSplatFile, SplatFolder,
         EditSaveFile, EditSaveFolder, RenderProjectSave, RenderProjectOpen,
-        RenderOutput, RenderAddModel, StencilFile
+        RenderOutput, RenderAddModel, StencilFile, SeedPointcloud
     };
     // Which reconstruction back end the New Dataset screen runs.
     enum class Engine { BuiltIn, Colmap };

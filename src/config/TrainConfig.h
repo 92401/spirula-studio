@@ -121,6 +121,7 @@ inline int train_tier_rank(const char* tier) {
     X(std::string, metashape_xml, "", "dataset", "advanced", "none")         \
     X(std::string, metashape_ply, "", "dataset", "advanced", "none")         \
     X(std::string, metashape_psx, "", "dataset", "advanced", "none")         \
+    X(std::string, seed_pointcloud, "", "dataset", "basic", "none")          \
     X(std::string, init_ply, "", "dataset", "basic", "none")                 \
     X(bool, init_ply_add_points, false, "dataset", "advanced", "")           \
     X(std::string, partition, "", "dataset", "advanced", "none")             \
@@ -367,14 +368,10 @@ struct TrainConfig {
     X(data) \
     /* end */
 
-// Fields that change what load_dataset() produces: edit one of these in the
-// GUI and the parsed dataset it is holding is stale. Spelled out rather than
-// derived from `section`, because the two sets are not the same shape (the
-// warping and depth/normal flags are listed under other headings) and because
-// a heading is free to be reshuffled -- which must not silently change when
-// the GUI re-reads a dataset.
+// Section headings can move without changing which fields invalidate the
+// GUI's parsed dataset; warping and depth flags span several headings.
 #define SS_DATASET_PARSE_FIELDS(X) \
-    X(data) X(data_format) X(colmap_recon_dir) X(image_dir) X(mask_dir) \
+    X(data) X(data_format) X(colmap_recon_dir) X(seed_pointcloud) X(image_dir) X(mask_dir) \
     X(depth_dir) X(normal_dir) X(metashape_xml) X(metashape_ply) \
     X(metashape_psx) X(train_resolution_divisor) X(downscale_rounding_mode) \
     X(exif_orientation) X(orientation_method) X(center_method) X(auto_scale_poses) \

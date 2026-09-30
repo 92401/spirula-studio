@@ -2898,6 +2898,28 @@ SS_MSG(background_noise_pre_warmup_help,
     TR("Arka plan gürültüsünün en başta ne kadar güçlü olduğu; 0 ile 1 arası. "
        "Yüksek değerler splat'ların ilk adımlarda silinip gitmesini önler."));
 
+SS_MSG(seed_pointcloud,
+    EN("Seed point cloud PLY"), JA("初期点群 PLY"),
+    ZH_HANS("初始化点云 PLY"), ZH_HANT("初始化點雲 PLY"), KO("초기 점 구름 PLY"),
+    DE("Startpunktwolke PLY"), FR("Nuage de points initial PLY"),
+    ES("Nube de puntos inicial PLY"), PT("Nuvem de pontos inicial PLY"),
+    IT("Nuvola di punti iniziale PLY"), NL("Startpuntenwolk PLY"),
+    RU("Начальное облако точек PLY"), TR("Başlangıç nokta bulutu PLY"));
+SS_MSG(seed_pointcloud_help,
+    EN("Replace the dataset's seed cloud with an XYZ + RGB PLY in the same source coordinate frame as the cameras. Relative paths start at the dataset directory. Scene centering and scaling apply to both. This is a point cloud, not an already-trained splat PLY. random_init=always overrides it; init_ply uses it only with init_ply_add_points. Resume restores checkpoint splats."),
+    JA("カメラと同じ元の座標系の XYZ + RGB PLY で初期点群を置き換えます。相対パスはデータセット基準です。中心移動とスケールは両方に適用されます。学習済みスプラットではなく点群です。random_init=always はこれを上書きし、init_ply は init_ply_add_points の場合のみ使用します。再開時はチェックポイントを復元します。"),
+    ZH_HANS("用与相机处于同一原始坐标系的 XYZ + RGB PLY 替换数据集的初始化点云。相对路径以数据集目录为基准，居中和缩放同时作用于点云与相机。这是普通点云，不是训练好的高斯 PLY。random_init=always 会覆盖它；init_ply 仅在 init_ply_add_points 开启时使用它。恢复训练使用检查点中的高斯。"),
+    ZH_HANT("用與相機處於同一原始座標系的 XYZ + RGB PLY 取代資料集的初始化點雲。相對路徑以資料集目錄為基準，置中和縮放同時作用於點雲與相機。這是普通點雲，不是訓練好的高斯 PLY。random_init=always 會覆蓋它；init_ply 僅在 init_ply_add_points 開啟時使用它。恢復訓練使用檢查點中的高斯。"),
+    KO("카메라와 같은 원본 좌표계의 XYZ + RGB PLY로 초기 점 구름을 교체합니다. 상대 경로는 데이터셋 기준이며 중심 이동과 배율은 둘 다에 적용됩니다. 학습된 스플랫이 아닌 점 구름입니다. random_init=always가 덮어쓰며 init_ply는 init_ply_add_points일 때만 사용합니다. 재개 시 체크포인트를 복원합니다."),
+    DE("Ersetzt die Startpunktwolke durch ein XYZ + RGB PLY im Quellkoordinatensystem der Kameras. Relative Pfade beginnen im Datensatzordner. Zentrierung und Skalierung gelten für beide. Kein trainiertes Splat-PLY. random_init=always überschreibt es; init_ply nutzt es nur mit init_ply_add_points. Fortsetzen stellt Checkpoint-Splats wieder her."),
+    FR("Remplace le nuage initial par un PLY XYZ + RGB dans le repère source des caméras. Les chemins relatifs partent du dossier du jeu de données. Centrage et échelle s'appliquent aux deux. Ce n'est pas un PLY de splats entraîné. random_init=always le remplace ; init_ply l'utilise uniquement avec init_ply_add_points. La reprise restaure les splats du checkpoint."),
+    ES("Sustituye la nube inicial por un PLY XYZ + RGB en el sistema de origen de las cámaras. Las rutas relativas parten del conjunto de datos. Centrado y escala se aplican a ambos. No es un PLY de splats entrenado. random_init=always lo sustituye; init_ply solo lo usa con init_ply_add_points. Reanudar restaura los splats del checkpoint."),
+    PT("Substitui a nuvem inicial por um PLY XYZ + RGB no sistema de origem das câmeras. Caminhos relativos partem da pasta do conjunto de dados. Centralização e escala se aplicam a ambos. Não é um PLY de splats treinado. random_init=always o substitui; init_ply só o usa com init_ply_add_points. Retomar restaura os splats do checkpoint."),
+    IT("Sostituisce la nuvola iniziale con un PLY XYZ + RGB nel sistema originale delle camere. I percorsi relativi partono dalla cartella del set di dati. Centratura e scala si applicano a entrambi. Non è un PLY di splat addestrati. random_init=always lo sostituisce; init_ply lo usa solo con init_ply_add_points. La ripresa ripristina gli splat del checkpoint."),
+    NL("Vervangt de startpuntenwolk door een XYZ + RGB PLY in het bronstelsel van de camera's. Relatieve paden beginnen bij de datasetmap. Centrering en schaal gelden voor beide. Geen getraind splat-PLY. random_init=always vervangt het; init_ply gebruikt het alleen met init_ply_add_points. Hervatten herstelt de checkpoint-splats."),
+    RU("Заменяет начальное облако файлом XYZ + RGB PLY в исходной системе координат камер. Относительные пути идут от каталога данных. Центрирование и масштаб применяются к обоим. Это не обученный PLY сплатов. random_init=always заменяет его; init_ply использует его только с init_ply_add_points. Возобновление восстанавливает сплаты контрольной точки."),
+    TR("Başlangıç bulutunu kameralarla aynı kaynak koordinat sistemindeki XYZ + RGB PLY ile değiştirir. Göreli yollar veri kümesi klasöründen başlar. Merkezleme ve ölçek ikisine de uygulanır. Eğitilmiş splat PLY değildir. random_init=always bunun yerine geçer; init_ply yalnızca init_ply_add_points ile kullanır. Devam etme kontrol noktası splatlarını geri yükler."));
+
 SS_MSG(init_ply,
     EN("Initial splat PLY"), JA("初期スプラットの PLY"),
     ZH_HANS("初始泼溅 PLY"), ZH_HANT("初始潑濺 PLY"), KO("초기 스플랫 PLY"),

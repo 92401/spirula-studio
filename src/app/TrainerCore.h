@@ -211,6 +211,7 @@ public:
     bool has_mask = false;
     bool has_depth = false;
     bool has_normal = false;
+    bool random_seeded = false;
     // probe_alpha_masks over `ds`: [N] flags, empty when no image is a cut-out.
     std::vector<uint8_t> alpha_images;
 
