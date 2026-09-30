@@ -2463,6 +2463,7 @@ const char* GuiApp::dir_key(PickAction a, FileDialog::Mode m) {
         case PickAction::BatchDatasetPresetFile:
         case PickAction::BatchMeshPresetFile: return "preset";
         case PickAction::MaskModelFile:
+        case PickAction::ConfigPath:
         case PickAction::None:              return "";
     }
     return "";
@@ -2480,7 +2481,10 @@ void GuiApp::open_pick(PickAction a, const std::string& title,
                        const std::string& start_dir, bool multi,
                        const std::string& suggested_name) {
     _pick = a;
-    _pick_key = dir_key(a, mode);
+    // One remembered folder per flag: a run to resume and a region JSON do
+    // not live in the same place.
+    _pick_key = a == PickAction::ConfigPath ? "train." + _pick_field
+                                            : dir_key(a, mode);
     std::string dir = start_dir;
     if (dir.empty()) {
         auto it = _dialog_dirs.find(_pick_key);
@@ -2553,6 +2557,12 @@ void GuiApp::handle_dialog_result(const std::vector<std::string>& paths) {
             _cfg_ui.touched.insert("seed_pointcloud");
             _parse_dirty = true;
             break;
+        case PickAction::ConfigPath: {
+            const TrainConfig before = _cfg;
+            apply_path_pick(_cfg, _cfg_ui, _pick_field, path);
+            if (!parse_settings_equal(before, _cfg)) _parse_dirty = true;
+            break;
+        }
         case PickAction::StencilFile:
             if (_segment.is_open() && _mask_preview_input < (int)_sources.size())
                 _segment.load_file(_sources[(size_t)_mask_preview_input].stencil, path);
@@ -8572,6 +8582,7 @@ void GuiApp::draw_train_settings() {
         ui::SeparatorText(msg::section_basic_options);
         draw_basic_options();
 
+    #if 0
         ui::Text(fld::seed_pointcloud);
         if (!_cfg.seed_pointcloud.empty()) {
             ImGui::SameLine();
@@ -8615,10 +8626,18 @@ void GuiApp::draw_train_settings() {
         if (!_cfg.seed_pointcloud.empty() && (!_cfg.resume.empty() || random ||
             (!_cfg.init_ply.empty() && !_cfg.init_ply_add_points)))
             ui::TextColoredWrapped(kWarn, msg::seed_cloud_unused);
+    #endif
 
         ImGui::Spacing();
         if (ui::CollapsingHeader(msg::section_all_options))
             draw_config_editor(_cfg, _defaults, _cfg_ui);
+        if (!_cfg_ui.pick.field.empty()) {
+            const PathPick p = std::exchange(_cfg_ui.pick, {});
+            _pick_field = p.field;
+            open_pick(PickAction::ConfigPath, p.title,
+                      p.folder ? FileDialog::Mode::Folder : FileDialog::Mode::File,
+                      p.extensions, p.start_dir);
+        }
         ImGui::EndDisabled();
 
         // The macro options (quality, floater_suppression, ...) fill in the
@@ -9083,10 +9102,12 @@ void GuiApp::draw_basic_options() {
     }
     ImGui::Spacing();
 
+#if 0
     // Ahead of the two flags it sets, so the usual path is to pick a quality
     // and move on, and the numbers below are what that choice came to.
     macro_option("quality", _cfg.quality, fld::quality, fld::quality_help,
                  {"low", "medium", "high", "ultra"});
+#endif
 
     ImGui::SetNextItemWidth(w);
     if (ui::InputInt(msg::opt_steps, &_cfg.num_iterations))

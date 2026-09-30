@@ -115,7 +115,8 @@ private:
         BatchMeshPresetFile, BatchSourceImages, BatchSourceVideo, BatchModel,
         MeshSource, MeshPhotos, MeshOutput, AddSplatFile, SplatFolder,
         EditSaveFile, EditSaveFolder, RenderProjectSave, RenderProjectOpen,
-        RenderOutput, RenderAddModel, StencilFile, SeedPointcloud
+        RenderOutput, RenderAddModel, StencilFile, SeedPointcloud,
+        ConfigPath
     };
     // Which reconstruction back end the New Dataset screen runs.
     enum class Engine { BuiltIn, Colmap };
@@ -893,6 +894,7 @@ private:
     PickAction _pick = PickAction::None;
     std::string _pick_key;            // dir_key() of the pick in flight
     int _pick_source = -1;            // which input PickAction::SourceReplace edits
+    std::string _pick_field;          // which flag PickAction::ConfigPath sets
     // Which batch row the pending pick edits; -1 appends a new row.
     int _pick_row = -1;
     // ... and which of that row's training runs, for a pick made in one of
