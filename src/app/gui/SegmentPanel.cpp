@@ -122,6 +122,8 @@ void SegmentPanel::open(const PreviewSource& src, const MaskModelFiles& model) {
         _livewire_ready = false;
     }
     _tex_w = _tex_h = 0;
+    _view_w = _view_h = 0;
+    _panning = false;
     _listing = true;
     _open = true;
     const PreviewSource requested = _src;
@@ -652,28 +654,30 @@ void SegmentPanel::upload_preview() {
     _tex_h = h;
 }
 
-// The stencil as a translucent red layer over the frame. Rasterizing it into a
-// small texture beats drawing it: shapes that keep and shapes that remove can
-// compose into a region no sequence of ImDrawList calls describes, and the
-// rasterizer that answers it here is the one that writes the masks.
-void SegmentPanel::upload_stencil(const app::FrameMask& stencil) {
-    const std::string key = app::format_mask_shapes(stencil.shapes) + "|" +
-                            stencil.image;
+// The stencil as a translucent red layer over the frame's on-screen part. A
+// raster, not draw calls: keep and remove shapes compose into regions no path
+// describes, and this rasterizer is the one that writes the masks.
+void SegmentPanel::upload_stencil(const app::FrameMask& stencil, const float win[4], int w,
+                                  int h) {
+    char view[96];
+    std::snprintf(view, sizeof view, "|%g,%g,%g,%g|%dx%d", win[0], win[1], win[2], win[3], w, h);
+    const std::string key = app::format_mask_shapes(stencil.shapes) + view;
     if (key == _stencil_key) return;
     _stencil_key = key;
-    if (stencil.empty()) {
+    // The GUI never sets FrameMask::image, so the shapes are the whole overlay.
+    if (stencil.shapes.empty()) {
         if (_stencil_tex) {
             glDeleteTextures(1, &_stencil_tex);
             _stencil_tex = 0;
         }
         return;
     }
-    const float aspect = _tex_h > 0 ? (float)_tex_w / (float)_tex_h : 1.0f;
-    const int w = aspect >= 1.0f ? 512 : std::max(8, (int)(512 * aspect));
-    const int h = aspect >= 1.0f ? std::max(8, (int)(512 / aspect)) : 512;
+    app::FrameMask part;
+    for (const app::MaskShape& s : stencil.shapes)
+        part.shapes.push_back(stencil_crop(s, win[0], win[1], win[2], win[3]));
     std::vector<uint8_t> px;
     std::string err;
-    if (!app::rasterize_frame_mask(stencil, w, h, px, err)) return;
+    if (!app::rasterize_frame_mask(part, w, h, px, err)) return;
     std::vector<uint8_t> rgba((size_t)w * h * 4, 0);
     for (size_t i = 0; i < px.size(); i++) {
         if (px[i] > 127) continue;
@@ -691,45 +695,92 @@ void SegmentPanel::upload_stencil(const app::FrameMask& stencil) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                  rgba.data());
+    std::copy(win, win + 4, _stencil_win);
 }
 
 void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil,
                               bool& edited) {
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float box_h = std::max(avail.y - 8.0f, 120.0f);
+    const ImVec2 pane(std::max(avail.x, 64.0f), std::max(avail.y - 8.0f, 120.0f));
     if (!_tex || _tex_w <= 0) {
-        ImGui::Dummy(ImVec2(avail.x, box_h));
+        ImGui::Dummy(pane);
         return;
-    }
-    const float aspect = (float)_tex_w / (float)_tex_h;
-    ImVec2 size(avail.x, avail.x / aspect);
-    if (size.y > box_h) {
-        size.y = box_h;
-        size.x = box_h * aspect;
     }
     // An InvisibleButton rather than an Image: a plain Image is not an item the
     // mouse can hold, so a drag across it moves the WINDOW, which is exactly
     // what happens while pulling a shape's handle around.
-    const ImVec2 origin = ImGui::GetCursorScreenPos();
-    ui::InvisibleButtonRaw("##canvas", size,
-                           ImGuiButtonFlags_MouseButtonLeft |
-                               ImGuiButtonFlags_MouseButtonRight);
+    const ImVec2 corner = ImGui::GetCursorScreenPos();
+    ui::InvisibleButtonRaw("##canvas", pane,
+                           ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight |
+                               ImGuiButtonFlags_MouseButtonMiddle);
+    const bool hovered = ImGui::IsItemHovered();
+    ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);   // the wheel zooms; nothing scrolls under it
+    const ImVec2 pane_end(corner.x + pane.x, corner.y + pane.y);
+    const ImGuiIO& io = ImGui::GetIO();
+    const bool space = ImGui::IsKeyDown(ImGuiKey_Space);
+
+    if (_view_w != _tex_w || _view_h != _tex_h) {
+        _view = mask::View{1.0f, 0.5f * (float)_tex_w, 0.5f * (float)_tex_h};
+        _view_w = _tex_w;
+        _view_h = _tex_h;
+    }
+    const bool brush = _draw == DrawTool::Eraser ||
+                       (_draw == DrawTool::Shape && _tool.id() == ToolId::Brush);
+    // Not mid-stroke or mid-drag: those hold canvas pixels, which a new view would move.
+    if (!_tool.in_progress() && _drag_handle == -1 && _pt_part == PenPart::None) {
+        const mask::Mapping m0 = mask::mapping(_view, _tex_w, _tex_h, pane.x, pane.y);
+        if (hovered && io.MouseWheel != 0.0f) {
+            if (!io.KeyAlt)
+                mask::zoom_about(_view, std::pow(1.2f, io.MouseWheel), io.MousePos.x - corner.x,
+                                 io.MousePos.y - corner.y, _tex_w, _tex_h, pane.x, pane.y);
+            else if (brush)
+                _brush_pct = std::clamp(_brush_pct * std::pow(1.25f, io.MouseWheel), 0.2f, 25.0f);
+        }
+        const bool pan_down = ImGui::IsMouseDown(ImGuiMouseButton_Middle) ||
+                              (space && ImGui::IsMouseDown(ImGuiMouseButton_Left));
+        if (hovered && (ImGui::IsMouseClicked(ImGuiMouseButton_Middle) ||
+                        (space && ImGui::IsMouseClicked(ImGuiMouseButton_Left))))
+            _panning = true;
+        if (_panning) {
+            if (!pan_down) _panning = false;
+            else mask::pan(_view, io.MouseDelta.x, io.MouseDelta.y, m0, _tex_w, _tex_h);
+        }
+    }
+    // From here on `origin` and `size` are the picture's rectangle on screen,
+    // which may overhang the pane or sit inside it with room around.
+    const mask::Mapping m = mask::mapping(_view, _tex_w, _tex_h, pane.x, pane.y);
+    const ImVec2 origin(corner.x + m.to_screen_x(0.0f), corner.y + m.to_screen_y(0.0f));
+    const ImVec2 size((float)_tex_w * m.scale, (float)_tex_h * m.scale);
     const ImVec2 far_corner(origin.x + size.x, origin.y + size.y);
+    // The tools take the pointer off the picture too, anywhere on the pane.
+    const bool pointer = hovered && !space && !_panning;
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->PushClipRect(corner, pane_end, true);
+    dl->AddRectFilled(corner, pane_end, IM_COL32(24, 24, 24, 255));
     dl->AddImage((ImTextureID)(intptr_t)_tex, origin, far_corner);
     const app::FrameMask shown = resolved(stencil);
-    upload_stencil(shown);
-    if (_stencil_tex)
-        dl->AddImage((ImTextureID)(intptr_t)_stencil_tex, origin, far_corner);
-
+    const float win[4] = {std::max(0.0f, (corner.x - origin.x) / size.x),
+                          std::max(0.0f, (corner.y - origin.y) / size.y),
+                          std::min(1.0f, (pane_end.x - origin.x) / size.x),
+                          std::min(1.0f, (pane_end.y - origin.y) / size.y)};
+    if (win[2] > win[0] && win[3] > win[1]) {
+        const float vw = (win[2] - win[0]) * size.x, vh = (win[3] - win[1]) * size.y;
+        // 1024 bounds the re-raster a pan or a handle drag does every frame.
+        const float k = std::min(1.0f, 1024.0f / std::max(vw, vh));
+        upload_stencil(shown, win, std::max(8, (int)std::ceil(vw * k)),
+                       std::max(8, (int)std::ceil(vh * k)));
+    }
     auto to_screen = [&](float u, float v) {
         return ImVec2(origin.x + u * size.x, origin.y + v * size.y);
     };
+    if (_stencil_tex)
+        dl->AddImage((ImTextureID)(intptr_t)_stencil_tex,
+                     to_screen(_stencil_win[0], _stencil_win[1]),
+                     to_screen(_stencil_win[2], _stencil_win[3]));
+
     const PreviewFrame frame =
         _frames.empty() ? PreviewFrame{} : _frames[(size_t)_frame_idx];
-    const bool hovered = ImGui::IsItemHovered();
-    const ImGuiIO& io = ImGui::GetIO();
     std::vector<app::MaskShape>& shapes = scope(stencil).mask.shapes;
     if (_shape_sel >= (int)shapes.size()) _shape_sel = -1;
 
@@ -771,9 +822,9 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
         _drag_before = stencil;
         _drag_before_key = app::format_mask_shapes(shapes);
     };
-    if (points_now) on_shape = edit_points(stencil, *sel, mu, mv, size.x, size.y, hovered, edited);
+    if (points_now) on_shape = edit_points(stencil, *sel, mu, mv, size.x, size.y, pointer, edited);
     else if (pen_mode && pen_sel && !_pen.in_progress())
-        on_shape = pen_on_shape(stencil, *sel, mu, mv, size.x, size.y, hovered, edited);
+        on_shape = pen_on_shape(stencil, *sel, mu, mv, size.x, size.y, pointer, edited);
     if (selecting && sel && _pt_part == PenPart::None) {
         app::MaskShape& s = *sel;
         float hu[3], hv[3];
@@ -783,12 +834,12 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
             // `near` is a macro in the Windows headers; do not name it that.
             const bool hit = std::fabs(mouse.x - p.x) < 9.0f &&
                              std::fabs(mouse.y - p.y) < 9.0f;
-            on_shape |= hit && hovered;
+            on_shape |= hit && pointer;
             dl->AddCircleFilled(p, 6.0f, IM_COL32(255, 255, 255, 230));
             dl->AddCircle(p, 6.0f, IM_COL32(30, 30, 30, 220), 0, 1.5f);
-            if (hit && hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) grab(i);
+            if (hit && pointer && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) grab(i);
         }
-        if (hovered && !on_shape && stencil_contains(s, mu, mv)) {
+        if (pointer && !on_shape && stencil_contains(s, mu, mv)) {
             on_shape = true;
             if (_drag_handle == -1 && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 grab(kDragBody);
@@ -799,7 +850,7 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
     }
     // Points picks what it clicks, the topmost shape first, and lets go on
     // empty picture; the press that picks also starts moving it.
-    if (_draw == DrawTool::Points && hovered && !on_shape && _drag_handle == -1 &&
+    if (_draw == DrawTool::Points && pointer && !on_shape && _drag_handle == -1 &&
         _pt_part == PenPart::None && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         _shape_sel = -1;
         _pt_anchor = -1;
@@ -843,7 +894,7 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
         _drag_handle = -1;
     };
     ViewportInput in;
-    in.hovered = hovered && !on_shape && _drag_handle == -1;
+    in.hovered = pointer && !on_shape && _drag_handle == -1;
     in.x = mouse.x - origin.x;
     in.y = mouse.y - origin.y;
     in.W = (int)size.x;
@@ -851,7 +902,7 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
     in.down = ImGui::IsMouseDown(ImGuiMouseButton_Left);
     in.clicked = in.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
     in.released = ImGui::IsMouseReleased(ImGuiMouseButton_Left);
-    in.right_clicked = hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
+    in.right_clicked = pointer && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
     in.double_clicked = in.hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left);
     in.shift = io.KeyShift;
     in.ctrl = io.KeyCtrl;
@@ -956,9 +1007,11 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
         }
     }
 
-    // Clicks land in source-image pixels, which is what the model wants. Only
-    // with no drawing tool: every other one owns the left button.
-    const bool canvas_free = hovered && !on_shape && _drag_handle == -1 &&
+    // Clicks land in source-image pixels, which is what the model wants, so
+    // only on the picture. Only with no drawing tool: every other one owns the
+    // left button.
+    const bool on_picture = mu >= 0.0f && mu < 1.0f && mv >= 0.0f && mv < 1.0f;
+    const bool canvas_free = pointer && on_picture && !on_shape && _drag_handle == -1 &&
                              _draw == DrawTool::Select && !tool_consumed &&
                              _model.kind != MaskModelKind::Subject;
     if (!_listing.load() && !_frames.empty() && canvas_free &&
@@ -1041,6 +1094,7 @@ void SegmentPanel::draw_image(MaskSettings& settings, app::FrameStencil& stencil
                         IM_COL32(255, 255, 255, 255), 1.5f);
         }
     }
+    dl->PopClipRect();
     if (undo_request) undo_shapes(stencil, undo_request == 2, edited);
 }
 
@@ -1270,6 +1324,7 @@ void SegmentPanel::draw_tools(app::FrameStencil& stencil, bool& edited) {
             ui::TextDisabled(mmsg::path_straight);
         }
     }
+    ui::TextDisabledWrapped(mmsg::hint_view);
 
     // The keys, while nothing is being typed and no stroke is half drawn.
     const ImGuiIO& io = ImGui::GetIO();

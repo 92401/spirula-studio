@@ -202,6 +202,30 @@ void stencil_move_handle(app::MaskShape& s, int handle, float u, float v) {
     else { s.rx = u; s.ry = v; }
 }
 
+app::MaskShape stencil_crop(const app::MaskShape& s, float u0, float v0, float u1, float v1) {
+    app::MaskShape o = s;
+    const float ku = 1.0f / (u1 - u0), kv = 1.0f / (v1 - v0);
+    for (size_t i = 0; i + 1 < o.pts.size(); i += 2) {
+        o.pts[i] = (o.pts[i] - u0) * ku;
+        o.pts[i + 1] = (o.pts[i + 1] - v0) * kv;
+    }
+    if (s.kind == Kind::Rect) {
+        o.cx = (s.cx - u0) * ku;
+        o.cy = (s.cy - v0) * kv;
+        o.rx = (s.rx - u0) * ku;
+        o.ry = (s.ry - v0) * kv;
+    } else if (s.kind == Kind::Ellipse) {
+        o.cx = (s.cx - u0) * ku;
+        o.cy = (s.cy - v0) * kv;
+        o.rx = s.rx * ku;
+        o.ry = s.ry * kv;
+    } else if (s.kind == Kind::Stroke) {
+        o.rx = s.rx * ku;
+        o.ry = s.ry * kv;
+    }
+    return o;
+}
+
 PenHit pen_hit(const app::MaskShape& s, float u, float v, float cw, float ch, float radius,
                bool handles) {
     PenHit hit;

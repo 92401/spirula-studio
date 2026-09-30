@@ -28,6 +28,9 @@ int stencil_handles(const app::MaskShape& s, float u[3], float v[3]);
 bool stencil_contains(const app::MaskShape& s, float u, float v);
 void stencil_move(app::MaskShape& s, float du, float dv);
 void stencil_move_handle(app::MaskShape& s, int handle, float u, float v);
+// `s` with the frame's (u0, v0)-(u1, v1) stretched over the unit square: what
+// rasterize_frame_mask needs to draw that part of the frame alone.
+app::MaskShape stencil_crop(const app::MaskShape& s, float u0, float v0, float u1, float v1);
 
 // ---- a pen shape's own points; (u, v) normalized, radii in canvas pixels ----
 

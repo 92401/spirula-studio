@@ -80,7 +80,10 @@ the newest edit. Esc cancels a prompt once its current step finishes.
 - **Peek**: hold Tab over the picture for the bare photo, Shift+Tab for the
   bare mask. Side by side, Tab turns the mask pane into the overlay and
   Shift+Tab the photo pane.
-- Wheel zooms; middle drag or Space+drag pans.
+- Wheel zooms, from a quarter of the fitted size up to 64x; middle drag or
+  Space+drag pans. Zoomed out, the picture sits in empty canvas, and every
+  tool but SAM can start and run there: a shape that crosses the edge paints
+  what falls inside it.
 - Left/Right step a frame, PageUp/PageDown ten, Home/End go to the ends.
   Frame keys wait while a shape is half drawn.
 

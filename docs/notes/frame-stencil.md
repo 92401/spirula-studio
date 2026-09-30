@@ -63,6 +63,14 @@ flips, loads, the border conversion and the per-camera switch. Under Select,
 clicks on the picture still prompt the model; pick a shape in the list to move
 or resize it.
 
+The canvas navigates as the mask editor's does (`mask::View`): wheel zooms,
+Alt+wheel sizes the brush, middle drag or Space+drag pans. The drawing tools
+work on the empty canvas around the picture too, so a shape can run past the
+frame's edge; its coordinates then fall outside 0..1, which the rasterizer and
+the SVG file take as they are. Model clicks stay on the picture. The red
+overlay is rasterized for the part of the frame on screen only, so it stays
+sharp when zoomed in.
+
 The tools are the 3D editor's `EditTool` producing a `ShapeStroke` in canvas
 pixels; `stencil_shape_from_stroke` (`src/app/gui/StencilEdit.h`) turns that
 into a `MaskShape`. That file also holds hit testing, moving, resize handles,

@@ -1132,9 +1132,12 @@ void test_view_math() {
     check(std::fabs(m.to_mask_x(sx) - before_x) < 1e-2f && std::fabs(m.to_mask_y(sy) - before_y) < 1e-2f,
           "the point under the cursor stayed put");
     mk::zoom_about(v, 0.01f, sx, sy, dw, dh, pw, ph);
-    check(v.zoom == 1.0f, "zoom clamps at 1");
+    check(v.zoom == mk::kMinZoom, "zoom clamps at kMinZoom");
+    m = mk::mapping(v, dw, dh, pw, ph);
+    check(m.to_screen_x(0.0f) > 0.0f && m.to_screen_x((float)dw) < pw,
+          "zoomed out, the pane has room on both sides of the mask");
     for (int i = 0; i < 40; i++) mk::zoom_about(v, 2.0f, sx, sy, dw, dh, pw, ph);
-    check(v.zoom == 64.0f, "zoom clamps at 64");
+    check(v.zoom == mk::kMaxZoom, "zoom clamps at kMaxZoom");
     // Cursor at a pane corner, zooming in from an already-cornered view: the
     // recentred point lands off-image and must come back clamped, not just
     // the zoom factor -- the final clamp_view() has to run after recentring.
@@ -1157,6 +1160,10 @@ void test_view_math() {
     mk::Window w = mk::window_for(m, dw, dh, pw, ph);
     check(w.r.x0 == 0 && w.r.y0 == 0 && w.r.x1 == dw && w.r.y1 == dh, "window is the whole mask");
     check(w.step == 1 && w.tw == dw && w.th == dh, "no decimation under 4096");
+    const mk::View out{mk::kMinZoom, 400.0f, 300.0f};
+    const mk::Window ow = mk::window_for(mk::mapping(out, dw, dh, pw, ph), dw, dh, pw, ph);
+    check(ow.r.x0 == 0 && ow.r.y0 == 0 && ow.r.x1 == dw && ow.r.y1 == dh,
+          "zoomed out, the window stops at the mask's edges");
     // A 9000-wide mask fully visible decimates by 3.
     mk::View big{1.0f, 4500.0f, 2000.0f};
     const mk::Mapping bm = mk::mapping(big, 9000, 4000, pw, ph);

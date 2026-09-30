@@ -59,6 +59,10 @@ void test_from_stroke() {
     check(!gui::stencil_shape_from_stroke(stroke(gui::ShapeKind::Lasso, {0, 0, 10, 10}), 400,
                                           200, true, m),
           "a lasso of two points is not a shape");
+    check(gui::stencil_shape_from_stroke(stroke(gui::ShapeKind::Box, {-40, -20, 100, 50}), 400,
+                                         200, true, m) &&
+              near_(m.cx, -0.1f) && near_(m.cy, -0.1f) && near_(m.rx, 0.25f),
+          "a box started off the picture keeps its corner there");
 
     // A brush 10 canvas px round on a 2:1 canvas is 10 px on each axis.
     std::vector<float> drag;
@@ -103,6 +107,42 @@ std::vector<uint8_t> raster(const app::MaskShape& s, int W, int H) {
     std::string err;
     app::rasterize_frame_mask(m, W, H, out, err);
     return out;
+}
+
+// The zoomed panel rasterizes only the part of the frame on screen: a crop
+// has to land on exactly the full raster's pixels there.
+void test_crop() {
+    const int W = 400, H = 200;
+    const float u0 = 0.25f, v0 = 0.25f, u1 = 0.75f, v1 = 0.75f;
+    std::vector<app::MaskShape> shapes(5);
+    shapes[0].kind = Kind::Rect;
+    shapes[0].cx = -0.2f; shapes[0].cy = -0.1f; shapes[0].rx = 0.413f; shapes[0].ry = 0.587f;
+    shapes[1].kind = Kind::Ellipse;
+    shapes[1].cx = 0.9f; shapes[1].cy = 0.5f; shapes[1].rx = 0.3f; shapes[1].ry = 0.2f;
+    shapes[2].kind = Kind::Path;
+    shapes[2].pts = {-0.3f, 0.2f, 0.61f, 0.33f, 0.4f, 0.9f};
+    shapes[3].kind = Kind::Stroke;
+    shapes[3].rx = 0.02f; shapes[3].ry = 0.04f;
+    shapes[3].pts = {0.1f, 0.62f, 0.7f, 0.38f};
+    shapes[4].kind = Kind::Bezier;
+    shapes[4].pts = {0.3f, 0.2f, 0.4f, 0.3f, 0.5f, 0.4f,  0.7f, 0.5f, 0.6f, 0.7f, 0.5f, 0.9f};
+    const char* names[5] = {"rect", "ellipse", "path", "stroke", "bezier"};
+    for (int k = 0; k < 5; k++) {
+        const std::vector<uint8_t> full = raster(shapes[(size_t)k], W, H);
+        const int cw = (int)((u1 - u0) * W), ch = (int)((v1 - v0) * H);
+        const std::vector<uint8_t> part =
+            raster(gui::stencil_crop(shapes[(size_t)k], u0, v0, u1, v1), cw, ch);
+        int differ = 0, dropped = 0;
+        for (int y = 0; y < ch; y++)
+            for (int x = 0; x < cw; x++) {
+                const uint8_t a = part[(size_t)y * cw + x];
+                differ += a != full[(size_t)(y + (int)(v0 * H)) * W + x + (int)(u0 * W)];
+                dropped += a == 0;
+            }
+        check(dropped > 0 && differ <= 2, std::string("crop: ") + names[k] +
+                                              " matches the full raster there (" +
+                                              std::to_string(differ) + " pixels differ)");
+    }
 }
 
 void test_pen() {
@@ -308,6 +348,7 @@ void test_presets() {
 int main() {
     test_from_stroke();
     test_hit_and_move();
+    test_crop();
     test_pen();
     test_history();
     test_presets();

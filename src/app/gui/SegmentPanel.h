@@ -21,6 +21,7 @@
 #include "app/gui/StencilPreset.h"
 #include "app/gui/edit/EditTool.h"
 #include "app/gui/mask/Livewire.h"
+#include "app/gui/mask/MaskWindow.h"
 #include "app/gui/mask/PathTool.h"
 #include "app/gui/mask/PenTool.h"
 
@@ -73,7 +74,8 @@ private:
     // tell whether the edge map it holds is this frame's.
     std::string shown_frame_key() const;
     void upload_preview();
-    void upload_stencil(const app::FrameMask& stencil);
+    // `win` is the part of the frame on screen, normalized (u0, v0, u1, v1).
+    void upload_stencil(const app::FrameMask& stencil, const float win[4], int w, int h);
     void draw_image(MaskSettings& settings, app::FrameStencil& stencil,
                     bool& edited);
     void draw_objects(MaskSettings& settings, bool& edited);
@@ -168,6 +170,13 @@ private:
     bool  _pt_pull = false;             // Alt on an anchor under the pen: new handles
     GLuint _stencil_tex = 0;
     std::string _stencil_key;           // what _stencil_tex was built from
+    float _stencil_win[4] = {0.0f, 0.0f, 1.0f, 1.0f};   // and the part of the frame it covers
+
+    // The canvas: the mask editor's view over the preview's pixels, reset
+    // when their size changes.
+    mask::View _view;
+    int _view_w = 0, _view_h = 0;
+    bool _panning = false;
 
     // ---- the drawing tools ----
     enum class DrawTool { Select, Points, Shape, Eraser, Path, Pen };
