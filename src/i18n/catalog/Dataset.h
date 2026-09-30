@@ -3863,6 +3863,82 @@ SS_MSG(mask_negative_help_remove,
        "Необязательно."),
     TR("Yukarıdaki satıra uysa bile kalacak istisnalar. İsteğe bağlı."));
 
+SS_MSG(mask_features_only,
+    EN("Hide from the reconstruction only"),
+    JA("再構成からだけ隠す"),
+    ZH_HANS("只在重建时避开"),
+    ZH_HANT("只在重建時避開"),
+    KO("재구성에서만 빼기"),
+    DE("Nur vor der Rekonstruktion verbergen"),
+    FR("Cacher à la reconstruction seulement"),
+    ES("Ocultar solo a la reconstrucción"),
+    PT("Esconder só da reconstrução"),
+    IT("Nascondere solo alla ricostruzione"),
+    NL("Alleen voor de reconstructie verbergen"),
+    RU("Скрывать только от реконструкции"),
+    TR("Yalnızca yeniden kurmadan gizle"));
+
+SS_MSG(mask_features_only_help,
+    EN("What the reconstruction takes no feature point from, though training "
+       "still uses it: the sky, whose clouds drift and whose points are too far "
+       "off to place a camera by. Written to feature_masks/ beside masks/, from "
+       "the same pass over each frame. \"Try the mask...\" shows it hatched in "
+       "amber."),
+    JA("再構成は特徴点を取らず、学習はそのまま使うものです。雲が流れ、点が遠すぎて"
+       "カメラの位置決めの手がかりにならない空などです。各フレームを処理する同じ"
+       "パスの中で求め、masks/ の隣の feature_masks/ に書き出します。「マスクを"
+       "試す…」では琥珀色の斜線で表示されます。"),
+    ZH_HANS("重建时不从中取特征点、训练却照样使用的东西，比如天空——云在飘，点又"
+            "太远，定不了相机的位置。在处理每一帧的同一遍里求出，写到 masks/ 旁边"
+            "的 feature_masks/。在“试一下蒙版…”里以琥珀色斜线显示。"),
+    ZH_HANT("重建時不從中取特徵點、訓練卻照樣使用的東西，比如天空——雲在飄，點又"
+            "太遠，定不了相機的位置。在處理每一影格的同一遍裡求出，寫到 masks/ 旁邊"
+            "的 feature_masks/。在「試一下遮罩…」裡以琥珀色斜線顯示。"),
+    KO("재구성은 특징점을 뽑지 않지만 학습은 그대로 쓰는 것입니다. 구름이 흘러가고 "
+       "점이 너무 멀어 카메라 위치를 잡는 근거가 되지 못하는 하늘 같은 것입니다. "
+       "각 프레임을 처리하는 같은 패스에서 구해 masks/ 옆의 feature_masks/ 에 "
+       "씁니다. \"마스크 시험해 보기…\"에서는 호박색 빗금으로 보입니다."),
+    DE("Woraus die Rekonstruktion keinen Merkmalspunkt nimmt, was das Training "
+       "aber weiter nutzt: den Himmel, dessen Wolken ziehen und dessen Punkte zu "
+       "fern sind, um eine Kamera daran auszurichten. Landet in feature_masks/ "
+       "neben masks/, im selben Durchgang über jedes Bild ermittelt. „Maske "
+       "ausprobieren …“ zeigt es bernsteinfarben schraffiert."),
+    FR("Ce dont la reconstruction ne tire aucun point d'intérêt mais que "
+       "l'entraînement utilise quand même : le ciel, dont les nuages dérivent et "
+       "dont les points sont trop lointains pour situer une caméra. Écrit dans "
+       "feature_masks/ à côté de masks/, lors du même passage sur chaque image. "
+       "« Essayer le masque… » le montre hachuré d'ambre."),
+    ES("Lo que la reconstrucción no usa para ningún punto característico pero el "
+       "entrenamiento sí: el cielo, cuyas nubes se desplazan y cuyos puntos están "
+       "demasiado lejos para situar una cámara. Se escribe en feature_masks/ "
+       "junto a masks/, en la misma pasada por cada fotograma. «Probar la "
+       "máscara…» lo muestra rayado en ámbar."),
+    PT("O que a reconstrução não usa para nenhum ponto de característica, mas o "
+       "treino usa: o céu, cujas nuvens se movem e cujos pontos estão longe "
+       "demais para situar uma câmera. Gravado em feature_masks/ ao lado de "
+       "masks/, na mesma passagem por cada quadro. “Testar a máscara…” mostra "
+       "isso hachurado em âmbar."),
+    IT("Ciò da cui la ricostruzione non prende alcun punto caratteristico ma che "
+       "l'addestramento usa comunque: il cielo, le cui nuvole si spostano e i cui "
+       "punti sono troppo lontani per collocare una fotocamera. Scritto in "
+       "feature_masks/ accanto a masks/, nello stesso passaggio su ogni "
+       "fotogramma. «Prova la maschera…» lo mostra tratteggiato in ambra."),
+    NL("Waar de reconstructie geen kenmerkpunt uit haalt, maar wat de training "
+       "wel gebruikt: de lucht, waarvan de wolken drijven en de punten te ver weg "
+       "liggen om een camera op te plaatsen. Komt in feature_masks/ naast masks/, "
+       "uit dezelfde doorgang over elk beeld. \"Masker uitproberen…\" toont het "
+       "amberkleurig gearceerd."),
+    RU("То, из чего реконструкция не берёт ни одной особой точки, а обучение всё "
+       "равно использует: небо, где плывут облака, а точки слишком далеко, чтобы "
+       "по ним ставить камеру. Пишется в feature_masks/ рядом с masks/, за тот же "
+       "проход по каждому кадру. «Проверить маску…» показывает это янтарной "
+       "штриховкой."),
+    TR("Yeniden kurmanın hiçbir öznitelik noktası almadığı ama eğitimin yine de "
+       "kullandığı şeyler: bulutları kayan, noktaları bir kamerayı yerleştirmeye "
+       "yaramayacak kadar uzak olan gökyüzü gibi. Her karenin aynı geçişinde "
+       "bulunur ve masks/ yanındaki feature_masks/ klasörüne yazılır. \"Maskeyi "
+       "dene…\" bunu kehribar renkli taramayla gösterir."));
+
 SS_MSG(mask_advanced,
     EN("Advanced masking"),
     JA("マスクの詳細設定"),
@@ -7449,6 +7525,70 @@ SS_MSG(preview_kept_fraction,
     NL("{0}% van het beeld blijft over"),
     RU("остаётся {0}% кадра"),
     TR("karenin %{0}'i tutuluyor"));
+
+SS_MSG(preview_features_only_help,
+    EN("What the reconstruction takes no feature point from, though training "
+       "still uses it -- the sky, say. Hatched in amber on the picture."),
+    JA("再構成は特徴点を取らず、学習はそのまま使うもの（空など）です。画像上では"
+       "琥珀色の斜線で表示されます。"),
+    ZH_HANS("重建时不从中取特征点、训练却照样使用的东西，比如天空。画面上以琥珀色"
+            "斜线显示。"),
+    ZH_HANT("重建時不從中取特徵點、訓練卻照樣使用的東西，比如天空。畫面上以琥珀色"
+            "斜線顯示。"),
+    KO("재구성은 특징점을 뽑지 않지만 학습은 그대로 쓰는 것(하늘 등)입니다. "
+       "그림에서는 호박색 빗금으로 보입니다."),
+    DE("Woraus die Rekonstruktion keinen Merkmalspunkt nimmt, was das Training "
+       "aber weiter nutzt, etwa der Himmel. Im Bild bernsteinfarben schraffiert."),
+    FR("Ce dont la reconstruction ne tire aucun point d'intérêt mais que "
+       "l'entraînement utilise quand même, comme le ciel. Hachuré d'ambre sur "
+       "l'image."),
+    ES("Lo que la reconstrucción no usa para ningún punto característico pero el "
+       "entrenamiento sí, como el cielo. Rayado en ámbar sobre la imagen."),
+    PT("O que a reconstrução não usa para nenhum ponto de característica, mas o "
+       "treino usa, como o céu. Hachurado em âmbar na imagem."),
+    IT("Ciò da cui la ricostruzione non prende alcun punto caratteristico ma che "
+       "l'addestramento usa comunque, come il cielo. Tratteggiato in ambra "
+       "sull'immagine."),
+    NL("Waar de reconstructie geen kenmerkpunt uit haalt, maar wat de training "
+       "wel gebruikt, zoals de lucht. Amberkleurig gearceerd op het beeld."),
+    RU("То, из чего реконструкция не берёт ни одной особой точки, а обучение всё "
+       "равно использует, например небо. На снимке — янтарная штриховка."),
+    TR("Yeniden kurmanın hiçbir öznitelik noktası almadığı ama eğitimin yine de "
+       "kullandığı şeyler, örneğin gökyüzü. Görüntüde kehribar renkli taramayla "
+       "gösterilir."));
+
+SS_MSG(preview_legend_features,
+    EN("Hatched amber = trained on, but hidden from the reconstruction."),
+    JA("琥珀色の斜線 = 学習には使うが、再構成からは隠す部分です。"),
+    ZH_HANS("琥珀色斜线 = 训练照用，但重建时避开。"),
+    ZH_HANT("琥珀色斜線 = 訓練照用，但重建時避開。"),
+    KO("호박색 빗금 = 학습에는 쓰지만 재구성에서는 뺍니다."),
+    DE("Bernsteinfarben schraffiert = wird trainiert, aber vor der "
+       "Rekonstruktion verborgen."),
+    FR("Hachuré d'ambre = entraîné, mais caché à la reconstruction."),
+    ES("Rayado en ámbar = se entrena, pero se oculta a la reconstrucción."),
+    PT("Hachurado em âmbar = treinado, mas escondido da reconstrução."),
+    IT("Tratteggio ambra = addestrato, ma nascosto alla ricostruzione."),
+    NL("Amberkleurig gearceerd = wordt getraind, maar voor de reconstructie "
+       "verborgen."),
+    RU("Янтарная штриховка — используется в обучении, но скрыто от "
+       "реконструкции."),
+    TR("Kehribar tarama = eğitimde kullanılır ama yeniden kurmadan gizlenir."));
+
+SS_MSG(preview_features_kept_fraction,
+    EN("{0}% of the frame is left for feature points"),
+    JA("特徴点に使えるのはフレームの {0}% です"),
+    ZH_HANS("这一帧有 {0}% 可以取特征点"),
+    ZH_HANT("這一影格有 {0}% 可以取特徵點"),
+    KO("특징점을 뽑을 수 있는 부분: 프레임의 {0}%"),
+    DE("{0} % des Bildes bleiben für Merkmalspunkte"),
+    FR("{0} % de l'image reste pour les points d'intérêt"),
+    ES("queda el {0} % del fotograma para puntos característicos"),
+    PT("{0}% do quadro fica para pontos de característica"),
+    IT("resta il {0}% del fotogramma per i punti caratteristici"),
+    NL("{0}% van het beeld blijft over voor kenmerkpunten"),
+    RU("для особых точек остаётся {0}% кадра"),
+    TR("karenin %{0}'i öznitelik noktalarına kalıyor"));
 
 SS_MSG(preview_almost_nothing_kept,
     EN("Almost nothing is left -- the prompt matched very little of the "

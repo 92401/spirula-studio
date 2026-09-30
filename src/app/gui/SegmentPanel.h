@@ -203,6 +203,8 @@ private:
     bool _preview_dirty = false;
     std::string _status, _error;
     float _kept_fraction = -1.0f; // guarded by _mu
+    // What is left for feature points; -1 without a feature prompt. Ditto.
+    float _feature_fraction = -1.0f;
 
     GLuint _tex = 0;
     int _tex_w = 0, _tex_h = 0;

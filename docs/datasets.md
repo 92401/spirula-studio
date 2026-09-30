@@ -71,6 +71,12 @@ the first, middle and last of them: an RGBA export that is opaque everywhere is
 no mask. Training decodes each such image twice, once for its colour and once
 for its alpha.
 
+A dataset the GUI built may also carry `feature_masks/`, mirroring `masks/`:
+what its "Hide from the reconstruction only" prompt matched (the 360-camera
+preset's `sky; cloud`). Only the reconstruction reads it -- `spirula sfm
+--feature-masks`, intersected with `--masks` -- so training never sees it and
+still learns the sky.
+
 ## Seed points
 
 The splats start from the dataset's point cloud. `random_init` decides when

@@ -405,7 +405,7 @@ void check_dataset_stage(const BatchRow& row, const BatchCapabilities& caps,
         // on and a preset cannot carry them -- so the text prompt is the only
         // prompt there is.
         const bool prompted = !caps.mask_model_prompted || caps.mask_model_prompted(s.mask_model_id);
-        if (prompted && s.mask.prompt.empty())
+        if (prompted && s.mask.prompt.empty() && s.mask.feature_prompt.empty())
             out.push_back(issue_of(msg::chk_mask_no_prompt, kSt, true));
         if (!caps.masking) {
             out.push_back(issue_of(msg::chk_masking_unavailable, kSt, true));

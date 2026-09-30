@@ -1270,11 +1270,13 @@ void sweepStaleFeatures(const fs::path& outdir, const std::set<fs::path>& live) 
 // mtime comparison, because a re-run that regenerated the frames or the masks
 // leaves everything else about the settings identical.
 bool featuresAreCurrent(const fs::path& feat, const fs::path& img,
-                        const std::string& mask, uint32_t& count) {
+                        const std::string& mask, const std::string& feature_mask,
+                        uint32_t& count) {
     std::error_code fe, ie, me;
     const auto t = fs::last_write_time(feat, fe);
     if (fe || t < fs::last_write_time(img, ie) || ie) return false;
-    if (!mask.empty() && t < fs::last_write_time(mask, me) && !me) return false;
+    for (const std::string* m : {&mask, &feature_mask})
+        if (!m->empty() && t < fs::last_write_time(*m, me) && !me) return false;
     return peekFeatures(feat.string(), count);
 }
 
@@ -1284,16 +1286,22 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
                      const SfmConfig& cfg, ExtractStats& stats, bool reuse) {
     const SiftOptions& opt = cfg.sift;
     const std::string& maskdir = cfg.mask_dir;
+    const std::string& fmaskdir = cfg.feature_mask_dir;
     // Recursive: per-folder intrinsics (ppisp) keep images in images/<camera>/
     // and the folder is the grouping key (D17). A mask directory nested inside
     // is skipped -- masks are PNGs too, and would double the image count with
     // garbage views.
     std::error_code skip_ec;
-    const bool skip_masks = !maskdir.empty() && fs::is_directory(maskdir, skip_ec);
+    std::vector<std::string> skip;
+    for (const std::string* d : {&maskdir, &fmaskdir})
+        if (!d->empty() && fs::is_directory(*d, skip_ec)) skip.push_back(*d);
     std::vector<fs::path> found;
     for (auto it = fs::recursive_directory_iterator(imagedir, fs::directory_options::follow_directory_symlink);
          it != fs::recursive_directory_iterator(); ++it) {
-        if (skip_masks && it->is_directory() && fs::equivalent(it->path(), maskdir, skip_ec)) {
+        if (it->is_directory() &&
+            std::any_of(skip.begin(), skip.end(), [&](const std::string& d) {
+                return fs::equivalent(it->path(), d, skip_ec);
+            })) {
             it.disable_recursion_pending();
             continue;
         }
@@ -1382,6 +1390,24 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
             L::warn(Tag::Extract, M::extract_some_unmasked,
                     {(long long)stats.unmasked_images, stats.first_unmasked});
     }
+    // An image without one keeps all its features, as under --masks; a tree
+    // matching nothing is not fatal here, since the sky is often absent.
+    MaskIndex fmasks(fmaskdir);
+    if (!fmaskdir.empty() && !fmasks.valid())
+        L::warn(Tag::Extract, M::extract_mask_dir_missing, {fmaskdir});
+    if (fmasks.valid()) {
+        lopt.feature_mask_paths.assign(paths.size(), std::string());
+        size_t matched = 0;
+        for (size_t k = 0; k < paths.size(); k++) {
+            std::string& fp = lopt.feature_mask_paths[k];
+            fp = fmasks.find(relativeTo(paths[k], imagedir).generic_string());
+            if (fp.empty()) continue;
+            matched++;
+            if (lopt.mask_paths.empty() || lopt.mask_paths[k].empty()) stats.masked_images++;
+        }
+        L::out(Tag::Extract, M::extract_masks_matched,
+               {(long long)matched, (long long)paths.size(), fmaskdir});
+    }
 
     // Where each image's features belong, and what a previous run already put
     // there. The total the bar counts is the capture, not the work left.
@@ -1402,7 +1428,10 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
             uint32_t count = 0;
             const std::string mask =
                 k < lopt.mask_paths.size() ? lopt.mask_paths[k] : std::string();
-            if (!featuresAreCurrent(outs[k], paths[k], mask, count)) {
+            const std::string fmask = k < lopt.feature_mask_paths.size()
+                                          ? lopt.feature_mask_paths[k]
+                                          : std::string();
+            if (!featuresAreCurrent(outs[k], paths[k], mask, fmask, count)) {
                 todo.push_back(k);
                 continue;
             }
@@ -1430,11 +1459,14 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
                 sorted_dims[i] = sorted_dims[k];
                 outs[i] = std::move(outs[k]);
                 if (!lopt.mask_paths.empty()) lopt.mask_paths[i] = std::move(lopt.mask_paths[k]);
+                if (!lopt.feature_mask_paths.empty())
+                    lopt.feature_mask_paths[i] = std::move(lopt.feature_mask_paths[k]);
             }
             paths.resize(todo.size());
             sorted_dims.resize(todo.size());
             outs.resize(todo.size());
             if (!lopt.mask_paths.empty()) lopt.mask_paths.resize(todo.size());
+            if (!lopt.feature_mask_paths.empty()) lopt.feature_mask_paths.resize(todo.size());
         }
     }
     if (paths.empty()) {
@@ -1455,6 +1487,7 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
     if (opt.verbose) L::err(Tag::Extract, M::extract_frontend, {ext->name()});
     // Everything after extract() reads only the image and its features, so it
     // runs on its own thread while the device works on the next image.
+    static const std::string kNoPath;
     auto postProcess = [&](size_t k, GrayImage& img, FeatureSet& f) {
         if (img.exif_mirror_dropped && !stats.warned_exif_mirror) {
             stats.warned_exif_mirror = true;
@@ -1463,16 +1496,18 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
         }
         sampleFeatureColors(f, img);
         uint32_t dropped = 0;
-        if (!lopt.mask_paths.empty() && !lopt.mask_paths[k].empty()) {
+        const std::string& mpath =
+            k < lopt.mask_paths.size() && !lopt.mask_paths[k].empty() ? lopt.mask_paths[k]
+            : k < lopt.feature_mask_paths.size() ? lopt.feature_mask_paths[k]
+                                                 : kNoPath;
+        if (!mpath.empty()) {
             if (img.mask.empty()) {
                 stats.mask_unreadable++;
                 L::warn(Tag::Extract, M::extract_mask_undecodable,
-                        {lopt.mask_paths[k],
-                         fs::path(paths[k]).filename().string()});
+                        {mpath, fs::path(paths[k]).filename().string()});
             } else {
                 // img's own size, not the probed one: `apply` turned both.
-                checkMaskShape(lopt.mask_paths[k], img.mask,
-                               {img.orig_width, img.orig_height});
+                checkMaskShape(mpath, img.mask, {img.orig_width, img.orig_height});
                 const uint32_t before = f.count();
                 dropped = applyMask(f, img.mask);
                 stats.masked_out += dropped;
@@ -1482,8 +1517,7 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
                 if (before && dropped == before && !stats.warned_empty) {
                     stats.warned_empty = true;
                     L::warn(Tag::Extract, M::extract_mask_empty,
-                            {lopt.mask_paths[k],
-                             fs::path(paths[k]).filename().string()});
+                            {mpath, fs::path(paths[k]).filename().string()});
                 }
             }
         }
@@ -2106,6 +2140,7 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
     L::out(Tag::Run, M::run_data_type, {cfg.data_type});
     L::out(Tag::Run, M::run_cameras, {cfg.camera_model, cfg.camera_mode});
     if (!cfg.mask_dir.empty()) L::out(Tag::Run, M::run_masks, {cfg.mask_dir});
+    if (!cfg.feature_mask_dir.empty()) L::out(Tag::Run, M::run_masks, {cfg.feature_mask_dir});
     // What the two knobs moved, so a surprising run is explainable from its own
     // output rather than from reading the preset table.
     for (const PresetChange& p : in.preset_changes)

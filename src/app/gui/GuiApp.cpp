@@ -3405,6 +3405,7 @@ void GuiApp::sync_dataset_jobs() {
     const MaskModelFiles mask_model = selected_mask_model();
     prep.mask_prompt = mask_model.text ? _mask.prompt : "";
     prep.mask_negative_prompt = mask_model.text ? _mask.negative_prompt : "";
+    prep.mask_feature_prompt = mask_model.text ? _mask.feature_prompt : "";
     prep.mask_keep_subject = _mask.keep_subject;
     prep.mask_max_image_size = _mask.max_image_size;
     prep.mask_dilate_ratio = _mask.boundary_ratio();
@@ -3442,6 +3443,7 @@ void GuiApp::sync_dataset_jobs() {
     _colmap_job.mask_enable = prep.mask_enable;
     _colmap_job.mask_prompt = prep.mask_prompt;
     _colmap_job.mask_negative_prompt = prep.mask_negative_prompt;
+    _colmap_job.mask_feature_prompt = prep.mask_feature_prompt;
     _colmap_job.mask_keep_subject = prep.mask_keep_subject;
     _colmap_job.mask_max_image_size = prep.mask_max_image_size;
     _colmap_job.mask_dilate_ratio = prep.mask_dilate_ratio;
@@ -4942,6 +4944,12 @@ void GuiApp::draw_masking_options() {
     }
 
     if (ui::CollapsingHeader(dmsg::mask_advanced)) {
+        if (text) {
+            ImGui::SetNextItemWidth(px(320.0f));
+            ui::InputTextEnglish(dmsg::mask_features_only, "sky; cloud",
+                                 &_mask.feature_prompt);
+            ui::help_on_hover(dmsg::mask_features_only_help);
+        }
         // The preview reads these off the same fields. Grounding DINO scores
         // on its own scale, so the slider is its threshold there, and it keeps
         // every box, so there is no NMS to set.

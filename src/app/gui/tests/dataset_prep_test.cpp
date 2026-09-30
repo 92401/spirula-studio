@@ -1,9 +1,10 @@
-// dataset_prep_test -- the two places DatasetPrep (app/gui/DatasetPrep.h) meets
-// the mask editor's layer folder: a re-run re-applies hand corrections over
-// the masks it rewrites, and the camera scan never takes mask_edits/ for a
-// camera. Real DatasetPrep::run, no model: the re-mask is the frame stencil,
-// which is also checked per camera folder. Built without SS_BUILD_SAM, so it
-// also checks that asking for a model fails.
+// dataset_prep_test -- where DatasetPrep (app/gui/DatasetPrep.h) meets the
+// folders beside images/: a re-run re-applies the mask editor's corrections
+// over the masks it rewrites, the camera scan never takes mask_edits/ or
+// feature_masks/ for a camera, and COLMAP's one mask tree is the two ANDed.
+// Real DatasetPrep::run, no model: the re-mask is the frame stencil, which is
+// also checked per camera folder. Built without SS_BUILD_SAM, so it also
+// checks that asking for a model fails.
 
 #include "app/FrameMask.h"
 #include "app/gui/DatasetPrep.h"
@@ -143,12 +144,12 @@ void test_rerun_reapplies_corrections() {
 }
 
 // A sibling holding the same PNGs under another name IS a camera, so only
-// the name guard keeps mask_edits/ out of the list.
+// the name guard keeps mask_edits/ and feature_masks/ out of the list.
 void test_camera_scan_skips_mask_edits() {
     const fs::path root = scratch("scan");
     write_jpg(root / "cam0" / "f0.jpg", 16, 12, 0);
     write_jpg(root / "cam1" / "f0.jpg", 16, 12, 1);
-    for (const char* dir : {mk::kLayerDirName, "lookalike"})
+    for (const char* dir : {mk::kLayerDirName, gui::kFeatureMaskDirName, "lookalike"})
         for (const char* f : {"cam0/f0.base.png", "cam0/f0.drop.png", "cam0/f0.keep.png"})
             write_png(root / dir / f, 16, 12, 255);
     const std::vector<std::string> cams = gui::camera_subfolders(root.string());
@@ -157,8 +158,9 @@ void test_camera_scan_skips_mask_edits() {
     check(std::find(cams.begin(), cams.end(), "lookalike/cam0") != cams.end(),
           "fixture: the layer PNGs under another name are taken for a camera: " + listed);
     bool edits = false;
-    for (const std::string& c : cams) edits |= c.rfind(mk::kLayerDirName, 0) == 0;
-    check(!edits, "camera scan: nothing under mask_edits/ is listed: " + listed);
+    for (const std::string& c : cams)
+        edits |= c.rfind(mk::kLayerDirName, 0) == 0 || c.rfind(gui::kFeatureMaskDirName, 0) == 0;
+    check(!edits, "camera scan: nothing under mask_edits/ or feature_masks/: " + listed);
     check(cams.size() == 3 && cams[0] == "cam0" && cams[1] == "cam1",
           "camera scan: cam0, cam1 and the lookalike, nothing else: " + listed);
     check(gui::is_mask_edits_folder((root / mk::kLayerDirName).string()) &&
@@ -200,6 +202,52 @@ void test_per_camera_stencil() {
           "per camera: cam1 has its own, the right half out");
 }
 
+// feature_masks/ is the run's own, so a workspace holding only it is one to
+// resume and one "clear this project" empties; and COLMAP, which reads one
+// mask tree, gets it intersected with masks/ -- the flipped one read flipped.
+void test_feature_masks_workspace() {
+    const int W = 8, H = 4;
+    const fs::path ws = scratch("featmasks");
+    write_jpg(ws / "images" / "cam0" / "a.jpg", W, H, 0);
+    write_jpg(ws / "images" / "cam0" / "b.jpg", W, H, 1);
+    write_jpg(ws / "images" / "cam0" / "c.jpg", W, H, 2);
+    auto png = [&](const fs::path& p, const std::vector<uint8_t>& px) {
+        std::error_code ec;
+        fs::create_directories(p.parent_path(), ec);
+        stbi_write_png(p.string().c_str(), W, H, 1, px.data(), W);
+    };
+    png(ws / gui::kFeatureMaskDirName / "cam0" / "a.png", box(W, H, 0, 2, W, H));
+    png(ws / gui::kFeatureMaskDirName / "cam0" / "b.png", box(W, H, 0, 0, W, H));
+    const gui::WorkspaceState st = gui::probe_workspace(ws.string(), {});
+    const std::vector<std::string> arts = gui::workspace_artifacts(ws.string(), {});
+    check(st.masks && st.resumable(), "probe: feature_masks/ alone is resumable");
+    check(std::find(arts.begin(), arts.end(), (ws / gui::kFeatureMaskDirName).string()) !=
+              arts.end(),
+          "artifacts: feature_masks/ is the run's to clear");
+
+    // masks/ marks what to REMOVE here: the left half of a, all of c.
+    png(ws / "masks" / "cam0" / "a.png", box(W, H, 0, 0, W / 2, H));
+    png(ws / "masks" / "cam0" / "c.png", box(W, H, 0, 0, W, H));
+    std::string err;
+    const fs::path out = ws / ".colmap_masks";
+    const int64_t n = app::intersect_mask_trees(
+        (ws / "images").string(), (ws / "masks").string(), /*flip_a=*/true,
+        (ws / gui::kFeatureMaskDirName).string(), out.string(), nullptr, err);
+    check(n == 3, "intersect: one mask per image that has either: " + std::to_string(n));
+    int w = 0, h = 0;
+    std::vector<uint8_t> a, b, c;
+    app::load_stencil((out / "cam0" / "a.png").string(), w, h, a);
+    app::load_stencil((out / "cam0" / "b.png").string(), w, h, b);
+    app::load_stencil((out / "cam0" / "c.png").string(), w, h, c);
+    check(a.size() == (size_t)W * H && at(a, W, 6, 3) == 255 && at(a, W, 1, 3) == 0 &&
+              at(a, W, 6, 0) == 0,
+          "intersect: a keeps only the right half of its lower rows");
+    check(b.size() == (size_t)W * H && at(b, W, 0, 0) == 255 && at(b, W, 7, 3) == 255,
+          "intersect: b, with no masks/ file, is its feature mask");
+    check(c.size() == (size_t)W * H && at(c, W, 3, 2) == 0,
+          "intersect: c, with no feature mask, is its flipped mask");
+}
+
 void test_model_masking_needs_segmentation() {
     const fs::path root = scratch("nosam");
     const fs::path photos = root / "photos";
@@ -225,6 +273,7 @@ int main() {
     test_rerun_reapplies_corrections();
     test_camera_scan_skips_mask_edits();
     test_per_camera_stencil();
+    test_feature_masks_workspace();
     test_model_masking_needs_segmentation();
     std::printf("%s: %d failure(s)\n", SS_FILE, g_failures);
     return g_failures;

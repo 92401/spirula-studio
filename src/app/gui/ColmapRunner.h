@@ -152,6 +152,7 @@ struct ColmapJob {
     bool mask_enable = false;
     std::string mask_prompt;             // "people; cars; ..."
     std::string mask_negative_prompt;
+    std::string mask_feature_prompt;     // what features skip, training keeps
     bool mask_keep_subject = false;      // prompt names what to KEEP
     std::string mask_model_path;
     std::string mask_detector_path;      // Grounding DINO, when one is paired

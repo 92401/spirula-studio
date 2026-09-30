@@ -80,6 +80,7 @@ static void test_dataset_preset() {
     s.sfm.mask_features = false;
     s.mask.prompt = "people; cars";
     s.mask.negative_prompt = "statue";
+    s.mask.feature_prompt = "sky; cloud";
     s.mask.keep_subject = true;
     s.mask.dilate_ratio = 0.25f;
     s.mask.shrink_ratio = 0.125f;
@@ -196,6 +197,7 @@ static void test_dataset_preset() {
     CHECK_EQ(b.sfm.mask_features, s.sfm.mask_features);
     CHECK_EQ(b.mask.prompt, s.mask.prompt);
     CHECK_EQ(b.mask.negative_prompt, s.mask.negative_prompt);
+    CHECK_EQ(b.mask.feature_prompt, s.mask.feature_prompt);
     CHECK_EQ(b.mask.keep_subject, s.mask.keep_subject);
     CHECK_EQ(b.mask.dilate_ratio, s.mask.dilate_ratio);
     CHECK_EQ(b.mask.shrink_ratio, s.mask.shrink_ratio);

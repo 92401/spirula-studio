@@ -5,6 +5,7 @@
 
 #include "app/gui/Layout.h"
 #include "app/gui/MaskPrompt.h"
+#include "app/gui/MaskTint.h"
 #include "app/gui/Ui.h"
 #include "core/PolygonFill.h"
 
@@ -99,6 +100,7 @@ void SegmentPanel::open(const PreviewSource& src, const MaskModelFiles& model) {
     {
         std::lock_guard<std::mutex> lk(_mu);
         _kept_fraction = -1.0f;
+        _feature_fraction = -1.0f;
         _frames.clear();
         _all_files.clear();
         _folders.clear();
@@ -438,6 +440,7 @@ void SegmentPanel::start_job(const MaskSettings& s,
             _preview_h = img.h;
             _preview_dirty = true;
             _kept_fraction = -1.0f;
+            _feature_fraction = -1.0f;
         };
         try {
             if (!_job) _job = std::make_unique<Job>();
@@ -493,7 +496,9 @@ void SegmentPanel::start_job(const MaskSettings& s,
             const bool subject = model.kind == MaskModelKind::Subject;
             const std::string prompt = model.text ? settings.prompt : "";
             const std::string negative = model.text ? settings.negative_prompt : "";
-            const bool wants_model = subject || !prompt.empty() || !clicks.empty();
+            const std::string feature = model.text ? settings.feature_prompt : "";
+            const bool wants_model =
+                subject || !prompt.empty() || !clicks.empty() || !feature.empty();
 #ifndef SS_BUILD_SAM
             stencil_only();
             if (wants_model)
@@ -513,7 +518,7 @@ void SegmentPanel::start_job(const MaskSettings& s,
             // Every field below changes what the masker computes, so the
             // signature is what decides whether it can be reused. The weights
             // are the expensive part and only the model path moves them.
-            std::string sig = prompt + "|" + negative + "|" +
+            std::string sig = prompt + "|" + negative + "|" + feature + "|" +
                               std::to_string((int)settings.keep_subject) + "|" +
                               std::to_string(settings.max_image_size) + "|" +
                               std::to_string(settings.threshold) + "|" +
@@ -534,6 +539,7 @@ void SegmentPanel::start_job(const MaskSettings& s,
                 mo.device = src.device;
                 mo.text = prompt;
                 mo.neg_text = negative;
+                mo.feature_text = feature;
                 mo.keep_prompted = settings.keep_subject;
                 mo.max_size = settings.max_image_size;
                 mo.threshold = settings.threshold;
@@ -567,26 +573,30 @@ void SegmentPanel::start_job(const MaskSettings& s,
             img.height = j.frame.h;
             img.channels = 3;
             img.data = j.frame.px;
-            sam::Mask mask;
+            sam::Mask mask, fmask;
             sam::Result detections;
-            if (!j.masker.run(img, mask, &detections, frame.index))
+            if (!j.masker.run(img, mask, &detections, frame.index, &fmask))
                 return set_error(j.masker.lastError());
 
             // ---- composite ----
-            // Kept pixels stay as they are; masked-out pixels are dimmed and
-            // tinted red, which reads as "this will be ignored" far better
-            // than a separate black-and-white mask image next to the photo.
+            // Tinted over the photo, which reads as "ignored" far better than a
+            // mask beside it: red is dropped, amber hatching features-only.
             std::vector<uint8_t> rgb = j.frame.px;
-            size_t kept = 0;
+            size_t kept = 0, for_features = 0;
             const size_t n = (size_t)j.frame.w * j.frame.h;
+            const bool features = fmask.data.size() == n;
+            const int period = hatch_period(j.frame.w, j.frame.h);
             for (size_t i = 0; i < n && i * 3 + 2 < rgb.size(); i++) {
-                if (i < mask.data.size() && mask.data[i] > 127) {
+                if (i >= mask.data.size() || mask.data[i] <= 127) {
+                    tint_removed(&rgb[i * 3]);
+                } else if (features && fmask.data[i] <= 127) {
+                    tint_features_only(&rgb[i * 3], (int)(i % j.frame.w),
+                                       (int)(i / j.frame.w), period);
                     kept += stencil_keeps(i) ? 1 : 0;
-                    continue;
+                } else if (stencil_keeps(i)) {
+                    kept++;
+                    for_features++;
                 }
-                rgb[i * 3 + 0] = (uint8_t)(rgb[i * 3 + 0] / 3 + 150);
-                rgb[i * 3 + 1] = (uint8_t)(rgb[i * 3 + 1] / 3);
-                rgb[i * 3 + 2] = (uint8_t)(rgb[i * 3 + 2] / 3);
             }
             {
                 std::lock_guard<std::mutex> lk(_mu);
@@ -595,6 +605,8 @@ void SegmentPanel::start_job(const MaskSettings& s,
                 _preview_h = j.frame.h;
                 _preview_dirty = true;
                 _kept_fraction = n ? (float)((double)kept / (double)n) : -1.0f;
+                _feature_fraction =
+                    n && features ? (float)((double)for_features / (double)n) : -1.0f;
                 _status.clear();
                 if (detections.detections.empty() && !prompt.empty() &&
                     clicks.empty() && !subject)
@@ -1583,6 +1595,9 @@ void SegmentPanel::draw(MaskSettings& settings, app::FrameStencil& stencil) {
     }
 
     ui::TextDisabled(dmsg::preview_legend);
+    if (_model.text && _model.kind != MaskModelKind::Subject && !_model.empty() &&
+        !settings.feature_prompt.empty())
+        ui::TextDisabled(dmsg::preview_legend_features);
     ImGui::Separator();
 
     // ---- controls ----
@@ -1673,6 +1688,16 @@ void SegmentPanel::draw(MaskSettings& settings, app::FrameStencil& stencil) {
     edited |= draw_margin_slider(settings.dilate_ratio, settings.shrink_ratio, keep, -1.0f,
                                  /*inline_label=*/false);
 
+    // Below the margin, which does not apply to it.
+    if (_model.text) {
+        ImGui::Spacing();
+        ui::Text(dmsg::mask_features_only);
+        ImGui::SetNextItemWidth(-1);
+        edited |= ui::InputTextEnglishRaw("##featprompt", "sky; cloud",
+                                          &settings.feature_prompt);
+        ui::help_on_hover(dmsg::preview_features_only_help);
+    }
+
     ImGui::Spacing();
     ImGui::Separator();
     draw_objects(settings, edited);
@@ -1732,7 +1757,7 @@ void SegmentPanel::draw(MaskSettings& settings, app::FrameStencil& stencil) {
     }
 
     ImGui::Spacing();
-    float kept_fraction = -1.0f;
+    float kept_fraction = -1.0f, feature_fraction = -1.0f;
     {
         std::lock_guard<std::mutex> lk(_mu);
         // Segmentation errors and progress come from the inference layer.
@@ -1741,11 +1766,16 @@ void SegmentPanel::draw(MaskSettings& settings, app::FrameStencil& stencil) {
         else if (!_status.empty())
             ui::TextDisabledRaw(_status);
         kept_fraction = _kept_fraction;
+        feature_fraction = _feature_fraction;
     }
     if (kept_fraction >= 0.0f) {
         char pct[16];
         std::snprintf(pct, sizeof pct, "%.0f", 100.0f * kept_fraction);
         ui::Text(dmsg::preview_kept_fraction, {pct});
+        if (feature_fraction >= 0.0f) {
+            std::snprintf(pct, sizeof pct, "%.0f", 100.0f * feature_fraction);
+            ui::Text(dmsg::preview_features_kept_fraction, {pct});
+        }
         if (kept_fraction < 0.05f)
             ui::TextColoredWrapped(ImVec4(0.95f, 0.75f, 0.30f, 1.0f),
                                    settings.keep_subject

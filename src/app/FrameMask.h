@@ -208,4 +208,12 @@ struct FrameStencilSinks {
 int64_t apply_frame_stencil(const FrameStencilRun& run,
                             const FrameStencilSinks& sinks, std::string& error);
 
+// Masks `a` and `b` intersected into `out`, one per image of `image_dir` that
+// has either, named <rel>/<stem>.png as every writer here names them. For a
+// reader that takes one mask tree: COLMAP. Returns how many, or -1.
+int64_t intersect_mask_trees(const std::string& image_dir, const std::string& a,
+                             bool flip_a, const std::string& b,
+                             const std::string& out, const std::atomic<bool>* cancel,
+                             std::string& error);
+
 }  // namespace app

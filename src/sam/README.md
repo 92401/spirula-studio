@@ -122,6 +122,10 @@ user sees in the preview is what gets written.
 - a longest-side cap on what the model sees, with the mask returned at the
   source resolution;
 - **clicked objects** (`MaskOptions::seeds`), described below;
+- **a second mask, for feature extraction only** (`MaskOptions::feature_text`,
+  "sky; cloud"): matched from the same backbone pass -- the same Grounding
+  DINO pass, on SAM 2 -- with no margin, and written to `feature_masks/`,
+  which the reconstruction intersects with `masks/` and training never reads;
 - **two models that are not SAM**: `MaskOptions::detector` pairs a SAM
   checkpoint with Grounding DINO (`src/gdino/`), which finds every phrase's
   boxes in one pass for SAM to cut out -- text on SAM 2, lang-segment-anything

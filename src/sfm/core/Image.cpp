@@ -140,7 +140,8 @@ void applyExifOrientation(GrayImage& img) {
 GrayImage loadGrayImage(const std::string& path, int max_image_size, bool want_color,
                         const std::string& mask_path,
                         const std::string& gamut, std::optional<bool> is_linear,
-                        bool flip_mask, bool apply_exif_orientation) {
+                        bool flip_mask, bool apply_exif_orientation,
+                        const std::string& feature_mask_path) {
     int w = 0, h = 0, chan = 0;
     // Force 3 channels; we do our own luma so behavior is decoder-independent.
     // An EXR decodes on this thread: the pool above already owns every core.
@@ -199,6 +200,10 @@ GrayImage loadGrayImage(const std::string& path, int max_image_size, bool want_c
         img.mask = loadMask(mask_path);
         if (flip_mask) img.mask.invert();
     }
+    // Not over a first mask that failed to decode: the caller reports that by
+    // finding img.mask empty.
+    if (!feature_mask_path.empty() && (mask_path.empty() || !img.mask.empty()))
+        intersectMask(img.mask, loadMask(feature_mask_path));
     img.exif = readExif(path);  // header bytes only; see sfm/core/Exif.h
     if (apply_exif_orientation) applyExifOrientation(img);
     return img;

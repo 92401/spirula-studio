@@ -273,6 +273,10 @@ struct PrepJob {
     bool mask_enable = false;
     std::string mask_prompt;         // "people; cars; ..."
     std::string mask_negative_prompt;
+    // What reconstruction skips and training keeps ("sky; cloud"): its own
+    // tree, feature_masks/, which SfM intersects with masks/. Needs a text
+    // model, and is run even over an input that brought its own masks.
+    std::string mask_feature_prompt;
     bool mask_keep_subject = false;  // prompt names what to KEEP, not remove
     // Share of its own size every matched object's boundary moves by before
     // the mask is written, so the PNGs on disk carry it. SIGNED as
@@ -394,6 +398,9 @@ struct PrepResult {
     // only where the run handed them on untouched; what it wrote itself is in
     // the usual convention and the readers need no flag.
     bool mask_dir_flipped = false;
+    // Absolute, "" when this run asked for none: PrepJob::mask_feature_prompt's
+    // masks, for feature extraction only. Never flipped.
+    std::string feature_mask_dir;
     int  n_images = 0;
     // images/ came out holding one sub-folder per camera -- several inputs, or
     // a multi-track video -- so intrinsics must not be shared across them.
@@ -582,7 +589,7 @@ bool folder_looks_like_dataset(const std::string& dir);
 struct WorkspaceState {
     bool frames = false;    // images/ this run would extract into
     bool features = false;  // features/, matches.bin, database.db -- reusable
-    bool masks = false;     // masks/ this run would generate into
+    bool masks = false;     // masks/ or feature_masks/ this run would generate into
     bool input_masks = false;  // masks an input came with (PrepInput::mask_dir)
     // A reconstruction any dataset reader can open: this run's own sparse/, or
     // the transforms.json, root-level COLMAP files or Metashape export of a
@@ -613,6 +620,10 @@ bool is_mask_folder(const std::string& path);
 // The correction editor's layer folder (app/gui/mask/MaskLayer.h), which a
 // finished dataset carries beside images/ and masks/ and which holds PNGs.
 bool is_mask_edits_folder(const std::string& path);
+
+// Where PrepJob::mask_feature_prompt's masks go, beside masks/ and mirroring it.
+inline constexpr const char* kFeatureMaskDirName = "feature_masks";
+bool is_feature_mask_folder(const std::string& path);
 
 // One counter for a whole step, rather than one per input: a job with three
 // videos in it should fill the bar once and never wind it back, which is the
@@ -704,18 +715,16 @@ private:
     bool gather_photos(const PrepJob& job, const PrepInput& in,
                        const std::string& images, const std::string& masks,
                        bool& have_masks, std::string& error);
-    // Masks for ONE input's images. Run per input rather than over the whole
-    // tree so the tracker's memory bank never crosses from one capture into the
-    // next, and so clicks reach only the input they were drawn on.
-    //
-    // `folded` comes back true when the input's stencil was intersected into
-    // the masks as they were produced, which is what lets apply_stencil be
-    // skipped -- it would otherwise decode and re-encode every mask again.
+    // ONE input's masks, so a memory bank or a click never crosses captures.
+    // `folded`: its stencil went in as they were made, sparing apply_stencil a
+    // re-encode. `train` false writes only `feature_masks` ("" for none).
     bool generate_masks(const PrepJob& job, const PrepInput& in,
                         const std::string& images, const std::string& masks,
+                        const std::string& feature_masks, bool train,
                         bool& folded, std::string& error);
     bool generate_masks_builtin(const PrepJob& job, const PrepInput& in,
                                 const std::string& images, const std::string& masks,
+                                const std::string& feature_masks, bool train,
                                 bool& folded, std::string& error);
     // The static stencil on its own, for the masks segmentation did not make.
     // `merge_from` names the masks it folds in when they are not the ones it

@@ -289,6 +289,7 @@ void SfmRunner::take_masking(PrepJob& prep) {
     prep.mask_enable = _live.prep.mask_enable;
     prep.mask_prompt = _live.prep.mask_prompt;
     prep.mask_negative_prompt = _live.prep.mask_negative_prompt;
+    prep.mask_feature_prompt = _live.prep.mask_feature_prompt;
     prep.mask_keep_subject = _live.prep.mask_keep_subject;
     prep.mask_max_image_size = _live.prep.mask_max_image_size;
     prep.mask_dilate_ratio = _live.prep.mask_dilate_ratio;
@@ -785,6 +786,11 @@ std::vector<std::string> SfmRunner::recon_args(const SfmJob& job,
         // Otherwise `auto` picks up a stale masks/ sitting beside the images
         // from an earlier run with masking on.
         argv.push_back("--no-masks");
+    }
+    // Whatever the checkbox says: these exist only to be kept from the features.
+    if (!prep.feature_mask_dir.empty()) {
+        argv.push_back("--feature-masks");
+        argv.push_back(prep.feature_mask_dir);
     }
     for (const std::string& a : split_args(job.extra_args))
         argv.push_back(a);

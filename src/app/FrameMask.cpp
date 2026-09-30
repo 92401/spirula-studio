@@ -1211,4 +1211,45 @@ int64_t apply_frame_stencil(const FrameStencilRun& run,
     return written;
 }
 
+int64_t intersect_mask_trees(const std::string& image_dir, const std::string& a,
+                             bool flip_a, const std::string& b,
+                             const std::string& out, const std::atomic<bool>* cancel,
+                             std::string& error) {
+    struct Item { std::string dst, a, b; int w = 0, h = 0; };
+    std::vector<Item> items;
+    std::error_code ec;
+    for (const auto& [rel, files] : group_frames_by_camera(image_dir)) {
+        for (const std::string& f : files) {
+            const fs::path name = fs::path(rel) / (fs::path(f).stem().string() + ".png");
+            Item it;
+            if (!a.empty() && fs::exists(fs::path(a) / name, ec))
+                it.a = (fs::path(a) / name).string();
+            if (!b.empty() && fs::exists(fs::path(b) / name, ec))
+                it.b = (fs::path(b) / name).string();
+            if ((it.a.empty() && it.b.empty()) || !image_size(f, it.w, it.h)) continue;
+            it.dst = (fs::path(out) / name).string();
+            fs::create_directories(fs::path(it.dst).parent_path(), ec);
+            items.push_back(std::move(it));
+        }
+    }
+    std::atomic<bool> failed{false};
+    std::mutex mu;
+    nn::parallel_for((int64_t)items.size(), [&](int64_t lo, int64_t hi) {
+        for (int64_t k = lo; k < hi; k++) {
+            if (failed.load() || (cancel && cancel->load())) return;
+            const Item& it = items[(size_t)k];
+            std::vector<uint8_t> px((size_t)it.w * it.h, 255);
+            if (!it.a.empty()) intersect_with_file(px, it.w, it.h, it.a, flip_a);
+            if (!it.b.empty()) intersect_with_file(px, it.w, it.h, it.b, false);
+            if (!stbi_write_png(it.dst.c_str(), it.w, it.h, 1, px.data(), it.w)) {
+                std::lock_guard<std::mutex> lk(mu);
+                error = it.dst;
+                failed = true;
+                return;
+            }
+        }
+    }, 1);
+    return failed.load() ? -1 : (int64_t)items.size();
+}
+
 }  // namespace app

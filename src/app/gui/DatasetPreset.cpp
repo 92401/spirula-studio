@@ -48,6 +48,7 @@ namespace {
     X("mask_text_detector",         mask_detector_id)                         \
     X("mask_prompt",                mask.prompt)                              \
     X("mask_negative_prompt",       mask.negative_prompt)                     \
+    X("mask_feature_prompt",        mask.feature_prompt)                      \
     X("mask_keep_subject",          mask.keep_subject)                        \
     X("mask_dilate_ratio",          mask.dilate_ratio)                        \
     X("mask_shrink_ratio",          mask.shrink_ratio)                        \
@@ -170,6 +171,9 @@ bool dataset_apply_preset(DatasetSettings& s, const std::string& name) {
         // whatever they carry and their shadow.
         s.sfm.prep.mask_enable = true;
         s.mask.prompt = "person; hand; backpack; shadow of person";
+        // Outdoors half of every frame is sky, and a clear one yields no
+        // feature points while a cloudy one yields points that drift.
+        s.mask.feature_prompt = "sky; cloud";
         s.sfm.mask_features = true;
         s.border_enable = true;
         return true;
