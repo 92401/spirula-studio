@@ -245,12 +245,12 @@ if(NOT SS_FONT_CJK MATCHES "^(fetch|none|sc|tc|jp|kr|all)$")
 endif()
 
 # ---------------------------------------------------------------------------
-# Patent-encumbered modules: src/video/ (H.264 / H.265 / AV1 decode and encode),
-# the one part of this GPLv3 tree with third-party patent exposure. OFF by
-# default, deliberately; off, ffmpeg does the work. docs/build.md explains.
+# Patent-encumbered modules: src/video/ (H.264 / H.265 / AV1 video, HEIF
+# stills), the one part of this GPLv3 tree with third-party patent exposure.
+# OFF by default, deliberately: ffmpeg does the work. docs/build.md explains.
 # ---------------------------------------------------------------------------
 option(SS_ENABLE_PATENTED
-    "Compile patent-encumbered modules (in-process H.264/H.265/AV1 video decode and encode)"
+    "Compile patent-encumbered modules (in-process H.264/H.265/AV1 video decode and encode, HEIC photos)"
     OFF)
 if(SS_ENABLE_PATENTED AND NOT SS_BUILD_SAM)
     message(FATAL_ERROR

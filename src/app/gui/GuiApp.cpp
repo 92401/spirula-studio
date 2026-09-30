@@ -3576,7 +3576,7 @@ namespace {
 // Built by hand rather than with ui::Combo for the same reason as the lens
 // pickers: what each row costs is the whole of the question, and one tooltip
 // on the closed combo cannot answer it row by row.
-void photo_import_combo(PhotoImport* mode, bool several_inputs) {
+void photo_import_combo(PhotoImport* mode, bool no_in_place) {
     const std::vector<const Msg*> labels{
         &dmsg::photo_import_convert, &dmsg::photo_import_copy,
         &dmsg::photo_import_move, &dmsg::photo_import_inplace};
@@ -3588,7 +3588,7 @@ void photo_import_combo(PhotoImport* mode, bool several_inputs) {
     if (ui::BeginCombo(dmsg::photo_import, labels[(size_t)idx]->get())) {
         for (int i = 0; i < kNumPhotoImports; i++) {
             const bool blocked =
-                several_inputs && (PhotoImport)i == PhotoImport::InPlace;
+                no_in_place && (PhotoImport)i == PhotoImport::InPlace;
             ImGui::BeginDisabled(blocked);
             if (ui::Selectable(*labels[(size_t)i], i == idx))
                 *mode = (PhotoImport)i;
@@ -3858,7 +3858,8 @@ void GuiApp::draw_dataset_source() {
             ui::help_on_hover(dmsg::flip_found_masks_help);
             ImGui::Unindent();
         }
-        photo_import_combo(&_photo_import, _sources.size() > 1);
+        photo_import_combo(&_photo_import,
+                           _sources.size() > 1 || (!_sources.empty() && _sources[0].heif));
     }
 
     ImGui::SetNextItemWidth(px(-220.0f));
@@ -5628,7 +5629,7 @@ GuiApp::DatasetFolders GuiApp::workspace_folders(const WorkspaceState& prior) co
         // the app's convention -- only a bundled folder is ever left flipped.
         f.mask_dir = (fs::path(_workspace) / "masks").string();
     } else if (prior.input_masks && _sources.size() == 1 && !_sources[0].is_video &&
-               _sources[0].packed_lenses == 0) {
+               _sources[0].packed_lenses == 0 && !_sources[0].heif) {
         // Masks that came with the photos pair with them where they lie.
         f.image_dir = fs::absolute(_sources[0].path, ec).string();
         f.mask_dir = fs::absolute(_sources[0].mask_dir, ec).string();

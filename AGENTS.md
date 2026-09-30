@@ -123,7 +123,8 @@ src/
 ├── moge/                   MoGe-2 point maps + normals + a sky mask, on top of
 │                             nn/. The DEFAULT geometry model
 │                             -- READ src/moge/README.md
-├── video/                  container demux + VK_KHR_video_decode_*, and the
+├── video/                  container demux (HEIC stills too) +
+│                             VK_KHR_video_decode_*, and the
 │                             VK_KHR_video_encode_* encoder behind `spirula
 │                             encode`, on top of nn/. PATENT-GATED: compiled
 │                             only with SS_ENABLE_PATENTED=ON -- READ
@@ -234,9 +235,9 @@ both needs no reconfiguring and no `-B`. Options:
 `SS_SEPARATE_TOOLS`.
 Full matrix and per-platform notes: `docs/build.md`.
 
-**`SS_ENABLE_PATENTED` is OFF by default and should stay that way in
-anything you commit.** It gates `src/video/` -- the H.264 / H.265 / AV1
-bitstream parsers, the VK_KHR_video_decode_* driver and the
+**`SS_ENABLE_PATENTED` is OFF by default and should stay that way in anything
+you commit.** It gates `src/video/` -- the H.264 / H.265 / AV1 bitstream
+parsers, the HEIF container reader, the VK_KHR_video_decode_* driver and the
 VK_KHR_video_encode_* encoder behind `spirula encode` -- which is the only
 patent-encumbered code in the tree. With it off, everything that wanted it
 shells out to ffmpeg instead; no feature disappears, a subprocess appears. See

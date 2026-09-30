@@ -466,6 +466,7 @@ if(SS_BUILD_GUI)
     add_executable(dataset_prep_test
         ${SS_SRC}/app/gui/tests/dataset_prep_test.cpp
         ${SS_SRC}/app/gui/DatasetPrep.cpp
+        ${SS_SRC}/app/gui/HeifPhoto.cpp
         ${SS_SRC}/app/gui/FrameSelect.cpp
         ${SS_SRC}/app/FrameSharpness.cpp
         ${SS_SRC}/app/FfmpegVideo.cpp

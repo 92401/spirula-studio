@@ -10,6 +10,7 @@
 #include "i18n/catalog/MaskEdit.h"
 
 #include "app/gui/FrameSelect.h"
+#include "app/gui/HeifPhoto.h"
 #include "app/gui/Subprocess.h"
 
 #include "core/ExrImage.h"
@@ -77,7 +78,7 @@ bool is_image_file(const fs::path& p) {
     for (auto& c : e) c = (char)std::tolower((unsigned char)c);
     return e == ".jpg" || e == ".jpeg" || e == ".png" || e == ".webp" ||
            e == ".tif" || e == ".tiff" || e == ".bmp" || e == ".exr" ||
-           e == ".insp";
+           e == ".insp" || is_heif_path(p.string());
 }
 
 namespace {
@@ -753,6 +754,15 @@ bool any_image(const fs::path& p) {
 
 bool folder_has_images(const std::string& dir) { return any_image(dir); }
 
+bool folder_has_heif(const std::string& dir) {
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return false;
+    for (fs::recursive_directory_iterator it(dir, kWalk, ec), end; !ec && it != end;
+         it.increment(ec))
+        if (it->is_regular_file(ec) && is_heif_path(it->path().string())) return true;
+    return false;
+}
+
 namespace {
 
 // Recursion for camera_subfolders. Collects the folder itself when it holds an
@@ -1012,6 +1022,7 @@ int DatasetPrep::count_images(const std::string& dir, const std::string& skip) {
 // import that does not re-encode leaves the EXIF turn on the file, and the
 // focal prior this feeds describes the pixels every reader then sees.
 static bool probe_dims(const fs::path& f, int& W, int& H) {
+    if (is_heif_path(f.string())) return heif_size(f.string(), W, H);
     if (exr::is_exr(f.string())) {
         exr::Info info;
         if (!exr::probe(f.string(), info).empty()) return false;
@@ -1125,6 +1136,10 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
         error = lmsg::err_nothing_to_prepare.get();
         return false;
     }
+    // Asked of the disk rather than trusted: a folder that gained a HEIC since
+    // it was added would otherwise be read in place.
+    for (PrepInput& in : job.inputs)
+        if (!in.is_video) in.heif = folder_has_heif(in.path);
 
     // Before the built-in decoder can pick one. Only a job that will reach the
     // decoder pays: asking whether THIS device decodes is what the freeze makes
@@ -1133,7 +1148,7 @@ bool DatasetPrep::run(const PrepJob& job_in, PrepResult& out, std::string& error
     bool wants_native_decode = false;
     if (!job.force_external_decode)
         for (const PrepInput& in : job.inputs)
-            if (in.is_video) {
+            if (in.is_video || in.heif) {
                 wants_native_decode = true;
                 break;
             }
@@ -2040,6 +2055,47 @@ bool write_jpeg_with_exif(const fs::path& to, int w, int h, int channels,
     return (bool)f;
 }
 
+// A HEIC photo as the JPEG at `to`, through a temporary name so an interrupted
+// run leaves nothing a resumed one would keep. The in-process decoder carries
+// the EXIF across; ffmpeg, where it has to stand in, does not (`via_ffmpeg`).
+bool heif_to_jpeg(const fs::path& from, const fs::path& to, bool builtin,
+                  const std::string& ffmpeg_exe, const std::atomic<bool>& cancel,
+                  bool& via_ffmpeg, std::string& note, std::string& error) {
+    via_ffmpeg = false;
+    fs::path part = to;
+    part += ".part";
+    std::error_code ec;
+    bool done = false;
+    if (builtin) {
+        int w = 0, h = 0;
+        std::vector<uint8_t> rgb, exif;
+        std::string why;
+        if (decode_heif_builtin(from.string(), w, h, rgb, &exif, why)) {
+            if (!write_jpeg_with_exif(part, w, h, 3, rgb.data(), std::move(exif))) {
+                fs::remove(part, ec);
+                error = fmt(lmsg::err_heif_convert_failed,
+                            {from.string(), "cannot write " + part.string()});
+                return false;
+            }
+            done = true;
+        } else {
+            note = fmt(lmsg::decode_fallback_ffmpeg, {why});
+        }
+    }
+    if (!done) {
+        via_ffmpeg = true;
+        if (!ffmpeg_heif_to_jpeg(ffmpeg_exe, from.string(), part.string(), cancel, error))
+            return false;
+    }
+    fs::rename(part, to, ec);
+    if (ec) {
+        error = fmt(lmsg::err_heif_convert_failed, {from.string(), ec.message()});
+        fs::remove(part, ec);
+        return false;
+    }
+    return true;
+}
+
 // Decode, turn by `orientation`, then JPEG. Alpha is a cut-out, not decoration,
 // so it becomes `mask_to` gated at 128 (opaque = keep). The mask is written
 // FIRST: a resumed run reads the photo's existence as proof the pair is complete.
@@ -2159,6 +2215,7 @@ struct PhotoMove {
     int orientation = 1;   // EXIF, baked into the pixels by the re-encode
     // A packed .insp: one JPEG per lens, `to` being the last of them.
     std::vector<fs::path> split;
+    bool heif = false;     // converted to `to` whatever the import mode
 };
 
 // A re-encoded photo takes the .jpg its bytes now are; the parsers match a
@@ -2204,6 +2261,17 @@ std::vector<PhotoMove> plan_photo_moves(const std::vector<fs::path>& files,
             plan.push_back(std::move(m));
             continue;
         }
+        if (is_heif_path(f.string())) {
+            // Converted whatever the import mode, for the same reason.
+            fs::path cand = m.to.parent_path() / (rel.stem().string() + ".jpg");
+            if (taken.count(cand))
+                cand = m.to.parent_path() / (rel.stem().string() + "_heic.jpg");
+            taken.insert(cand);
+            m.to = cand;
+            m.heif = true;
+            plan.push_back(std::move(m));
+            continue;
+        }
         if (convert && jpeg_candidate_ext(f)) {
             const fs::path cand =
                 m.to.parent_path() / (m.to.stem().string() + ".jpg");
@@ -2232,6 +2300,7 @@ std::vector<PhotoMove> plan_photo_moves(const std::vector<fs::path>& files,
 struct GatherTally {
     std::atomic<int> converted{0}, linked{0}, copied{0}, moved{0}, kept{0};
     std::atomic<int> masked{0};
+    std::atomic<int> heif_by_ffmpeg{0};
     std::atomic<int64_t> done{0};
 };
 
@@ -2284,6 +2353,10 @@ bool DatasetPrep::gather_photos(const PrepJob& job, const PrepInput& in,
         std::error_code same_ec;
         if (fs::exists(t.to, same_ec) &&
             fs::equivalent(t.from, t.to, same_ec) && !same_ec) {
+            if (t.photos && in.heif) {
+                error = fmt(lmsg::err_heif_in_dataset_folder, {t.to.string()});
+                return false;
+            }
             log(fmt(lmsg::photos_already_in_dataset, {t.to.string()}),
                 /*detail=*/false);
             continue;
@@ -2311,8 +2384,15 @@ bool DatasetPrep::gather_photos(const PrepJob& job, const PrepInput& in,
         const std::vector<PhotoMove> plan = plan_photo_moves(
             files, t.from, t.to, derived_masks, convert, shape_notes);
         for (const std::string& n : shape_notes) log(n, /*detail=*/false);
-        bool any_split = false;
-        for (const PhotoMove& m : plan) any_split = any_split || !m.split.empty();
+        bool any_split = false, any_heif = false;
+        for (const PhotoMove& m : plan) {
+            any_split = any_split || !m.split.empty();
+            any_heif = any_heif || m.heif;
+        }
+        // Asked only now: the answer creates the inference context, which run()
+        // froze a device for because this input holds HEIC.
+        const bool heif_builtin =
+            any_heif && !job.force_external_decode && native_decode_reason().empty();
 
         GatherTally tally;
         std::mutex notes_mu;
@@ -2343,6 +2423,20 @@ bool DatasetPrep::gather_photos(const PrepJob& job, const PrepInput& in,
                 if (failure.empty())
                     failure = fmt(lmsg::err_packed_split_failed, {m.from.string()});
                 return false;
+            }
+            if (m.heif) {
+                bool by_ffmpeg = false;
+                std::string note, why;
+                const bool ok = heif_to_jpeg(m.from, m.to, heif_builtin, job.ffmpeg_exe,
+                                             _cancel, by_ffmpeg, note, why);
+                if (ok) {
+                    tally.converted++;
+                    if (by_ffmpeg) tally.heif_by_ffmpeg++;
+                }
+                std::lock_guard<std::mutex> lk(notes_mu);
+                if (!note.empty() && notes.size() < 20) notes.push_back(note);
+                if (!ok && failure.empty()) failure = why;
+                return ok;
             }
             if (m.convert) {
                 bool wrote_mask = false;
@@ -2390,11 +2484,11 @@ bool DatasetPrep::gather_photos(const PrepJob& job, const PrepInput& in,
         };
 
         // Copying and moving are the disk's work, so one thread; the re-encode
-        // is the CPU's, ~60 ms a photo. Each worker holds a decoded frame that
-        // glibc faults in on every call: 24 MB at 4K, ~320 MB for a 12K .insp.
+        // is the CPU's, ~60 ms a photo (1.4 s for a 24 MP HEIC). Each worker holds a
+        // decoded frame that glibc faults in on every call: 24 MB at 4K, ~320 MB .insp.
         const unsigned cores = std::thread::hardware_concurrency();
         const int threads =
-            convert || any_split
+            convert || any_split || any_heif
                 ? (int)std::clamp<unsigned>(cores ? cores : 1u, 1u, any_split ? 4u : 8u)
                 : 1;
         std::atomic<int> live{0};
@@ -2437,13 +2531,15 @@ bool DatasetPrep::gather_photos(const PrepJob& job, const PrepInput& in,
         }
         progress.update(tally.done.load());
 
+        // Before the failure: a HEIC that ffmpeg could not convert either says
+        // here why the built-in decoder passed it on.
+        for (const std::string& n : notes) log(n);
         if (!failure.empty()) { error = failure; return false; }
         if (_cancel.load()) { error = lmsg::err_cancelled.get(); return false; }
-        for (const std::string& n : notes) log(n);
         if (move)
             log(fmt(lmsg::moved_kept,
                     {(long long)tally.moved.load(), (long long)tally.kept.load()}));
-        else if (convert)
+        else if (convert || any_heif)
             log(fmt(lmsg::converted_copied_kept,
                     {(long long)tally.converted.load(),
                      (long long)(tally.linked.load() + tally.copied.load()),
@@ -2453,6 +2549,10 @@ bool DatasetPrep::gather_photos(const PrepJob& job, const PrepInput& in,
                     {(long long)tally.linked.load(),
                      (long long)tally.copied.load(),
                      (long long)tally.kept.load()}));
+        if (tally.heif_by_ffmpeg.load() > 0)
+            log(fmt(lmsg::heif_exif_left_behind,
+                    {(long long)tally.heif_by_ffmpeg.load()}),
+                /*detail=*/false);
         if (tally.masked.load() > 0) {
             log(fmt(lmsg::masks_from_alpha,
                     {(long long)tally.masked.load(), masks}),

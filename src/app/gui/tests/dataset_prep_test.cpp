@@ -18,6 +18,7 @@
 #include <atomic>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -269,12 +270,47 @@ void test_model_masking_needs_segmentation() {
 
 }  // namespace
 
+// A HEIC folder is never read in place, and a run with nothing that can read
+// it names the decoder it needed and leaves no half-written JPEG behind.
+void test_heif_folder() {
+    const fs::path root = scratch("heif");
+    const fs::path photos = root / "photos", ws = root / "dataset";
+    for (int i = 0; i < 3; i++) write_jpg(photos / (std::string(1, (char)('a' + i)) + ".jpg"), 16, 12, i);
+    check(!gui::folder_has_heif(photos.string()), "a folder of JPEGs holds no HEIC");
+    std::ofstream(photos / "d.HEIC", std::ios::binary) << "not a photo";
+    check(gui::folder_has_heif(photos.string()) && gui::is_image_file(photos / "d.HEIC"),
+          "a .HEIC is a photo, whatever its case");
+
+    gui::PrepJob job;
+    job.workspace = ws.string();
+    job.photo_import = gui::PhotoImport::InPlace;
+    job.ffmpeg_exe = (root / "no-such-ffmpeg").string();
+    gui::PrepInput in;
+    in.path = photos.string();
+    in.heif = true;
+    job.inputs = {in};
+    check(!gui::reads_photos_in_place(job.inputs, job.photo_import),
+          "a HEIC folder is not read in place");
+    job.inputs[0].heif = false;   // run() asks the disk itself
+    gui::RunProgress prog;
+    std::string err;
+    const bool ran = run_prep(job, prog, err);
+    check(!ran && err == spirula::i18n::format(spirula::i18n::msg::log::err_ffmpeg_missing,
+                                               {job.ffmpeg_exe}),
+          "without a decoder the run names ffmpeg: " + err);
+    std::error_code ec;
+    check(!fs::exists(ws / "images" / "d.jpg", ec) &&
+              !fs::exists(ws / "images" / "d.jpg.part", ec),
+          "no half-written JPEG is left for a resumed run to keep");
+}
+
 int main() {
     test_rerun_reapplies_corrections();
     test_camera_scan_skips_mask_edits();
     test_per_camera_stencil();
     test_feature_masks_workspace();
     test_model_masking_needs_segmentation();
+    test_heif_folder();
     std::printf("%s: %d failure(s)\n", SS_FILE, g_failures);
     return g_failures;
 }
