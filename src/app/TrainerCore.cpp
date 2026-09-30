@@ -542,6 +542,7 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.optim.sh_value_bits      = c.quantization_level == 0 ? 32 : 16;
     cfg.optim.non_sh_optim_bits  = c.quantization_level == 0 ? 32 : 16;
     cfg.optim.use_per_splat_bias_correction = c.use_per_splat_bias_correction;
+    cfg.optim.reg_rendered_only             = c.reg_rendered_only;
     cfg.optim.use_fused_proj_bwd_optim      = c.use_fused_proj_bwd_optim;
     cfg.optim.write_densify_world_grad_score =
         c.densify_score_blend_world_grad > 0.0f && c.use_revised_densification;
@@ -577,6 +578,12 @@ EngineStepConfig build_step_config(const TrainConfig& c, const RunState& st, int
     cfg.densify.las_split_opacity_k_init   = c.long_axis_split_opacity_k[0];
     cfg.densify.las_split_opacity_k_final  = c.long_axis_split_opacity_k[1];
     cfg.densify.las_split_opacity_k_warmup = (int)c.long_axis_split_opacity_k[2];
+    cfg.densify.max_split_fraction = c.max_split_fraction;
+    cfg.densify.split_weight_by_renders = c.split_weight_by_renders;
+    cfg.densify.dead_after_steps = c.dead_after_epochs > 0.0f
+        ? (int)std::min(65535.0, std::max(1.0, std::round(
+              (double)c.dead_after_epochs * (double)st.steps_per_epoch)))
+        : 0;
 
     // ---- bilagrid LRs + TV ---------------------------------------------
     if (st.bilagrid_rgb_init) {
@@ -1015,6 +1022,60 @@ static std::vector<float> exif_exposure_evs(const ParsedDataset& ds,
     return out;
 }
 
+// Cameras a seed point falls in the frustum of, at the given quantile over a
+// sample of the points. Occlusion is ignored, so rooms behind a wall count as
+// seen: the estimate errs toward the plain batch rule.
+static float estimate_views_per_point(const ParsedDataset& ds, float quantile) {
+    const int64_t P = ds.points.num();
+    if (P <= 0 || ds.train_indices.empty()) return 0.0f;
+    const int64_t stride = std::max<int64_t>(1, P / 20000);
+    struct Cam { float R[9]; float t[3]; float cos_max; bool all; };
+    std::vector<Cam> cams;
+    cams.reserve(ds.train_indices.size());
+    for (int32_t i : ds.train_indices) {
+        Cam c{};
+        const float* m = &ds.c2w[(size_t)i * 12];
+        for (int r = 0; r < 3; ++r) {
+            for (int k = 0; k < 3; ++k) c.R[r * 3 + k] = m[r * 4 + k];
+            c.t[r] = m[r * 4 + 3];
+        }
+        const float fx = ds.intrins[(size_t)i * 4 + 0], fy = ds.intrins[(size_t)i * 4 + 1];
+        const float hx = 0.5f * (float)ds.widths[(size_t)i] / std::max(fx, 1e-6f);
+        const float hy = 0.5f * (float)ds.heights[(size_t)i] / std::max(fy, 1e-6f);
+        const float diag = std::sqrt(hx * hx + hy * hy);
+        const auto model = (CameraModelType)ds.camera_models[(size_t)i];
+        float theta = 0.0f;
+        c.all = model == CameraModelType::EQUIRECTANGULAR;
+        if (model == CameraModelType::PINHOLE) theta = std::atan(diag);
+        else theta = std::min(diag, 0.95f * 3.14159265f);
+        c.cos_max = std::cos(theta);
+        cams.push_back(c);
+    }
+    std::vector<int32_t> counts;
+    counts.reserve((size_t)(P / stride + 1));
+    for (int64_t p = 0; p < P; p += stride) {
+        const float x = (float)ds.points.xyz[(size_t)p * 3 + 0];
+        const float y = (float)ds.points.xyz[(size_t)p * 3 + 1];
+        const float z = (float)ds.points.xyz[(size_t)p * 3 + 2];
+        int32_t n = 0;
+        for (const Cam& c : cams) {
+            const float dx = x - c.t[0], dy = y - c.t[1], dz = z - c.t[2];
+            // Camera-space z along the columns of R; OpenGL looks down -Z.
+            const float cz = -(c.R[2] * dx + c.R[5] * dy + c.R[8] * dz);
+            if (c.all) { n += cz != 0.0f || dx != 0.0f; continue; }
+            if (cz <= 0.0f) continue;
+            const float len = std::sqrt(dx * dx + dy * dy + dz * dz);
+            if (cz >= c.cos_max * len) ++n;
+        }
+        counts.push_back(n);
+    }
+    if (counts.empty()) return 0.0f;
+    const size_t k = (size_t)std::min<double>((double)(counts.size() - 1),
+        std::max(0.0, (double)quantile * (double)counts.size()));
+    std::nth_element(counts.begin(), counts.begin() + k, counts.end());
+    return (float)counts[k];
+}
+
 void TrainerSession::setup_engine() {
 #ifndef SS_BACKEND_VULKAN
     check_cuda_runtime();
@@ -1131,6 +1192,20 @@ void TrainerSession::setup_engine() {
     // Batch-size policy.
     double n_batch = std::max((double)num_train / std::max(cfg.max_batch_per_epoch, 1), 1.0);
     int train_bs = std::max(1, (int)(n_batch + 0.5));
+    if (cfg.min_renders_per_refine > 0.0f && num_train > 0) {
+        // A splat seen by V cameras is rendered B * refine_every * V / N_train
+        // times between two rounds; hold that above the floor for the
+        // poorly seen quantile, estimated from the seed points and frusta.
+        const float v_q = estimate_views_per_point(ds, cfg.render_quantile);
+        const double per_round = (double)std::max(cfg.refine_every, 1) * std::max(v_q, 1.0f);
+        const int bs_need = (int)std::ceil((double)cfg.min_renders_per_refine * (double)num_train / per_round);
+        const int bs_old = train_bs;
+        if (cfg.max_train_batch_size > 0)
+            train_bs = std::max(1, std::min(std::max(train_bs, bs_need), cfg.max_train_batch_size));
+        n_batch = (double)train_bs;
+        log(lfmt(lmsg::batch_from_renders,
+                 {(double)v_q, (long long)bs_old, (long long)train_bs}));
+    }
     _batches_per_epoch = (int)std::max<int64_t>(1, (num_train + train_bs - 1) / train_bs);
     int val_bs = 1;
     if (num_val > 0)
@@ -1150,6 +1225,9 @@ void TrainerSession::setup_engine() {
     set_alpha_config(dm, alpha_images);
     dm.mask_boundary_offset = cfg.mask_boundary_offset;
     dm.exif_quarter_turns = ds.exif_quarter_turns;
+    dm.deficit_sampling  = cfg.view_sampling == "deficit";
+    dm.deficit_power     = cfg.view_deficit_power;
+    dm.deficit_max_ratio = cfg.view_deficit_max_ratio;
     engine_setup_data_manager(
         dm, ds.camera_models, ds.camera_distortions,
         ds.image_filenames,
@@ -1166,12 +1244,14 @@ void TrainerSession::setup_engine() {
         post.input_intrins, post.input_dist_coeffs,
         post.redistort_models, post.redistort_params,
         ds.train_indices, ds.val_indices);
+    engine_set_view_stats(dm.deficit_sampling);
 
     // ---- Bilagrid / PPISP init -----------------------------------------
     // Enablement conditions are static here (dataset modalities known up
     // front), so the init happens once at setup rather than per step.
     st = RunState{};
     st.train_frame_scale = ds.train_frame_scale;
+    st.steps_per_epoch   = _batches_per_epoch;
     st.splat_linear      = color.splat_linear;
     st.input_depth_is_ray_depth = resolve_ray_depth(cfg, ds);
     if (has_depth && !cfg.input_depth_is_ray_depth.has_value())
@@ -1350,7 +1430,8 @@ std::map<std::string, float> TrainerSession::train_step(int step) {
     if (!_diverged_loss_reported) {
         for (const auto& [name, value] : losses) {
             if (name == "cur_num_splats" || name == "max_num_splats" ||
-                name == "num_added")
+                name == "num_added" || name == "num_dead" ||
+                name == "num_relocated")
                 continue;
             // Magnitude only for rgb_loss: the others carry scene-dependent
             // units (depth, TV) with no comparable ceiling.

@@ -537,6 +537,10 @@ int spirula_train_main(int argc, char** argv) {
                     auto it = p.losses.find(k);
                     if (it != p.losses.end()) std::printf("  %s=%.4g", k, it->second);
                 }
+                for (const char* k : {"num_dead", "num_relocated", "num_added"}) {
+                    auto it = p.losses.find(k);
+                    if (it != p.losses.end()) std::printf("  %s=%lld", k, (long long)it->second);
+                }
                 std::printf("\n");
                 std::fflush(stdout);
             }

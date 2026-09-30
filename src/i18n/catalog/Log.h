@@ -1279,6 +1279,37 @@ SS_MSG(web_viewer_at,
 // purpose: they name command-line flags and files under docs/notes/, so they
 // are addressed to someone working on this program rather than using it.
 
+// {0} cameras seeing a splat at the render quantile, {1} and {2} the images
+// per step before and after.
+SS_MSG(batch_from_renders,
+    EN("Images per step: {1} -> {2}, so a splat seen by {0} cameras is "
+       "rendered min_renders_per_refine times between rounds"),
+    JA("1 ステップの画像数: {1} -> {2}（{0} 台のカメラに見えるスプラットが、ラ"
+       "ウンドの間に min_renders_per_refine 回描画されるように）"),
+    ZH_HANS("每步图像数：{1} -> {2}，使被 {0} 台相机看到的泼溅在两轮之间渲染 "
+            "min_renders_per_refine 次"),
+    ZH_HANT("每步影像數：{1} -> {2}，使被 {0} 台相機看到的潑濺在兩輪之間算圖 "
+            "min_renders_per_refine 次"),
+    KO("스텝당 이미지 수: {1} -> {2}, 카메라 {0}대에 보이는 스플랫이 회차 사이"
+       "에 min_renders_per_refine번 렌더되도록 함"),
+    DE("Bilder pro Schritt: {1} -> {2}, damit ein von {0} Kameras gesehener "
+       "Splat zwischen den Runden min_renders_per_refine-mal gerendert wird"),
+    FR("Images par étape : {1} -> {2}, pour qu'un splat vu par {0} caméras "
+       "soit rendu min_renders_per_refine fois entre les cycles"),
+    ES("Imágenes por paso: {1} -> {2}, para que un splat visto por {0} "
+       "cámaras se renderice min_renders_per_refine veces entre rondas"),
+    PT("Imagens por passo: {1} -> {2}, para que um splat visto por {0} "
+       "câmeras seja renderizado min_renders_per_refine vezes entre rodadas"),
+    IT("Immagini per passo: {1} -> {2}, così uno splat visto da {0} "
+       "fotocamere viene renderizzato min_renders_per_refine volte tra un "
+       "ciclo e l'altro"),
+    NL("Beelden per stap: {1} -> {2}, zodat een splat die door {0} camera's "
+       "wordt gezien tussen rondes min_renders_per_refine keer wordt gerenderd"),
+    RU("Изображений на шаг: {1} -> {2}, чтобы сплат (видящих его камер: {0}) "
+       "отрисовывался min_renders_per_refine раз между раундами"),
+    TR("Adım başına görüntü: {1} -> {2}; böylece {0} kameranın gördüğü bir "
+       "splat turlar arasında min_renders_per_refine kez işlenir"));
+
 // {0} cameras parsed, {1} after splitting panoramas, {2} seed points,
 // {3} the frame scale.
 SS_MSG(parsed_dataset,

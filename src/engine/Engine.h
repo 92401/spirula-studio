@@ -506,6 +506,11 @@ void engine_debug_forward(
 // --- Query internal state ---
 
 void engine_copy_accum_buffer(TorchTensorView dst);
+// Per-camera visit stats for deficit view sampling: accumulated after every
+// backward once enabled, read back as [num_post] sums and counts.
+void engine_set_view_stats(bool enabled);
+void engine_read_view_stats(std::vector<float>& cam_sum, std::vector<uint32_t>& cam_cnt);
+
 int64_t engine_get_cur_num_splats();
 int64_t engine_get_max_num_splats();
 int engine_get_num_sh();   // non-DC SH coefficients per channel

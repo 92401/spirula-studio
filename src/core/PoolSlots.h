@@ -125,6 +125,7 @@ enum class SaveClass : uint8_t {
   X(EngRadii                       , "eng.radii",                         Splat    , Resume) \
   X(EngAccumBuffer                 , "eng.accum_buffer",                  Splat    , Resume) \
   X(EngBiasCorrectionSteps         , "eng.bias_correction_steps",         Splat    , Resume) \
+  X(EngVisitCounters               , "eng.visit_counters",                Splat    , Resume) \
   X(EngDensifyWorldGradScore       , "eng.densify.world_grad_score",      Splat    , Never) \
   X(EngDensifySampleScore          , "eng.densify.sample_score",          Splat    , Never) \
   X(EngDensifyOversize             , "eng.densify.oversize",              Splat    , Never) \
@@ -135,6 +136,8 @@ enum class SaveClass : uint8_t {
   X(EngRegionFieldSeeds            , "eng.region.field_seeds",            Other    , Never) \
   X(EngRegionCameraBvh             , "eng.region.camera_bvh",             Other    , Never) \
   X(EngRegionCameraSeeds           , "eng.region.camera_seeds",           Other    , Never) \
+  X(EngVisitCamSum                 , "eng.visit.cam_sum",                 Other    , Never) \
+  X(EngVisitCamCnt                 , "eng.visit.cam_cnt",                 Other    , Never) \
   /* ---- sub-batch scratch ---- */ \
   X(EngSubbatchAccumWeightSum      , "eng.subbatch.accum_weight_sum",     Splat    , Never) \
   /* ---- gradients ---- */ \

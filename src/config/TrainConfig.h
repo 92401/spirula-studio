@@ -202,6 +202,9 @@ inline int train_tier_rank(const char* tier) {
     X(float, densify_oversize_score_blend, 1.0f, "detail", "advanced", "")   \
     X(bool, use_long_axis_split, true, "detail", "expert", "")               \
     X(TrainVec3f, long_axis_split_opacity_k, train_v3f(0.5f, 0.6f, 15000.0f), "detail", "basic", "") \
+    X(float, max_split_fraction, 0.1f, "detail", "advanced", "")             \
+    X(bool, split_weight_by_renders, false, "detail", "advanced", "")        \
+    X(float, dead_after_epochs, 2.0f, "detail", "advanced", "")              \
     X(float, max_screen_size, 0.3f, "detail", "basic", "")                   \
     X(float, max_screen_size_clip_hardness, 1.5f, "detail", "basic", "")     \
     X(float, max_screen_size_penalty, 1.0f, "detail", "basic", "")           \
@@ -221,6 +224,9 @@ inline int train_tier_rank(const char* tier) {
     X(float, alpha_loss_weight_under, 0.0f, "loss", "basic", "")             \
     X(float, loss_saturation_threshold, -1.0f, "loss", "advanced", "")       \
     X(float, loss_luminance_normalization, 0.0f, "loss", "advanced", "")     \
+    X(std::string, view_sampling, "uniform", "perf", "basic", "uniform|deficit") \
+    X(float, view_deficit_power, 0.5f, "perf", "advanced", "")               \
+    X(float, view_deficit_max_ratio, 8.0f, "perf", "advanced", "")           \
                                                                              \
     /* ==== geometry -- how crisp the surfaces come out, and depth/normal guidance ==== */ \
     X(std::string, floater_suppression, "off", "geometry", "basic", "off|mild|strong") \
@@ -245,6 +251,7 @@ inline int train_tier_rank(const char* tier) {
                                                                              \
     /* ==== shape -- keeping individual splats compact and well behaved ==== */ \
     X(float, opacity_reg, 0.005f, "shape", "basic", "")                      \
+    X(bool, reg_rendered_only, true, "shape", "advanced", "")                \
     X(float, scale_reg, 0.01f, "shape", "basic", "")                         \
     X(float, opacity_reg_decay_power, 1.0f, "shape", "expert", "")           \
     X(float, scale_reg_decay_power, 0.4f, "shape", "expert", "")             \
@@ -314,6 +321,9 @@ inline int train_tier_rank(const char* tier) {
     /* ==== perf -- speed and memory; none of these change the result ==== */\
     X(std::string, cache_images, "disk", "perf", "basic", "cpu|gpu|disk")    \
     X(int, max_batch_per_epoch, 800, "perf", "basic", "")                    \
+    X(float, min_renders_per_refine, 0.0f, "perf", "basic", "")              \
+    X(float, render_quantile, 0.1f, "perf", "advanced", "")                  \
+    X(int, max_train_batch_size, -1, "perf", "advanced", "")                 \
     X(bool, split_batch, true, "perf", "advanced", "")                       \
     X(bool, use_fused_proj_bwd_optim, true, "perf", "advanced", "")          \
     X(bool, packed, true, "perf", "advanced", "")                            \
@@ -503,6 +513,10 @@ inline bool train_apply_preset(TrainConfig& c, const std::string& name) {
         c.use_bilateral_grid_for_geometry = false;
         c.use_ppisp = false;
         c.use_revised_densification = false;
+        c.reg_rendered_only = false;
+        c.dead_after_epochs = 0.0f;
+        c.split_weight_by_renders = false;
+        c.max_split_fraction = 1.0f;
         c.densify_loss_map_mode = "none";
         c.use_long_axis_split = false;
         c.use_fused_proj_bwd_optim = false;

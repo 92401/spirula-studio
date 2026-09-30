@@ -128,6 +128,7 @@ void append_point_seeds(SeedSplats& s, const ColmapPoints3D& pts,
 
 struct RunState {
     float train_frame_scale = 1.0f;
+    int   steps_per_epoch = 1;   // optimizer steps per pass over the train set
     bool  splat_linear = false;
     // Resolved against the dataset's lenses when the flag is unset; see
     // TrainerCore.cpp.
