@@ -115,6 +115,9 @@ add_library(ss_nn STATIC
     ${SS_SRC}/external/stb_image_impl.cpp
     ${SS_SRC}/external/stb_image_write_impl.cpp
     ${SS_SRC}/core/ExrImage.cpp
+    ${SS_SRC}/core/ImageFile.cpp
+    ${SS_SRC}/core/MappedFile.cpp
+    ${SS_SRC}/core/TiffImage.cpp
     ${SS_SRC}/external/miniz.c
 )
 target_include_directories(ss_nn PUBLIC ${SS_SRC})

@@ -13,7 +13,7 @@
 #include "app/gui/HeifPhoto.h"
 #include "app/gui/Subprocess.h"
 
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 #include "core/ImageOrient.h"
 #include "sfm/core/Exif.h"
 #ifdef SS_TOOL_SFM
@@ -1023,9 +1023,9 @@ int DatasetPrep::count_images(const std::string& dir, const std::string& skip) {
 // focal prior this feeds describes the pixels every reader then sees.
 static bool probe_dims(const fs::path& f, int& W, int& H) {
     if (is_heif_path(f.string())) return heif_size(f.string(), W, H);
-    if (exr::is_exr(f.string())) {
-        exr::Info info;
-        if (!exr::probe(f.string(), info).empty()) return false;
+    if (imagefile::handles(f.string())) {
+        imagefile::Info info;
+        if (!imagefile::probe(f.string(), info).empty()) return false;
         W = info.width;
         H = info.height;
         return true;

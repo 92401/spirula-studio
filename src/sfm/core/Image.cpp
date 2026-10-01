@@ -7,7 +7,7 @@
 #include "sfm/core/Image.h"
 
 #include "core/ColorSpace.h"
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 #include "core/ImageOrient.h"
 
 #include <algorithm>
@@ -144,20 +144,20 @@ GrayImage loadGrayImage(const std::string& path, int max_image_size, bool want_c
                         const std::string& feature_mask_path) {
     int w = 0, h = 0, chan = 0;
     // Force 3 channels; we do our own luma so behavior is decoder-independent.
-    // An EXR decodes on this thread: the pool above already owns every core.
-    std::vector<uint8_t> exr_rgb;
+    // An EXR or TIFF decodes on this thread: the pool above already owns every core.
+    std::vector<uint8_t> own_rgb;
     unsigned char* rgb = nullptr;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        exr::Options opt;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        imagefile::Options opt;
         opt.threads = 1;
         const std::string err =
-            exr::decode_srgb8(path, opt, info, exr_rgb, gamut, is_linear);
+            imagefile::decode_srgb8(path, opt, info, own_rgb, gamut, is_linear);
         if (!err.empty())
             throw std::runtime_error("cannot decode image " + path + ": " + err);
         w = info.width;
         h = info.height;
-        rgb = exr_rgb.data();
+        rgb = own_rgb.data();
     } else {
         rgb = stbi_load(path.c_str(), &w, &h, &chan, 3);
         if (!rgb)
@@ -193,7 +193,7 @@ GrayImage loadGrayImage(const std::string& path, int max_image_size, bool want_c
     } else {
         resizeGrayFromRgb(rgb, w, h, dw, dh, img.data);
     }
-    if (exr_rgb.empty()) stbi_image_free(rgb);
+    if (own_rgb.empty()) stbi_image_free(rgb);
     // Kept at the mask file's own resolution: applyMask() samples it in uv, so
     // resampling it to match `img` would only lose detail (D39).
     if (!mask_path.empty()) {
@@ -252,9 +252,9 @@ Mask loadMask(const std::string& path) {
 }
 
 bool imageSize(const std::string& path, int& width, int& height) {
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::probe(path, info).empty()) return false;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::probe(path, info).empty()) return false;
         width = info.width;
         height = info.height;
         return true;

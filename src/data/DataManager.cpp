@@ -6,6 +6,7 @@
 #include "core/DistanceTransform.h"
 #include "core/ExrImage.h"
 #include "core/ImageOrient.h"
+#include "core/TiffImage.h"
 #include "data/ImageProbe.h"
 #include "i18n/catalog/Data.h"
 
@@ -396,8 +397,34 @@ std::vector<T> composite_over(const T* rgba, size_t n, const float over[3]) {
     return out;
 }
 
-// `decode_threads` is what an EXR may use: 1 on the worker pool, which is
-// already 16 wide, and every core for a lone image the viewer asked for.
+// `src` (w x h, RGB) turned by `turns_cw` and fitted to the camera in `dst`.
+template <typename T>
+void place_rgb(const std::string& path, const T* src, int w, int h, int turns_cw,
+               int expected_h, int expected_w, uint8_t* dst) {
+    std::vector<T> turned;
+    turn_decoded(src, w, h, 3, turns_cw, turned);
+    if (w == expected_w && h == expected_h) {
+        std::memcpy(dst, src, (size_t)w * h * 3 * sizeof(T));
+    } else {
+        _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
+        cpu_resize<T, 3>(src, h, w, (T*)dst, expected_h, expected_w);
+    }
+}
+
+// RGBA composited onto `over` when it is set, RGB as it is otherwise.
+template <typename T>
+void place_rgb_over(const std::string& path, const T* px, int w, int h, const float* over,
+                    int turns_cw, int expected_h, int expected_w, uint8_t* dst) {
+    std::vector<T> flat;
+    if (over) {
+        flat = composite_over(px, (size_t)w * h, over);
+        px = flat.data();
+    }
+    place_rgb(path, px, w, h, turns_cw, expected_h, expected_w, dst);
+}
+
+// `decode_threads` is what an EXR or TIFF may use: 1 on the worker pool, which
+// is already 16 wide, and every core for a lone image the viewer asked for.
 // `over`, when set, composites an 8- or 16-bit file's alpha onto that colour.
 void decode_rgb_into(const std::string& path,
                      int expected_h, int expected_w,
@@ -407,6 +434,28 @@ void decode_rgb_into(const std::string& path,
                      int decode_threads = 1,
                      const float* over = nullptr)
 {
+    if (tiff::is_tiff(path)) {
+        tiff::Info info;
+        tiff::Options opt;
+        if (dtype == PixelDType::FLOAT32) over = nullptr;
+        opt.channels = over ? 4 : 3;
+        opt.threads = decode_threads;
+        std::vector<uint8_t> px;
+        const std::string err = tiff::decode(path, opt, info, px);
+        if (!err.empty())
+            throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        const int w = info.width, h = info.height;
+        if (dtype == PixelDType::FLOAT32 && info.sample == tiff::Sample::F32)
+            place_rgb(path, (const float*)px.data(), w, h, turns_cw, expected_h, expected_w, dst);
+        else if (dtype == PixelDType::UINT16 && info.sample == tiff::Sample::U16)
+            place_rgb_over(path, (const uint16_t*)px.data(), w, h, over, turns_cw,
+                           expected_h, expected_w, dst);
+        else if (dtype == PixelDType::UINT8 && info.sample == tiff::Sample::U8)
+            place_rgb_over(path, px.data(), w, h, over, turns_cw, expected_h, expected_w, dst);
+        else
+            throw std::runtime_error(decode_failure(path));   // rewritten since the probe
+        return;
+    }
     int w, h, ch;
     if (dtype == PixelDType::FLOAT32) {
         exr::Info info;
@@ -416,50 +465,17 @@ void decode_rgb_into(const std::string& path,
         const std::string err = exr::decode(path, opt, info, px);
         if (!err.empty())
             throw std::runtime_error(decode_failure(path) + " (" + err + ")");
-        const float* src = px.data();
-        std::vector<float> turned;
-        w = info.width;
-        h = info.height;
-        turn_decoded(src, w, h, 3, turns_cw, turned);
-        if (w == expected_w && h == expected_h) {
-            std::memcpy(dst, src, (size_t)w * h * 3 * sizeof(float));
-        } else {
-            _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
-            cpu_resize<float, 3>(src, h, w, (float*)dst, expected_h, expected_w);
-        }
+        place_rgb(path, px.data(), info.width, info.height, turns_cw, expected_h, expected_w,
+                  dst);
     } else if (dtype == PixelDType::UINT16) {
         stbi_us* img = stbi_load_16(path.c_str(), &w, &h, &ch, over ? 4 : 3);
         if (!img) throw std::runtime_error(decode_failure(path));
-        const stbi_us* src = img;
-        std::vector<stbi_us> flat, turned;
-        if (over) {
-            flat = composite_over(img, (size_t)w * h, over);
-            src = flat.data();
-        }
-        turn_decoded(src, w, h, 3, turns_cw, turned);
-        if (w == expected_w && h == expected_h) {
-            std::memcpy(dst, src, (size_t)w * h * 3 * sizeof(stbi_us));
-        } else {
-            _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
-            cpu_resize<stbi_us, 3>(src, h, w, (stbi_us*)dst, expected_h, expected_w);
-        }
+        place_rgb_over(path, img, w, h, over, turns_cw, expected_h, expected_w, dst);
         stbi_image_free(img);
     } else if (dtype == PixelDType::UINT8) {
         stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, over ? 4 : 3);
         if (!img) throw std::runtime_error(decode_failure(path));
-        const stbi_uc* src = img;
-        std::vector<stbi_uc> flat, turned;
-        if (over) {
-            flat = composite_over(img, (size_t)w * h, over);
-            src = flat.data();
-        }
-        turn_decoded(src, w, h, 3, turns_cw, turned);
-        if (w == expected_w && h == expected_h) {
-            std::memcpy(dst, src, (size_t)w * h * 3);
-        } else {
-            _warn_rgb_dim_mismatch_once(path, w, h, expected_w, expected_h);
-            cpu_resize<stbi_uc, 3>(src, h, w, dst, expected_h, expected_w);
-        }
+        place_rgb_over(path, img, w, h, over, turns_cw, expected_h, expected_w, dst);
         stbi_image_free(img);
     } else {
         throw std::runtime_error("DataManager: unsupported RGB pixel type for '" + path + "'");
@@ -514,17 +530,33 @@ void decode_alpha_mask_into(const std::string& path,
                             int turns_cw = 0)
 {
     int w, h, ch;
-    stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, 0);
-    if (!img) throw std::runtime_error(decode_failure(path));
-    if (ch != 2 && ch != 4) {
-        // Replaced by an opaque file since the probe.
+    std::vector<stbi_uc> alpha;
+    if (tiff::is_tiff(path)) {
+        tiff::Info info;
+        tiff::Options opt;
+        opt.channels = 4;
+        opt.threads = 1;
+        std::vector<uint8_t> px;
+        const std::string err = tiff::decode_srgb8(path, opt, info, px);
+        if (!err.empty())
+            throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        w = info.width;
+        h = info.height;
+        alpha.resize((size_t)w * h);
+        for (size_t i = 0; i < alpha.size(); ++i) alpha[i] = px[i * 4 + 3];
+    } else {
+        stbi_uc* img = stbi_load(path.c_str(), &w, &h, &ch, 0);
+        if (!img) throw std::runtime_error(decode_failure(path));
+        if (ch != 2 && ch != 4) {
+            // Replaced by an opaque file since the probe.
+            stbi_image_free(img);
+            std::memset(dst, 1, (size_t)dst_h * dst_w);
+            return;
+        }
+        alpha.resize((size_t)w * h);
+        for (size_t i = 0; i < alpha.size(); ++i) alpha[i] = img[i * ch + ch - 1];
         stbi_image_free(img);
-        std::memset(dst, 1, (size_t)dst_h * dst_w);
-        return;
     }
-    std::vector<stbi_uc> alpha((size_t)w * h);
-    for (size_t i = 0; i < alpha.size(); ++i) alpha[i] = img[i * ch + ch - 1];
-    stbi_image_free(img);
 
     const stbi_uc* src = alpha.data();
     std::vector<stbi_uc> turned, resized;
@@ -585,12 +617,19 @@ bool probe_image_shape(const std::string& path, int& w, int& h) {
 }
 
 // On-disk RGB dtype. EXR is float32 whatever it stores: half carries values
-// above 1, and 16-bit normalized would clip every one of them.
+// above 1, and 16-bit normalized would clip every one of them. A TIFF is what
+// it stores, any float width as float32 for the same reason.
 PixelDType probe_pixel_dtype(const std::string& path,
                              PixelDType fallback = PixelDType::UINT8)
 {
     if (path.empty()) return fallback;
     if (exr::is_exr(path)) return PixelDType::FLOAT32;
+    if (tiff::is_tiff(path)) {
+        tiff::Info info;
+        if (!tiff::probe(path, info).empty()) return fallback;
+        return info.sample == tiff::Sample::F32 ? PixelDType::FLOAT32
+             : info.sample == tiff::Sample::U16 ? PixelDType::UINT16 : PixelDType::UINT8;
+    }
     if (stbi_is_16_bit(path.c_str())) return PixelDType::UINT16;
     return PixelDType::UINT8;
 }

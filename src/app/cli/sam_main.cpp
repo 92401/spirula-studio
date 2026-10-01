@@ -505,7 +505,7 @@ int cmd_track(const Options& o) {
         std::string ext = e.path().extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp" ||
-            ext == ".exr")
+            ext == ".exr" || ext == ".tif" || ext == ".tiff")
             files.push_back(e.path().string());
     }
     std::sort(files.begin(), files.end());

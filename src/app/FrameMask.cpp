@@ -4,7 +4,7 @@
 
 #include "app/FrameLook.h"
 #include "core/CubicBezier.h"
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 #include "core/PolygonFill.h"
 
 #include "external/stb_image.h"
@@ -99,11 +99,11 @@ struct Gray {
 Gray load_gray(const std::string& path) {
     Gray g;
     int comp = 0;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        exr::Options opt;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        imagefile::Options opt;
         opt.channels = 1;
-        if (!exr::decode_srgb8(path, opt, info, g.px).empty()) return Gray{};
+        if (!imagefile::decode_srgb8(path, opt, info, g.px).empty()) return Gray{};
         g.w = info.width;
         g.h = info.height;
         return g;
@@ -740,9 +740,9 @@ std::string format_mask_shapes(const std::vector<MaskShape>& shapes) {
 
 bool image_size(const std::string& path, int& width, int& height) {
     int comp = 0;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::probe(path, info).empty()) return false;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::probe(path, info).empty()) return false;
         width = info.width;
         height = info.height;
         return true;
@@ -753,9 +753,10 @@ bool image_size(const std::string& path, int& width, int& height) {
 bool load_rgb(const std::string& path, int& width, int& height,
               std::vector<uint8_t>& out) {
     int comp = 0;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::decode_srgb8(path, exr::Options(), info, out).empty()) return false;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::decode_srgb8(path, imagefile::Options(), info, out).empty())
+            return false;
         width = info.width;
         height = info.height;
         return true;

@@ -3,7 +3,7 @@
 #include "app/gui/FrameSelect.h"
 
 #include "app/FrameSharpness.h"
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 
 #include "external/stb_image.h"
 
@@ -39,14 +39,15 @@ struct Analysis {
 void analyze(const std::string& path, int mw, int mh, bool top_rows,
              Analysis& out) {
     int W = 0, H = 0, C = 0;
-    std::vector<uint8_t> exr_rgb;
+    std::vector<uint8_t> own_rgb;
     unsigned char* img = nullptr;
-    if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::decode_srgb8(path, exr::Options(), info, exr_rgb).empty()) return;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::decode_srgb8(path, imagefile::Options(), info, own_rgb).empty())
+            return;
         W = info.width;
         H = info.height;
-        img = exr_rgb.data();
+        img = own_rgb.data();
     } else {
         img = stbi_load(path.c_str(), &W, &H, &C, 3);
         if (!img) return;
@@ -61,7 +62,7 @@ void analyze(const std::string& path, int mw, int mh, bool top_rows,
         for (size_t i = 0; i < f.size(); i++)
             out.grey[i] = (uint8_t)std::min(255.0f, std::max(0.0f, f[i] + 0.5f));
     }
-    if (exr_rgb.empty()) stbi_image_free(img);
+    if (own_rgb.empty()) stbi_image_free(img);
 }
 
 bool same_bytes(const fs::path& a, const fs::path& b) {

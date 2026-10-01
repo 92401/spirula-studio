@@ -9,7 +9,7 @@
 #include "i18n/catalog/Dataset.h"
 
 #include "core/ColorSpace.h"
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 #ifdef SS_HAVE_VIDEO
 #include "app/FrameExtract.h"
 #include "video/Video.h"
@@ -62,10 +62,10 @@ bool load_photo(const PreviewSource& src, const std::string& path,
                        error))
             return false;
         convert_to_srgb(src, rgb);
-    } else if (exr::is_exr(path)) {
-        exr::Info info;
-        if (!exr::decode_srgb8(path, exr::Options(), info, rgb,
-                               src.image_gamut, src.image_is_linear).empty())
+    } else if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::decode_srgb8(path, imagefile::Options(), info, rgb,
+                                     src.image_gamut, src.image_is_linear).empty())
             return false;
         w = info.width;
         h = info.height;

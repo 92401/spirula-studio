@@ -6,7 +6,7 @@
 #include "app/gui/MaskTint.h"
 #include "app/FrameLook.h"          // app::photo_turn
 #include "app/FrameMask.h"          // app::load_rgb, app::load_stencil
-#include "core/ExrImage.h"
+#include "core/ImageFile.h"
 #include "external/stb_image.h"
 
 #include <algorithm>
@@ -181,7 +181,7 @@ bool load_picture(const std::string& image_path, const std::string& mask_path,
     };
     if (image_path.empty()) return fail();
     int w = 0, h = 0, comp = 0, step = 1;
-    if (exr::is_exr(image_path)) {
+    if (imagefile::handles(image_path)) {
         std::vector<uint8_t> rgb;
         if (!app::load_rgb(image_path, w, h, rgb) || w <= 0 || h <= 0) return fail();
         step = size_picture(w, h, max_side, out);
@@ -196,10 +196,10 @@ bool load_picture(const std::string& image_path, const std::string& mask_path,
     auto mark_file = [&](const std::string& path, bool flipped, uint8_t level) {
         if (path.empty()) return;
         // stb's buffer in place, unless the mask needs what load_stencil adds:
-        // an EXR decode, or the EXIF turn a JPEG mask may carry.
+        // an EXR or TIFF decode, or the EXIF turn a JPEG mask may carry.
         int mw = 0, mh = 0;
-        StbPixels m(exr::is_exr(path) ? nullptr
-                                      : stbi_load(path.c_str(), &mw, &mh, &comp, 1));
+        StbPixels m(imagefile::handles(path) ? nullptr
+                                             : stbi_load(path.c_str(), &mw, &mh, &comp, 1));
         if (m && app::photo_turn(path).identity()) {
             mark_blocks(m.get(), mw, mh, w, h, step, flipped, level, out, marks);
             return;

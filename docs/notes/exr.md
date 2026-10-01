@@ -92,6 +92,9 @@ maximum of exactly 1.0 across a whole scene-linear capture.
 
 ## Where it is wired in
 
+Callers that also read stb_image's formats reach it through
+`core/ImageFile.h`, which dispatches TIFF (`docs/notes/tiff.md`) the same way.
+
 - `spirula sfm` — `sfm::loadGrayImage`, decoding to sRGB on the decode pool
   with `threads = 1` (the pool above already owns every core).
 - `spirula sam` / `spirula geometry` — `nn::load_image`, same conversion.
