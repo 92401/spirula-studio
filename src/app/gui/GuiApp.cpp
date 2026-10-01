@@ -699,6 +699,7 @@ void GuiApp::write_run_settings(std::ofstream& f) {
     line("want_depth", cfg_str(_geometry.want_depth));
     line("want_normal", cfg_str(_geometry.want_normal));
     line("max_size", std::to_string(_geometry.max_size));
+    line("face_res", _geometry.face_res == 1 ? "source" : "output");
 
     // The training config, grouped the way the options editor groups it.
     for (int si = 0; si < kTrainNumSections; si++) {
@@ -5189,6 +5190,11 @@ void GuiApp::draw_geometry_options() {
         ImGui::SetNextItemWidth(px(220.0f));
         ui::ComboRaw(ui::detail::label(dmsg::geom_split), &_geometry.split, kTri, 3);
         ui::help_on_hover(gmsg::opt_split);
+        static const char* kFaceRes[] = {"output", "source"};
+        ImGui::SetNextItemWidth(px(220.0f));
+        ui::ComboRaw(ui::detail::label(dmsg::geom_face_res), &_geometry.face_res,
+                     kFaceRes, 2);
+        ui::help_on_hover(gmsg::opt_face_res);
         ImGui::SetNextItemWidth(px(220.0f));
         ui::ComboRaw(ui::detail::label(dmsg::geom_ray_depth), &_geometry.ray_depth,
                      kTri, 3);

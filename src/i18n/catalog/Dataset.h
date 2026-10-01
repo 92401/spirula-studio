@@ -13176,6 +13176,14 @@ SS_MSG(geom_split,
     NL("Brede beelden splitsen"), RU("Разбивать широкие кадры"),
     TR("Geniş kareleri böl"));
 
+SS_MSG(geom_face_res,
+    EN("Face resolution"),
+    JA("面の解像度"),      ZH_HANS("拆分面分辨率"), ZH_HANT("拆分面解析度"),
+    KO("면 해상도"),       DE("Flächenauflösung"),
+    FR("Résolution des faces"), ES("Resolución de las caras"),
+    PT("Resolução das faces"), IT("Risoluzione delle facce"),
+    NL("Vlakresolutie"),   RU("Разрешение граней"), TR("Yüz çözünürlüğü"));
+
 SS_MSG(geom_ray_depth,
     EN("Store ray depth"),
     JA("光線深度で保存"),  ZH_HANS("保存光线深度"), ZH_HANT("儲存光線深度"),

@@ -71,6 +71,7 @@ namespace {
     X("geometry_depth_mm",          sfm.geometry.depth_mm)                    \
     X("geometry_ray_depth",         sfm.geometry.ray_depth)                   \
     X("geometry_split",             sfm.geometry.split)                       \
+    X("geometry_face_res",          sfm.geometry.face_res)                    \
     X("geometry_overwrite",         sfm.geometry.overwrite)                   \
     /* ---- the built-in reconstruction ---- */                               \
     X("sfm_quality",                sfm.quality)                              \
@@ -228,6 +229,7 @@ void sanitize_dataset_settings(DatasetSettings& s) {
     clamp_to(g.jpeg_quality, 1, 100);
     clamp_to(g.ray_depth, 0, 2);
     clamp_to(g.split, 0, 2);
+    clamp_to(g.face_res, 0, 1);
 
     SfmJob& j = s.sfm;
     clamp_to(j.quality, 0, 3);
