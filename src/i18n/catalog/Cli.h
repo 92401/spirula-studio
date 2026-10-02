@@ -647,6 +647,22 @@ SS_MSG(error_line,
     RU("ошибка: {0}"),
     TR("hata: {0}"));
 
+// {0} is a URL.
+SS_MSG(details_line,
+    EN("Details: {0}"),
+    JA("詳細: {0}"),
+    ZH_HANS("详情：{0}"),
+    ZH_HANT("詳情：{0}"),
+    KO("자세한 내용: {0}"),
+    DE("Details: {0}"),
+    FR("Détails : {0}"),
+    ES("Detalles: {0}"),
+    PT("Detalhes: {0}"),
+    IT("Dettagli: {0}"),
+    NL("Details: {0}"),
+    RU("Подробности: {0}"),
+    TR("Ayrıntılar: {0}"));
+
 
 // ===========================================================================
 // `spirula sam` -- what a run says around its own work

@@ -1495,6 +1495,46 @@ SS_MSG(device_cuda_locked,
     TR("CUDA aygıtı ilk motor işleminde sabitlenir; değiştirmek için uygulamayı "
        "yeniden başlatın. Yerel Vulkan işi kendi seçimini kullanır."));
 
+// The known-issue banner's link to the issue tracker.
+SS_MSG(device_issue_details,
+    EN("Details on GitHub"),
+    JA("GitHub で詳細を見る"),
+    ZH_HANS("在 GitHub 上查看详情"),
+    ZH_HANT("在 GitHub 上查看詳情"),
+    KO("GitHub에서 자세히 보기"),
+    DE("Details auf GitHub"),
+    FR("Détails sur GitHub"),
+    ES("Detalles en GitHub"),
+    PT("Detalhes no GitHub"),
+    IT("Dettagli su GitHub"),
+    NL("Details op GitHub"),
+    RU("Подробности на GitHub"),
+    TR("GitHub'da ayrıntılar"));
+
+SS_MSG(link_no_browser,
+    EN("Could not open a browser. The page is at {0} (copied to the clipboard)."),
+    JA("ブラウザを開けませんでした。ページは {0} にあります"
+       "（クリップボードにコピーしました）。"),
+    ZH_HANS("无法打开浏览器。页面在 {0}（已复制到剪贴板）。"),
+    ZH_HANT("無法開啟瀏覽器。頁面在 {0}（已複製到剪貼簿）。"),
+    KO("브라우저를 열지 못했습니다. 페이지는 {0}에 있습니다(클립보드에 "
+       "복사했습니다)."),
+    DE("Es ließ sich kein Browser öffnen. Die Seite steht unter {0} (in die "
+       "Zwischenablage kopiert)."),
+    FR("Impossible d'ouvrir un navigateur. La page est à l'adresse {0} "
+       "(copiée dans le presse-papiers)."),
+    ES("No se pudo abrir un navegador. La página está en {0} (copiada al "
+       "portapapeles)."),
+    PT("Não foi possível abrir um navegador. A página está em {0} (copiada "
+       "para a área de transferência)."),
+    IT("Non è stato possibile aprire un browser. La pagina si trova in {0} "
+       "(copiata negli appunti)."),
+    NL("Er kon geen browser worden geopend. De pagina staat op {0} "
+       "(gekopieerd naar het klembord)."),
+    RU("Не удалось открыть браузер. Страница находится по адресу {0} "
+       "(адрес скопирован в буфер обмена)."),
+    TR("Bir tarayıcı açılamadı. Sayfa şu adreste: {0} (panoya kopyalandı)."));
+
 // ---- basic options ----
 SS_MSG(opt_output_folder,
     EN("Output folder"), JA("出力フォルダ"),   ZH_HANS("输出文件夹"), ZH_HANT("輸出資料夾"),

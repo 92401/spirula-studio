@@ -13,6 +13,7 @@
 #include "data/Json.h"
 #include "app/AppPaths.h"
 #include "app/CrashLog.h"
+#include "app/DeviceIssue.h"
 #include "app/gui/DatasetPrep.h"
 #include "app/gui/MaskPrompt.h"
 #include "app/gui/Subprocess.h"
@@ -7300,6 +7301,8 @@ void GuiApp::draw_train() {
         ui::help_on_hover(msg::preview_mode_help);
     }
 
+    draw_device_issue_banner();
+
     const float body_avail = ImGui::GetContentRegionAvail().y;
     if (_show_settings) {
         // Never more than 45% of the window: the viewport is the point of the
@@ -9047,6 +9050,49 @@ void GuiApp::draw_batch_progress() {
     draw_batch_stop_buttons();
 }
 
+
+// For the GPU the picker names, or the one Auto would take: the same request
+// freeze_native_device() resolves when training starts.
+void GuiApp::draw_device_issue_banner() {
+#ifdef SS_BACKEND_VULKAN
+    const bool frozen = _native_device_frozen;
+    const int index = backend::device_resolve(
+        frozen ? _native_device_uuid : _native_device_request,
+        frozen || _native_device_choice_set);
+    if (index < 0) return;
+    const backend::DeviceInfo d = backend::device_info(index);
+    const app::DeviceIssueText t = app::device_issue_text(d.issue);
+    if (!t.title) return;
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.96f, 0.58f, 0.14f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.11f, 0.06f, 0.0f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(12.0f), px(8.0f)));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, px(4.0f));
+    ImGui::BeginChild("##device_issue", ImVec2(0, 0),
+                      ImGuiChildFlags_AutoResizeY |
+                          ImGuiChildFlags_AlwaysUseWindowPadding,
+                      ImGuiWindowFlags_NoScrollbar);
+    ImGui::SetWindowFontScale(1.15f);
+    ui::TextWrapped(*t.title);
+    ImGui::SetWindowFontScale(1.0f);
+    ui::TextWrapped(*t.body, {d.name});
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.24f, 0.13f, 0.02f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.34f, 0.19f, 0.04f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.16f, 0.08f, 0.01f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.91f, 0.78f, 1.0f));
+    if (ui::Button(msg::device_issue_details) && !open_url(t.url)) {
+        ImGui::SetClipboardText(t.url);
+        log(i18n::format(msg::link_no_browser, {t.url}));
+    }
+    ui::help_on_hover_raw(t.url);
+    ImGui::PopStyleColor(4);
+
+    ImGui::EndChild();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+#endif
+}
 
 void GuiApp::draw_train_settings() {
     TrainRunner::Phase ph = _runner.phase();

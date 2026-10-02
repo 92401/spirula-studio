@@ -492,6 +492,7 @@ private:
     void poll_batch_command();
     const spirula::i18n::Msg& batch_stage_name(BatchStage s) const;
     void draw_train_settings();      // left panel
+    void draw_device_issue_banner();
     // Native picker and frozen identity, available from shared settings/View menu.
     void draw_device_picker(bool as_menu = false);
     // Lists the native devices once per session. Enumeration is side-effect
