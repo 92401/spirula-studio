@@ -2121,6 +2121,73 @@ SS_MSG(merge_tracks_help,
        "признаком"),
     TR("Bir karşılığın aynı öznitelik dediği iki 3B noktayı kaynaştır"));
 
+SS_MSG(seam_weld_help,
+    EN("Weld open seams: a verified pair of 100+ matches that the finished model explains "
+       "below this fraction, and whose images share almost no neighbours, is fused and "
+       "refined; 0 to skip"),
+    JA("開いた継ぎ目を結合します。検証済みの対応が 100 以上あり、完成したモデルがこの割合"
+       "未満しか説明できず、共通の近傍画像がほとんどない画像対を融合して再調整します。0 で"
+       "省略"),
+    ZH_HANS("合并开放的接缝：已验证匹配 100 个以上、而完成的模型只能解释其中低于此比例、且两"
+            "图几乎没有共同邻近图像的图像对，将被融合并重新优化；0 表示跳过"),
+    ZH_HANT("合併開放的接縫：已驗證匹配 100 個以上、而完成的模型只能解釋其中低於此比例、且兩"
+            "圖幾乎沒有共同鄰近影像的影像對，將被融合並重新最佳化；0 表示略過"),
+    KO("열린 이음매를 결합합니다. 검증된 매칭이 100개 이상인데 완성된 모델이 이 비율 "
+       "미만만 설명하고 공통 이웃 이미지가 거의 없는 이미지 쌍을 융합해 다시 최적화합니다. "
+       "0이면 건너뜁니다"),
+    DE("Offene Nähte verschweißen: ein geprüftes Paar mit 100+ Treffern, das das fertige "
+       "Modell unter diesem Anteil erklärt und dessen Bilder kaum gemeinsame Nachbarn haben, "
+       "wird verschmolzen und neu ausgeglichen; 0 überspringt"),
+    FR("Souder les coutures ouvertes : une paire vérifiée de 100+ correspondances que le "
+       "modèle final explique sous cette fraction, et dont les images n'ont presque aucun "
+       "voisin commun, est fusionnée et réajustée ; 0 pour sauter"),
+    ES("Soldar costuras abiertas: un par verificado de 100+ correspondencias que el modelo "
+       "final explica por debajo de esta fracción, y cuyas imágenes casi no comparten "
+       "vecinas, se funde y se reajusta; 0 para saltarlo"),
+    PT("Soldar costuras abertas: um par verificado com 100+ correspondências que o modelo "
+       "final explica abaixo desta fração, e cujas imagens quase não compartilham vizinhas, "
+       "é fundido e reajustado; 0 para pular"),
+    IT("Saldare le cuciture aperte: una coppia verificata con 100+ corrispondenze che il "
+       "modello finale spiega sotto questa frazione, e le cui immagini non hanno quasi vicine "
+       "in comune, viene fusa e riottimizzata; 0 per saltare"),
+    NL("Open naden lassen: een geverifieerd paar met 100+ overeenkomsten dat het eindmodel "
+       "onder deze fractie verklaart en waarvan de beelden bijna geen gemeenschappelijke "
+       "buren hebben, wordt samengesmolten en opnieuw vereffend; 0 om over te slaan"),
+    RU("Сваривать открытые швы: проверенную пару со 100+ соответствиями, которую итоговая "
+       "модель объясняет меньше чем на эту долю и у снимков которой почти нет общих соседей, "
+       "сливают и уточняют заново; 0 -- пропустить"),
+    TR("Açık dikişleri kaynat: son modelin bu oranın altında açıkladığı ve görüntülerinin "
+       "neredeyse hiç ortak komşusu olmadığı, 100+ eşleşmeli doğrulanmış çift kaynaştırılır "
+       "ve yeniden ayarlanır; atlamak için 0"));
+
+SS_MSG(gps_scale_band_help,
+    EN("Check the growing chain's scale against the GPS over 60-150 m of track and request a "
+       "bundle adjustment when a block has drifted; 0 to skip"),
+    JA("成長中の区間の縮尺を 60〜150 m の軌跡で GPS と照合し、ブロックがずれていたらバンドル"
+       "調整を要求します。0 で省略"),
+    ZH_HANS("在 60–150 米轨迹上将正在增长的链段尺度与 GPS 对照，区块漂移时请求进行"
+            "光束法平差；0 表示跳过"),
+    ZH_HANT("在 60–150 公尺軌跡上將正在增長的鏈段尺度與 GPS 對照，區塊漂移時請求進行"
+            "光束法平差；0 表示略過"),
+    KO("성장 중인 구간의 축척을 60~150 m 궤적에서 GPS와 대조하고, 블록이 어긋나면 "
+       "번들 조정을 요청합니다. 0이면 건너뜁니다"),
+    DE("Den Maßstab der wachsenden Kette über 60-150 m Strecke mit dem GPS vergleichen und bei "
+       "einem abgedrifteten Block einen Bündelausgleich anfordern; 0 überspringt"),
+    FR("Comparer l'échelle de la chaîne en croissance au GPS sur 60 à 150 m de trajet et "
+       "demander un ajustement de faisceaux quand un bloc a dérivé ; 0 pour sauter"),
+    ES("Comparar la escala de la cadena en crecimiento con el GPS sobre 60-150 m de recorrido y "
+       "solicitar un ajuste de haces cuando un bloque haya derivado; 0 para saltarlo"),
+    PT("Comparar a escala da cadeia em crescimento com o GPS em 60-150 m de percurso e "
+       "solicitar um ajuste de feixes quando um bloco tiver derivado; 0 para pular"),
+    IT("Confrontare la scala della catena in crescita con il GPS su 60-150 m di percorso e "
+       "richiedere un bundle adjustment quando un blocco è derivato; 0 per saltare"),
+    NL("De schaal van de groeiende keten over 60-150 m spoor met het GPS vergelijken en een "
+       "bundelaanpassing aanvragen wanneer een blok is verlopen; 0 om over te slaan"),
+    RU("Сверять масштаб растущей цепочки с GPS на 60-150 м пути и запрашивать "
+       "уточнение при уплывшем блоке; 0 -- пропустить"),
+    TR("Büyüyen zincirin ölçeğini 60-150 m iz boyunca GPS ile karşılaştır ve bir blok "
+       "kaydığında demet dengelemesi iste; atlamak için 0"));
+
 SS_MSG(rank_by_visibility_help,
     EN("Rank the next image by how its visible structure spreads over the frame, "
        "not by count"),
