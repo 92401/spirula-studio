@@ -24,6 +24,7 @@
 #include "app/gui/Layout.h"
 #include "app/gui/MeshRunner.h"
 #include "app/gui/ModelCache.h"
+#include "app/gui/RecentList.h"
 #include "app/gui/SegmentPanel.h"
 #include "app/gui/mask/MaskSession.h"
 #include "app/gui/SfmRunner.h"
@@ -133,9 +134,9 @@ private:
     static std::string settings_path();
     void load_settings();
     void save_settings();
-    // By value: callers pass elements of _recents, which this mutates.
-    void add_recent(std::string path);
-    void add_model_recent(std::string path);
+    // Onto the recent list, and saved. By value: callers pass paths out of
+    // that list, which this reorders.
+    void remember(RecentKind kind, std::string path);
     // Which remembered directory a pick starts from. Several actions share one
     // key -- a dataset is a dataset wherever it is picked -- and the mode is
     // what separates the two things SourceReplace picks.
@@ -152,11 +153,10 @@ private:
                    const std::string& suggested_name = {});
 
     // ---- actions ----
-    // By value: callers pass elements of _recents, which open_dataset
-    // mutates via add_recent (a const& here would dangle).
-    // Clears the log panel unless `keep_log`: what is in it belongs to
-    // whatever was open before. The reconstruction handoff passes true,
-    // because there the log is this dataset's own build log.
+
+    // By value: callers pass paths out of _recent, which remember() reorders.
+    // Clears the log unless `keep_log`, which the reconstruction handoff
+    // passes: there the log is this dataset's own build log.
     void open_dataset(std::string dir, std::string image_dir = "",
                       std::string mask_dir = "", bool mask_flipped = false,
                       bool keep_log = false);
@@ -317,6 +317,24 @@ private:
     void draw_menu_bar();
     void draw_home();
     void draw_home_banner(float avail, float indent);
+    // The recent list under its tabs. `scroll`: in a scrolling child of its
+    // own, filling the space left; otherwise inline, as tall as it is.
+    void draw_home_recent(bool scroll);
+    // One entry as two lines; true when clicked. `badge` names its kind.
+    bool draw_recent_row(const RecentItem& item, bool badge);
+    void draw_recent_menu(const RecentItem& item, int tab_kind);
+    // An entry's own action. By value: every one of them reorders the list.
+    void open_recent(RecentItem item);
+    // A reconstruction while something else holds the device -- unless it is
+    // the one running, whose screen it already is.
+    bool recent_blocked(const RecentItem& item) const;
+    // A dataset run's output folder back on the screen that built it: its
+    // inputs from the folder's record, and its settings once the panel
+    // arrives there (draw_dataset_form).
+    void open_reconstruction(const std::string& workspace);
+    // Drop what is gone from the list, at most every few seconds and never
+    // on this thread.
+    void probe_recent();
     void draw_new_dataset();
     void draw_dataset_source();       // input list / output / resume
     void draw_sensor_badge(const PrepInput& s);
@@ -653,9 +671,6 @@ private:
     // object, shared by the viewer screen and the meshing preview: it owns the
     // engine while it is open, and the engine is a singleton.
     CompareView _compare;
-    // Model files opened here, most recent first, offered by the "add a
-    // model" menu. Separate from _recents, which holds datasets.
-    std::vector<std::string> _model_recents;
 
     // ---- meshing ----
     // The extraction runs as a child process (MeshRunner); the preview after
@@ -907,7 +922,10 @@ private:
     int _pick_slot = -1;
 
     // Settings (persisted).
-    std::vector<std::string> _recents;
+    RecentList _recent;
+    double _recent_probed_at = -1.0;
+    // Last frame's phase: a run is recorded as it reaches Done.
+    TrainRunner::Phase _seen_phase = TrainRunner::Phase::Idle;
     // Where a pick of each kind last landed, so a session opens where the last
     // one left off rather than at the home directory.
     std::map<std::string, std::string> _dialog_dirs;

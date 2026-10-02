@@ -222,6 +222,21 @@ SS_MSG(menu_new_dataset,
     RU("Создать набор данных…"),
     TR("Yeni veri kümesi…"));
 
+SS_MSG(menu_open_recent,
+    EN("Open Recent"),
+    JA("最近使った項目を開く"),
+    ZH_HANS("打开最近使用的项目"),
+    ZH_HANT("開啟最近使用的項目"),
+    KO("최근 항목 열기"),
+    DE("Zuletzt verwendet"),
+    FR("Ouvrir un élément récent"),
+    ES("Abrir recientes"),
+    PT("Abrir recentes"),
+    IT("Apri recenti"),
+    NL("Recent geopend"),
+    RU("Открыть недавние"),
+    TR("Son kullanılanları aç"));
+
 // ===========================================================================
 // File dialog titles
 // ===========================================================================
@@ -614,6 +629,341 @@ SS_MSG(home_recent,
     KO("최근 항목"),      DE("Zuletzt"),      FR("Récents"),     ES("Recientes"),
     PT("Recentes"),      IT("Recenti"),      NL("Recent"),      RU("Недавние"),
     TR("Son kullanılan"));
+
+// The recent list's tabs: "Recent" (home_recent) holds every kind, these one
+// kind each. Labels, so plurals are fine.
+SS_MSG(home_tab_datasets,
+    EN("Datasets"),      JA("データセット"),   ZH_HANS("数据集"),   ZH_HANT("資料集"),
+    KO("데이터셋"),       DE("Datensätze"),   FR("Jeux de données"),
+    ES("Conjuntos de datos"), PT("Conjuntos de dados"), IT("Set di dati"),
+    NL("Datasets"),      RU("Наборы данных"), TR("Veri kümeleri"));
+
+SS_MSG(home_tab_recons,
+    EN("Reconstructions"), JA("再構成"),     ZH_HANS("重建"),     ZH_HANT("重建"),
+    KO("재구성"),         DE("Rekonstruktionen"), FR("Reconstructions"),
+    ES("Reconstrucciones"), PT("Reconstruções"), IT("Ricostruzioni"),
+    NL("Reconstructies"), RU("Реконструкции"), TR("Yeniden kurmalar"));
+
+SS_MSG(home_tab_models,
+    EN("Models"),        JA("モデル"),        ZH_HANS("模型"),     ZH_HANT("模型"),
+    KO("모델"),           DE("Modelle"),      FR("Modèles"),      ES("Modelos"),
+    PT("Modelos"),       IT("Modelli"),      NL("Modellen"),     RU("Модели"),
+    TR("Modeller"));
+
+SS_MSG(home_tab_runs,
+    EN("Training runs"), JA("学習の実行"),     ZH_HANS("训练运行"), ZH_HANT("訓練執行"),
+    KO("학습 실행"),      DE("Trainingsläufe"), FR("Entraînements"),
+    ES("Entrenamientos"), PT("Treinamentos"), IT("Addestramenti"),
+    NL("Trainingsruns"), RU("Запуски обучения"), TR("Eğitimler"));
+
+SS_MSG(home_tab_projects,
+    EN("Camera projects"), JA("カメラプロジェクト"), ZH_HANS("相机项目"),
+    ZH_HANT("相機專案"),   KO("카메라 프로젝트"), DE("Kameraprojekte"),
+    FR("Projets de caméra"), ES("Proyectos de cámara"),
+    PT("Projetos de câmera"), IT("Progetti di camera"), NL("Cameraprojecten"),
+    RU("Проекты камеры"), TR("Kamera projeleri"));
+
+// What one entry is, beside it in the "Recent" tab. A model says what the
+// file turned out to hold once that is known, and "Model" until then.
+SS_MSG(home_kind_dataset,
+    EN("Dataset"),       JA("データセット"),   ZH_HANS("数据集"),   ZH_HANT("資料集"),
+    KO("데이터셋"),       DE("Datensatz"),    FR("Jeu de données"),
+    ES("Conjunto de datos"), PT("Conjunto de dados"), IT("Set di dati"),
+    NL("Dataset"),       RU("Набор данных"), TR("Veri kümesi"));
+
+SS_MSG(home_kind_recon,
+    EN("Reconstruction"), JA("再構成"),      ZH_HANS("重建"),     ZH_HANT("重建"),
+    KO("재구성"),         DE("Rekonstruktion"), FR("Reconstruction"),
+    ES("Reconstrucción"), PT("Reconstrução"), IT("Ricostruzione"),
+    NL("Reconstructie"), RU("Реконструкция"), TR("Yeniden kurma"));
+
+SS_MSG(home_kind_model,
+    EN("Model"),         JA("モデル"),        ZH_HANS("模型"),     ZH_HANT("模型"),
+    KO("모델"),           DE("Modell"),       FR("Modèle"),       ES("Modelo"),
+    PT("Modelo"),        IT("Modello"),      NL("Model"),        RU("Модель"),
+    TR("Model"));
+
+SS_MSG(home_kind_splats,
+    EN("Splats"),        JA("スプラット"),     ZH_HANS("高斯点"),   ZH_HANT("高斯點"),
+    KO("스플랫"),         DE("Splats"),       FR("Splats"),       ES("Splats"),
+    PT("Splats"),        IT("Splat"),        NL("Splats"),       RU("Сплаты"),
+    TR("Splat'lar"));
+
+SS_MSG(home_kind_mesh,
+    EN("Mesh"),          JA("メッシュ"),       ZH_HANS("网格"),     ZH_HANT("網格"),
+    KO("메시"),           DE("Netz"),         FR("Maillage"),     ES("Malla"),
+    PT("Malha"),         IT("Mesh"),         NL("Mesh"),         RU("Меш"),
+    TR("Ağ"));
+
+SS_MSG(home_kind_points,
+    EN("Point cloud"),   JA("点群"),          ZH_HANS("点云"),     ZH_HANT("點雲"),
+    KO("포인트 클라우드"), DE("Punktwolke"),   FR("Nuage de points"),
+    ES("Nube de puntos"), PT("Nuvem de pontos"), IT("Nuvola di punti"),
+    NL("Puntenwolk"),    RU("Облако точек"), TR("Nokta bulutu"));
+
+SS_MSG(home_kind_run,
+    EN("Training run"),  JA("学習の実行"),     ZH_HANS("训练运行"), ZH_HANT("訓練執行"),
+    KO("학습 실행"),      DE("Trainingslauf"), FR("Entraînement"),
+    ES("Entrenamiento"), PT("Treinamento"),  IT("Addestramento"),
+    NL("Trainingsrun"),  RU("Запуск обучения"), TR("Eğitim"));
+
+SS_MSG(home_kind_project,
+    EN("Camera project"), JA("カメラプロジェクト"), ZH_HANS("相机项目"),
+    ZH_HANT("相機專案"),   KO("카메라 프로젝트"), DE("Kameraprojekt"),
+    FR("Projet de caméra"), ES("Proyecto de cámara"), PT("Projeto de câmera"),
+    IT("Progetto di camera"), NL("Cameraproject"), RU("Проект камеры"),
+    TR("Kamera projesi"));
+
+// What each tab holds: its hover help, and what an empty one says.
+SS_MSG(home_recent_about,
+    EN("Everything opened, built or trained here lately, newest first. "
+       "Whatever is no longer on disk drops off the list by itself. "
+       "Right-click an entry for more."),
+    JA("最近ここで開いた・作成した・学習したものが新しい順に並びます。"
+       "ディスクから消えたものは自動的に一覧から外れます。"
+       "項目を右クリックすると、ほかの操作も選べます。"),
+    ZH_HANS("最近在这里打开、创建或训练过的内容，按从新到旧排列。"
+            "已不在磁盘上的条目会自动从列表中移除。右键单击条目可进行更多操作。"),
+    ZH_HANT("最近在這裡開啟、建立或訓練過的內容，按從新到舊排列。"
+            "已不在磁碟上的項目會自動從清單中移除。在項目上按右鍵可進行更多操作。"),
+    KO("최근 여기서 열거나 만들거나 학습한 항목이 최신순으로 표시됩니다. "
+       "디스크에서 사라진 항목은 목록에서 저절로 빠집니다. "
+       "항목을 마우스 오른쪽 버튼으로 클릭하면 다른 작업도 할 수 있습니다."),
+    DE("Alles, was hier zuletzt geöffnet, erstellt oder trainiert wurde, das "
+       "Neueste zuerst. Was nicht mehr auf der Festplatte liegt, verschwindet "
+       "von selbst aus der Liste. Ein Rechtsklick auf einen Eintrag bietet mehr."),
+    FR("Tout ce qui a été ouvert, créé ou entraîné ici récemment, du plus récent "
+       "au plus ancien. Ce qui n'est plus sur le disque quitte la liste tout "
+       "seul. Un clic droit sur une entrée propose d'autres actions."),
+    ES("Todo lo que se abrió, creó o entrenó aquí últimamente, de lo más "
+       "reciente a lo más antiguo. Lo que ya no está en el disco sale de la "
+       "lista por sí solo. Haga clic derecho en una entrada para ver más."),
+    PT("Tudo o que foi aberto, criado ou treinado aqui recentemente, do mais "
+       "novo ao mais antigo. O que não está mais no disco sai da lista sozinho. "
+       "Clique com o botão direito em uma entrada para ver mais."),
+    IT("Tutto ciò che è stato aperto, creato o addestrato qui di recente, dal "
+       "più nuovo. Ciò che non è più sul disco esce dall'elenco da solo. Fai "
+       "clic destro su una voce per altre azioni."),
+    NL("Alles wat hier onlangs is geopend, gemaakt of getraind, het nieuwste "
+       "eerst. Wat niet meer op de schijf staat, verdwijnt vanzelf uit de "
+       "lijst. Klik met de rechtermuisknop op een item voor meer."),
+    RU("Всё, что недавно открывалось, создавалось или обучалось здесь, — "
+       "сначала самое новое. То, чего больше нет на диске, само исчезает из "
+       "списка. Щёлкните запись правой кнопкой мыши, чтобы увидеть другие "
+       "действия."),
+    TR("Burada son zamanlarda açılan, oluşturulan ya da eğitilen her şey, en "
+       "yenisi önce. Artık diskte olmayanlar listeden kendiliğinden düşer. "
+       "Diğer işlemler için bir girdiye sağ tıklayın."));
+
+SS_MSG(home_datasets_about,
+    EN("Datasets opened in the trainer. Click one to open it there again."),
+    JA("トレーナーで開いたデータセットです。クリックすると、もう一度トレーナーで"
+       "開きます。"),
+    ZH_HANS("在训练器中打开过的数据集。单击即可在训练器中再次打开。"),
+    ZH_HANT("在訓練器中開啟過的資料集。按一下即可在訓練器中再次開啟。"),
+    KO("트레이너에서 열었던 데이터셋입니다. 클릭하면 트레이너에서 다시 엽니다."),
+    DE("Im Trainer geöffnete Datensätze. Ein Klick öffnet einen davon dort "
+       "erneut."),
+    FR("Les jeux de données ouverts dans l'atelier. Cliquez sur l'un d'eux pour "
+       "l'y rouvrir."),
+    ES("Conjuntos de datos abiertos en el entrenador. Haga clic en uno para "
+       "volver a abrirlo allí."),
+    PT("Conjuntos de dados abertos no treinador. Clique em um para abri-lo lá "
+       "de novo."),
+    IT("Set di dati aperti nell'addestratore. Fai clic su uno per riaprirlo lì."),
+    NL("Datasets die in de trainer zijn geopend. Klik op een dataset om hem daar "
+       "opnieuw te openen."),
+    RU("Наборы данных, открытые в тренажёре. Щёлкните по одному, чтобы снова "
+       "открыть его там."),
+    TR("Eğiticide açılan veri kümeleri. Birine tıklayınca orada yeniden açılır."));
+
+SS_MSG(home_recons_about,
+    EN("Datasets built here from photos or video. Click one to go back to the "
+       "screen that built it, with its inputs and settings."),
+    JA("ここで写真や動画から作成したデータセットです。クリックすると、入力と"
+       "設定をそのままに、作成した画面に戻ります。"),
+    ZH_HANS("在这里从照片或视频创建的数据集。单击即可回到创建它的界面，输入和"
+            "设置都会恢复。"),
+    ZH_HANT("在這裡從相片或影片建立的資料集。按一下即可回到建立它的畫面，輸入和"
+            "設定都會還原。"),
+    KO("여기서 사진이나 동영상으로 만든 데이터셋입니다. 클릭하면 입력과 설정을 "
+       "그대로 가지고 그것을 만든 화면으로 돌아갑니다."),
+    DE("Hier aus Fotos oder Video erstellte Datensätze. Ein Klick führt mit "
+       "Eingaben und Einstellungen zurück zu dem Bildschirm, der ihn erstellt "
+       "hat."),
+    FR("Les jeux de données créés ici à partir de photos ou de vidéo. Cliquez "
+       "sur l'un d'eux pour revenir à l'écran qui l'a créé, avec ses entrées et "
+       "ses réglages."),
+    ES("Conjuntos de datos creados aquí a partir de fotos o vídeo. Haga clic en "
+       "uno para volver a la pantalla que lo creó, con sus entradas y ajustes."),
+    PT("Conjuntos de dados criados aqui a partir de fotos ou vídeo. Clique em "
+       "um para voltar à tela que o criou, com suas entradas e configurações."),
+    IT("Set di dati creati qui da fotografie o video. Fai clic su uno per "
+       "tornare alla schermata che l'ha creato, con i suoi ingressi e le sue "
+       "impostazioni."),
+    NL("Datasets die hier uit foto's of video zijn gemaakt. Klik op een dataset "
+       "om terug te gaan naar het scherm dat hem maakte, met zijn invoer en "
+       "instellingen."),
+    RU("Наборы данных, созданные здесь из фотографий или видео. Щёлкните по "
+       "одному, чтобы вернуться на экран, где он создавался, со всеми входами и "
+       "настройками."),
+    TR("Burada fotoğraflardan veya videodan oluşturulan veri kümeleri. Birine "
+       "tıklayınca, girdileri ve ayarlarıyla birlikte onu oluşturan ekrana "
+       "dönülür."));
+
+SS_MSG(home_models_about,
+    EN("Splats, meshes, point clouds and reconstructions opened in the viewer."),
+    JA("ビューアで開いたスプラット、メッシュ、点群、再構成です。"),
+    ZH_HANS("在查看器中打开过的高斯点、网格、点云和重建。"),
+    ZH_HANT("在檢視器中開啟過的高斯點、網格、點雲和重建。"),
+    KO("뷰어에서 열었던 스플랫, 메시, 포인트 클라우드, 재구성입니다."),
+    DE("Im Betrachter geöffnete Splats, Netze, Punktwolken und "
+       "Rekonstruktionen."),
+    FR("Les splats, maillages, nuages de points et reconstructions ouverts dans "
+       "la visionneuse."),
+    ES("Splats, mallas, nubes de puntos y reconstrucciones abiertos en el visor."),
+    PT("Splats, malhas, nuvens de pontos e reconstruções abertos no "
+       "visualizador."),
+    IT("Splat, mesh, nuvole di punti e ricostruzioni aperti nel visualizzatore."),
+    NL("Splats, meshes, puntenwolken en reconstructies die in de viewer zijn "
+       "geopend."),
+    RU("Сплаты, меши, облака точек и реконструкции, открытые в просмотрщике."),
+    TR("Görüntüleyicide açılan splat'lar, ağlar, nokta bulutları ve yeniden "
+       "yapımlar."));
+
+SS_MSG(home_runs_about,
+    EN("Training runs that finished and saved a model. Click one to look at it "
+       "in the viewer."),
+    JA("最後まで進んでモデルを保存した学習です。クリックするとビューアで表示"
+       "します。"),
+    ZH_HANS("已完成并保存了模型的训练运行。单击即可在查看器中查看。"),
+    ZH_HANT("已完成並儲存了模型的訓練執行。按一下即可在檢視器中檢視。"),
+    KO("끝까지 진행되어 모델을 저장한 학습 실행입니다. 클릭하면 뷰어에서 "
+       "봅니다."),
+    DE("Trainingsläufe, die fertig wurden und ein Modell gespeichert haben. Ein "
+       "Klick zeigt es im Betrachter."),
+    FR("Les entraînements terminés qui ont enregistré un modèle. Cliquez sur "
+       "l'un d'eux pour le voir dans la visionneuse."),
+    ES("Entrenamientos que terminaron y guardaron un modelo. Haga clic en uno "
+       "para verlo en el visor."),
+    PT("Treinamentos que terminaram e salvaram um modelo. Clique em um para "
+       "vê-lo no visualizador."),
+    IT("Addestramenti conclusi che hanno salvato un modello. Fai clic su uno "
+       "per vederlo nel visualizzatore."),
+    NL("Trainingsruns die klaar zijn en een model hebben opgeslagen. Klik op een "
+       "run om het model in de viewer te bekijken."),
+    RU("Завершённые запуски обучения, сохранившие модель. Щёлкните по одному, "
+       "чтобы посмотреть её в просмотрщике."),
+    TR("Biten ve bir model kaydeden eğitimler. Birine tıklayınca "
+       "görüntüleyicide açılır."));
+
+SS_MSG(home_projects_about,
+    EN("Camera moves saved or opened for a photo or video. Click one to open it "
+       "with its model."),
+    JA("写真や動画のために保存した、または開いたカメラの動きです。クリックすると"
+       "モデルと一緒に開きます。"),
+    ZH_HANS("为照片或视频保存或打开过的相机运动。单击即可连同其模型一起打开。"),
+    ZH_HANT("為相片或影片儲存或開啟過的相機運動。按一下即可連同其模型一起開啟。"),
+    KO("사진이나 동영상을 위해 저장하거나 열었던 카메라 움직임입니다. 클릭하면 "
+       "그 모델과 함께 엽니다."),
+    DE("Für ein Foto oder Video gespeicherte oder geöffnete Kamerafahrten. Ein "
+       "Klick öffnet eine davon mit ihrem Modell."),
+    FR("Les mouvements de caméra enregistrés ou ouverts pour une photo ou une "
+       "vidéo. Cliquez sur l'un d'eux pour l'ouvrir avec son modèle."),
+    ES("Movimientos de cámara guardados o abiertos para una foto o un vídeo. "
+       "Haga clic en uno para abrirlo con su modelo."),
+    PT("Movimentos de câmera salvos ou abertos para uma foto ou um vídeo. "
+       "Clique em um para abri-lo com o seu modelo."),
+    IT("Movimenti di camera salvati o aperti per una foto o un video. Fai clic "
+       "su uno per aprirlo con il suo modello."),
+    NL("Camerabewegingen die zijn opgeslagen of geopend voor een foto of video. "
+       "Klik op een beweging om hem met zijn model te openen."),
+    RU("Движения камеры, сохранённые или открытые для фото или видео. Щёлкните "
+       "по одному, чтобы открыть его вместе с моделью."),
+    TR("Bir fotoğraf ya da video için kaydedilen veya açılan kamera hareketleri. "
+       "Birine tıklayınca modeliyle birlikte açılır."));
+
+SS_MSG(home_recent_empty,
+    EN("Nothing here yet."), JA("まだ何もありません。"),
+    ZH_HANS("这里还没有内容。"), ZH_HANT("這裡還沒有內容。"),
+    KO("아직 아무것도 없습니다."), DE("Hier ist noch nichts."),
+    FR("Rien ici pour l'instant."), ES("Aquí aún no hay nada."),
+    PT("Ainda não há nada aqui."), IT("Qui non c'è ancora niente."),
+    NL("Hier staat nog niets."), RU("Здесь пока пусто."),
+    TR("Burada henüz bir şey yok."));
+
+// When an entry was last used: a time today or yesterday, a date before that.
+SS_MSG(home_recent_today,
+    EN("Today {0}"),     JA("今日 {0}"),      ZH_HANS("今天 {0}"), ZH_HANT("今天 {0}"),
+    KO("오늘 {0}"),       DE("Heute {0}"),    FR("Aujourd'hui {0}"), ES("Hoy {0}"),
+    PT("Hoje {0}"),      IT("Oggi {0}"),     NL("Vandaag {0}"),  RU("Сегодня {0}"),
+    TR("Bugün {0}"));
+
+SS_MSG(home_recent_yesterday,
+    EN("Yesterday {0}"), JA("昨日 {0}"),      ZH_HANS("昨天 {0}"), ZH_HANT("昨天 {0}"),
+    KO("어제 {0}"),       DE("Gestern {0}"),  FR("Hier {0}"),     ES("Ayer {0}"),
+    PT("Ontem {0}"),     IT("Ieri {0}"),     NL("Gisteren {0}"), RU("Вчера {0}"),
+    TR("Dün {0}"));
+
+// An entry's right-click menu.
+SS_MSG(home_recent_open,
+    EN("Open"),          JA("開く"),          ZH_HANS("打开"),     ZH_HANT("開啟"),
+    KO("열기"),           DE("Öffnen"),       FR("Ouvrir"),       ES("Abrir"),
+    PT("Abrir"),         IT("Apri"),         NL("Openen"),       RU("Открыть"),
+    TR("Aç"));
+
+SS_MSG(home_recent_show,
+    EN("Show in folder"), JA("フォルダで表示"), ZH_HANS("在文件夹中显示"),
+    ZH_HANT("在資料夾中顯示"), KO("폴더에서 보기"), DE("Im Ordner anzeigen"),
+    FR("Afficher dans le dossier"), ES("Mostrar en la carpeta"),
+    PT("Mostrar na pasta"), IT("Mostra nella cartella"), NL("In map weergeven"),
+    RU("Показать в папке"), TR("Klasörde göster"));
+
+SS_MSG(home_recent_copy,
+    EN("Copy path"),     JA("パスをコピー"),   ZH_HANS("复制路径"), ZH_HANT("複製路徑"),
+    KO("경로 복사"),      DE("Pfad kopieren"), FR("Copier le chemin"),
+    ES("Copiar la ruta"), PT("Copiar o caminho"), IT("Copia il percorso"),
+    NL("Pad kopiëren"),  RU("Скопировать путь"), TR("Yolu kopyala"));
+
+SS_MSG(home_recent_remove,
+    EN("Remove from list"), JA("一覧から削除"), ZH_HANS("从列表中移除"),
+    ZH_HANT("從清單中移除"), KO("목록에서 제거"), DE("Aus der Liste entfernen"),
+    FR("Retirer de la liste"), ES("Quitar de la lista"), PT("Remover da lista"),
+    IT("Rimuovi dall'elenco"), NL("Uit de lijst verwijderen"),
+    RU("Убрать из списка"), TR("Listeden kaldır"));
+
+SS_MSG(home_recent_clear,
+    EN("Clear this list"), JA("この一覧を消去"), ZH_HANS("清空此列表"),
+    ZH_HANT("清空此清單"), KO("이 목록 비우기"), DE("Diese Liste leeren"),
+    FR("Vider cette liste"), ES("Vaciar esta lista"), PT("Limpar esta lista"),
+    IT("Svuota questo elenco"), NL("Deze lijst wissen"),
+    RU("Очистить этот список"), TR("Bu listeyi temizle"));
+
+SS_MSG(home_recon_busy,
+    EN("Something is still running. Let it finish, or stop it, before opening "
+       "another reconstruction."),
+    JA("まだ処理が実行中です。別の再構成を開く前に、完了を待つか停止して"
+       "ください。"),
+    ZH_HANS("仍有任务在运行。请等它完成或将其停止，然后再打开另一个重建。"),
+    ZH_HANT("仍有工作在執行。請等它完成或將其停止，然後再開啟另一個重建。"),
+    KO("아직 실행 중인 작업이 있습니다. 다른 재구성을 열기 전에 끝날 때까지 "
+       "기다리거나 중지하세요."),
+    DE("Es läuft noch etwas. Lassen Sie es fertig werden oder beenden Sie es, "
+       "bevor Sie eine andere Rekonstruktion öffnen."),
+    FR("Une tâche est encore en cours. Laissez-la se terminer ou arrêtez-la "
+       "avant d'ouvrir une autre reconstruction."),
+    ES("Todavía hay algo en marcha. Deje que termine, o deténgalo, antes de "
+       "abrir otra reconstrucción."),
+    PT("Ainda há algo em execução. Deixe terminar, ou interrompa, antes de "
+       "abrir outra reconstrução."),
+    IT("C'è ancora qualcosa in corso. Lascialo finire, o fermalo, prima di "
+       "aprire un'altra ricostruzione."),
+    NL("Er loopt nog iets. Laat het afronden of stop het voordat u een andere "
+       "reconstructie opent."),
+    RU("Что-то ещё выполняется. Дождитесь завершения или остановите задачу, "
+       "прежде чем открывать другую реконструкцию."),
+    TR("Hâlâ çalışan bir iş var. Başka bir yeniden kurmayı açmadan önce "
+       "bitmesini bekleyin ya da durdurun."));
 
 SS_MSG(home_no_engine,
     EN("note: neither the built-in reconstruction nor COLMAP was found, so "

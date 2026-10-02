@@ -387,6 +387,11 @@ if(SS_BUILD_GUI)
         ${SS_SRC}/app/gui/tests/align_fit_test.cpp)
     ss_configure_app(align_fit_test)
 
+    add_executable(recent_list_test
+        ${SS_SRC}/app/gui/tests/recent_list_test.cpp
+        ${SS_SRC}/app/gui/RecentList.cpp)
+    ss_configure_app(recent_list_test)
+
     add_executable(attributes_test
         ${SS_SRC}/app/gui/tests/attributes_test.cpp
         ${SS_SRC}/app/gui/edit/Attributes.cpp

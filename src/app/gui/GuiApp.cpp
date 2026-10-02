@@ -197,8 +197,13 @@ std::vector<std::string> video_dialog_filters() {
 // Lifecycle + persistence
 // ===========================================================================
 
+static ModelContent classify_recent_model(const std::string& path);
+
 GuiApp::GuiApp() {
     load_settings();
+    // Before the first frame, so an entry that is gone is never drawn.
+    _recent.start_probe(classify_recent_model);
+    _recent_probed_at = 0.0;
     _batch = load_batch_list();
     apply_preset("3dgs");
     // Built-in when it is there, COLMAP when it is not; effective_engine()
@@ -373,14 +378,8 @@ void GuiApp::load_settings() {
         size_t eq = s.find('=');
         if (eq == std::string::npos) continue;
         std::string k = s.substr(0, eq), v = s.substr(eq + 1);
-        if (k == "recent" && !v.empty() &&
-            std::find(_recents.begin(), _recents.end(), v) == _recents.end())
-            _recents.push_back(v);
-        else if (k == "recent_model" && !v.empty() &&
-                 std::find(_model_recents.begin(), _model_recents.end(), v) ==
-                     _model_recents.end())
-            _model_recents.push_back(v);
-        else if (k == "colmap_exe" && !v.empty()) _colmap_exe = v;
+        if (_recent.read_setting(k, v)) continue;
+        if (k == "colmap_exe" && !v.empty()) _colmap_exe = v;
         else if (k == "ffmpeg_exe" && !v.empty()) _ffmpeg_exe = v;
         else if (k == "sfm_engine") _engine = v == "colmap" ? Engine::Colmap
                                                             : Engine::BuiltIn;
@@ -427,10 +426,7 @@ void GuiApp::load_settings() {
 void GuiApp::save_settings() {
     FILE* f = std::fopen(settings_path().c_str(), "w");
     if (!f) return;
-    for (const auto& r : _recents)
-        std::fprintf(f, "recent=%s\n", r.c_str());
-    for (const auto& r : _model_recents)
-        std::fprintf(f, "recent_model=%s\n", r.c_str());
+    _recent.write_settings(f);
     std::fprintf(f, "colmap_exe=%s\n", _colmap_exe.c_str());
     std::fprintf(f, "ffmpeg_exe=%s\n", _ffmpeg_exe.c_str());
     std::fprintf(f, "sfm_engine=%s\n",
@@ -457,19 +453,23 @@ void GuiApp::save_settings() {
     std::fclose(f);
 }
 
-void GuiApp::add_recent(std::string path) {
-    _recents.erase(std::remove(_recents.begin(), _recents.end(), path),
-                   _recents.end());
-    _recents.insert(_recents.begin(), path);
-    if (_recents.size() > 10) _recents.resize(10);
+void GuiApp::remember(RecentKind kind, std::string path) {
+    if (path.empty()) return;
+    // A run folder opened in the viewer is still that run, not a second entry.
+    if (kind == RecentKind::Model && _recent.contains(RecentKind::Run, path))
+        kind = RecentKind::Run;
+    _recent.add(kind, path, (int64_t)std::time(nullptr));
+    save_settings();
 }
 
-void GuiApp::add_model_recent(std::string path) {
-    _model_recents.erase(
-        std::remove(_model_recents.begin(), _model_recents.end(), path),
-        _model_recents.end());
-    _model_recents.insert(_model_recents.begin(), std::move(path));
-    if (_model_recents.size() > 10) _model_recents.resize(10);
+static std::tm local_tm(std::time_t t) {
+    std::tm tm{};
+#ifdef _WIN32
+    localtime_s(&tm, &t);
+#else
+    localtime_r(&t, &tm);
+#endif
+    return tm;
 }
 
 // Local wall-clock stamp for log lines: [yyyy-MM-dd HH:mm:ss.fff].
@@ -478,12 +478,7 @@ static std::string log_stamp() {
     const std::time_t t = std::chrono::system_clock::to_time_t(now);
     const int ms = int(std::chrono::duration_cast<std::chrono::milliseconds>(
                            now.time_since_epoch()).count() % 1000);
-    std::tm tm{};
-#ifdef _WIN32
-    localtime_s(&tm, &t);
-#else
-    localtime_r(&t, &tm);
-#endif
+    const std::tm tm = local_tm(t);
     char date[32], frac[16];
     std::strftime(date, sizeof(date), "[%Y-%m-%d %H:%M:%S", &tm);
     std::snprintf(frac, sizeof(frac), ".%03d] ", ms);
@@ -492,14 +487,8 @@ static std::string log_stamp() {
 
 // Run-start stamp for log file names: yyyyMMddHHmmss.
 static std::string run_log_stamp() {
-    const std::time_t t =
-        std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    std::tm tm{};
-#ifdef _WIN32
-    localtime_s(&tm, &t);
-#else
-    localtime_r(&t, &tm);
-#endif
+    const std::tm tm = local_tm(
+        std::chrono::system_clock::to_time_t(std::chrono::system_clock::now()));
     char buf[24];
     std::strftime(buf, sizeof(buf), "%Y%m%d%H%M%S", &tm);
     return buf;
@@ -1095,11 +1084,10 @@ void GuiApp::open_dataset(std::string dir, std::string image_dir,
     _defaults.image_dir = _cfg.image_dir;
     _defaults.mask_dir = _cfg.mask_dir;
     _defaults.output_dir_prefix = _cfg.output_dir_prefix;
-    add_recent(dir);
     // However it was opened -- picked, dropped, from the recents list -- this
     // is where the picker starts next time.
     remember_dir("dataset", dir);
-    save_settings();
+    remember(RecentKind::Dataset, dir);
     detach_session_views();
     // Training is the end of the dataset screen's business with the run, so
     // this is where what it left for the screen to read goes.
@@ -1207,9 +1195,8 @@ void GuiApp::open_splat(std::string path) {
         _compare.render_project_when_ready(_render_project_after_open);
         _render_project_after_open.clear();
     }
-    add_model_recent(path);
     remember_dir("model", path);
-    save_settings();
+    remember(RecentKind::Model, path);
     _screen = Screen::Viewer;
 }
 
@@ -1222,9 +1209,8 @@ void GuiApp::add_splat(std::string path) {
     if (!freeze_cuda_device()) return;
 #endif
     _compare.add(path);
-    add_model_recent(path);
     remember_dir("model", path);
-    save_settings();
+    remember(RecentKind::Model, path);
 }
 
 void GuiApp::request_open_splat(std::string path) {
@@ -1261,6 +1247,7 @@ bool GuiApp::open_render_project(const std::string& path) {
         log(i18n::format(rmsg::project_model_missing, {model.empty() ? path : model}));
         return true;
     }
+    remember(RecentKind::Project, path);
     _render_project_after_open = path;
     request_open_splat(model);
     return true;
@@ -1597,6 +1584,11 @@ void GuiApp::record_batch_task() {
             if (ok) {
                 t.steps = _runner.latest_progress().step + 1;
                 if (auto* s = _runner.session()) t.result = s->out_dir.string();
+                // Here as well as in frame(): the next task starts in the same
+                // frame, so Done may never be seen there.
+                std::error_code ec;
+                if (!t.result.empty())
+                    remember(RecentKind::Run, fs::absolute(fs::u8path(t.result), ec).u8string());
             }
             break;
         }
@@ -1915,6 +1907,31 @@ static bool looks_like_model(const fs::path& p) {
             return true;
     }
     return false;
+}
+
+// What the viewer will find in a recent model, asked of the file the way the
+// viewer asks it. Runs on the recent list's probe thread.
+static ModelContent classify_recent_model(const std::string& path) {
+    std::error_code ec;
+    const fs::path p = fs::u8path(path);
+    if (fs::is_directory(p, ec))
+        return looks_like_model(p) ? ModelContent::Splats : ModelContent::Points;
+    const std::string ext = lower_ext(p);
+    if (ext == ".ply") {
+        if (spirula::is_splat_ply(path)) return ModelContent::Splats;
+        return meshing::ply_is_mesh(path) ? ModelContent::Mesh : ModelContent::Points;
+    }
+    if (meshing::is_mesh_path(path)) return ModelContent::Mesh;
+    // transforms.json, cameras.bin, a Metashape .xml: a reconstruction.
+    return ModelContent::Points;
+}
+
+// What the viewer's "add a model" menu offers: models and finished runs.
+static std::vector<std::string> recent_models(const RecentList& r) {
+    std::vector<std::string> out;
+    for (const RecentItem& it : r.items())
+        if (it.kind == RecentKind::Model || it.kind == RecentKind::Run) out.push_back(it.path);
+    return out;
 }
 
 void GuiApp::handle_drop(const std::vector<std::string>& paths) {
@@ -2544,11 +2561,19 @@ void GuiApp::handle_dialog_result(const std::vector<std::string>& paths) {
             _compare.edit().save_to(_edit_save_target, path);
             break;
         case PickAction::RenderProjectSave:
-            _compare.render().picked(gui::render::RenderSession::Pick::SaveProject, path);
+        case PickAction::RenderProjectOpen: {
+            const bool save = _pick == PickAction::RenderProjectSave;
+            _compare.render().picked(save ? gui::render::RenderSession::Pick::SaveProject
+                                          : gui::render::RenderSession::Pick::OpenProject,
+                                     path);
+            // Only if it worked: the session holds the file it picked, or for
+            // a save of a bare name, that name plus the .json it was given.
+            fs::path want = fs::u8path(path);
+            if (save && want.extension().empty()) want += ".json";
+            const std::string& now = _compare.render().project_file();
+            if (!path.empty() && fs::u8path(now) == want) remember(RecentKind::Project, now);
             break;
-        case PickAction::RenderProjectOpen:
-            _compare.render().picked(gui::render::RenderSession::Pick::OpenProject, path);
-            break;
+        }
         case PickAction::RenderOutput:
             _compare.render().picked(gui::render::RenderSession::Pick::Output, path);
             break;
@@ -2864,6 +2889,15 @@ void GuiApp::frame() {
     // where the next row wants the engine.
     advance_batch();
 
+    // A run that saved its model is one to come back to; a batch's too.
+    if (const TrainRunner::Phase ph = _runner.phase(); ph != _seen_phase) {
+        _seen_phase = ph;
+        if (ph == TrainRunner::Phase::Done && _runner.saved_on_stop() && _runner.session()) {
+            std::error_code ec;
+            remember(RecentKind::Run, fs::absolute(_runner.session()->out_dir, ec).u8string());
+        }
+    }
+
     // The queue survives a restart, so it is written back once the widget
     // being edited is idle -- the same deferral the dataset options use.
     if (_batch_dirty && !ImGui::IsAnyItemActive()) {
@@ -2971,6 +3005,82 @@ void GuiApp::frame() {
     ImGui::End();
 }
 
+// ---------------------------------------------------------------------------
+// The recent list's words and colours, shared by the home screen and the
+// File menu
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// What an entry is called. A file keeps its folder in front, as the viewer's
+// panes do: "splat.ply" alone would name every checkpoint there is.
+std::string recent_name(const RecentItem& it) {
+    const fs::path p = fs::u8path(it.path);
+    const std::string leaf = p.filename().u8string();
+    if (leaf.empty()) return it.path;
+    const bool file_kind = it.kind == RecentKind::Model || it.kind == RecentKind::Project;
+    const std::string parent = p.parent_path().filename().u8string();
+    if (!file_kind || !p.has_extension() || parent.empty()) return leaf;
+    return parent + "/" + leaf;
+}
+
+const Msg& recent_badge(const RecentItem& it) {
+    switch (it.kind) {
+        case RecentKind::Dataset:        return msg::home_kind_dataset;
+        case RecentKind::Reconstruction: return msg::home_kind_recon;
+        case RecentKind::Run:            return msg::home_kind_run;
+        case RecentKind::Project:        return msg::home_kind_project;
+        case RecentKind::Model:          break;
+    }
+    switch (it.content) {
+        case ModelContent::Splats:  return msg::home_kind_splats;
+        case ModelContent::Mesh:    return msg::home_kind_mesh;
+        case ModelContent::Points:  return msg::home_kind_points;
+        case ModelContent::Unknown: break;
+    }
+    return msg::home_kind_model;
+}
+
+ImVec4 recent_color(RecentKind k) {
+    switch (k) {
+        case RecentKind::Dataset:        return ImVec4(0.45f, 0.68f, 1.00f, 1.0f);
+        case RecentKind::Reconstruction: return ImVec4(0.38f, 0.82f, 0.76f, 1.0f);
+        case RecentKind::Model:          return ImVec4(0.96f, 0.68f, 0.36f, 1.0f);
+        case RecentKind::Run:            return ImVec4(0.58f, 0.84f, 0.44f, 1.0f);
+        case RecentKind::Project:        return ImVec4(0.80f, 0.62f, 0.98f, 1.0f);
+    }
+    return kDim;
+}
+
+// "Today 14:32", "Yesterday 09:10", or the date. Empty when the entry came
+// from a gui.conf that kept no times.
+std::string recent_when(int64_t t) {
+    if (t <= 0) return {};
+    const std::tm then = local_tm((std::time_t)t);
+    const std::tm now = local_tm(std::time(nullptr));
+    auto same_day = [](const std::tm& a, const std::tm& b) {
+        return a.tm_year == b.tm_year && a.tm_yday == b.tm_yday;
+    };
+    char buf[32];
+    std::strftime(buf, sizeof buf, "%H:%M", &then);
+    if (same_day(then, now)) return i18n::format(msg::home_recent_today, {buf});
+    std::tm yesterday = now;
+    yesterday.tm_mday -= 1;
+    yesterday.tm_isdst = -1;
+    std::mktime(&yesterday);   // normalizes, and fills tm_yday
+    if (same_day(then, yesterday)) return i18n::format(msg::home_recent_yesterday, {buf});
+    std::strftime(buf, sizeof buf, "%Y-%m-%d", &then);
+    return buf;
+}
+
+}  // namespace
+
+bool GuiApp::recent_blocked(const RecentItem& it) const {
+    if (it.kind != RecentKind::Reconstruction || !native_work_busy()) return false;
+    auto norm = [](const std::string& s) { return fs::u8path(s).lexically_normal().make_preferred(); };
+    return !dataset_busy() || norm(it.path) != norm(_workspace);
+}
+
 void GuiApp::draw_menu_bar() {
     if (!ImGui::BeginMenuBar()) return;
     if (ui::BeginMenu(msg::menu_file)) {
@@ -2985,6 +3095,27 @@ void GuiApp::draw_menu_bar() {
         if (ui::MenuItem(msg::menu_open_splat)) {
             open_pick(PickAction::SplatFile, msg::viewer_pick_file.get(),
                       FileDialog::Mode::File, {".ply"});
+        }
+        if (ui::BeginMenu(msg::menu_open_recent, !_recent.items().empty())) {
+            probe_recent();
+            RecentItem go;
+            bool picked = false;
+            int shown = 0;
+            for (const RecentItem& it : _recent.items()) {
+                if (++shown > 15) break;
+                ImGui::PushID(shown);
+                const bool blocked = recent_blocked(it);
+                if (ui::MenuItemRaw(recent_name(it).c_str(), recent_badge(it).get(), false,
+                                    !blocked)) {
+                    go = it;
+                    picked = true;
+                }
+                if (blocked) ui::help_on_hover_disabled(msg::home_recon_busy);
+                else ui::help_on_hover_raw(it.path.c_str());
+                ImGui::PopID();
+            }
+            ImGui::EndMenu();
+            if (picked) open_recent(go);
         }
         ImGui::Separator();
         if (ui::MenuItem(msg::menu_batch) && !native_work_busy())
@@ -3206,13 +3337,17 @@ void GuiApp::draw_home_banner(float avail, float indent) {
 }
 
 void GuiApp::draw_home() {
-    // The column is centred and never wider than the window: at 480 px it is
-    // wide enough for the longest button label in any language, and on a
-    // narrow window it gives up width rather than running text off the edge.
+    // 480 px fits the longest button label in any language; a narrow window
+    // narrows the column instead. The recent list goes beside it when it has
+    // room for a path, under it otherwise.
     const float avail = ImGui::GetContentRegionAvail().x;
-    const float w = std::max(std::min(px(480.0f), avail - px(16.0f)), px(200.0f));
+    const float margin = px(16.0f);
+    const float w = std::max(std::min(px(480.0f), avail - margin), px(200.0f));
+    const float gap = px(40.0f);
+    const float list_w = std::min(px(760.0f), avail - 2.0f * margin - w - gap);
+    const bool beside = list_w >= px(420.0f);
     const float bh = px(42.0f);
-    const float indent = std::max(0.0f, (avail - w) * 0.5f);
+    const float indent = std::max(0.0f, (avail - (beside ? w + gap + list_w : w)) * 0.5f);
 
     draw_home_banner(avail, indent);
 
@@ -3262,20 +3397,9 @@ void GuiApp::draw_home() {
     ImGui::Spacing();
     ui::TextDisabledWrapped(msg::home_drop_hint);
 
-    if (!_recents.empty()) {
+    if (!beside) {
         ImGui::Dummy(ImVec2(0, px(18.0f)));
-        ui::SeparatorText(msg::home_recent);
-        const float row_w = ImGui::GetContentRegionAvail().x;
-        for (size_t i = 0; i < _recents.size(); i++) {
-            ImGui::PushID((int)i);
-            // A path is a path in every language. It is elided from the
-            // middle, where a dataset path repeats what the ones above it
-            // already said; the ends are what tells two of them apart.
-            if (ui::SelectableRaw(elide_middle(_recents[i], row_w)))
-                request_open_dataset(_recents[i]);
-            if (ImGui::IsItemHovered()) ui::SetTooltipRaw(_recents[i]);
-            ImGui::PopID();
-        }
+        draw_home_recent(/*scroll=*/false);
     }
 
     ImGui::Dummy(ImVec2(0, px(18.0f)));
@@ -3284,6 +3408,209 @@ void GuiApp::draw_home() {
         ui::TextColored(kDim, msg::home_no_engine);
 
     ImGui::EndChild();
+
+    if (beside) {
+        ImGui::SameLine(0.0f, gap);
+        ImGui::BeginChild("##homerecent", ImVec2(list_w, 0));
+        ImGui::Dummy(ImVec2(0, px(24.0f)));
+        draw_home_recent(/*scroll=*/true);
+        ImGui::EndChild();
+    }
+}
+
+void GuiApp::draw_home_recent(bool scroll) {
+    probe_recent();
+    struct Tab {
+        const Msg* label;
+        const Msg* about;
+        int kind;   // -1: every kind
+    };
+    static const Tab kTabs[] = {
+        {&msg::home_recent, &msg::home_recent_about, -1},
+        {&msg::home_tab_datasets, &msg::home_datasets_about, (int)RecentKind::Dataset},
+        {&msg::home_tab_recons, &msg::home_recons_about, (int)RecentKind::Reconstruction},
+        {&msg::home_tab_models, &msg::home_models_about, (int)RecentKind::Model},
+        {&msg::home_tab_runs, &msg::home_runs_about, (int)RecentKind::Run},
+        {&msg::home_tab_projects, &msg::home_projects_about, (int)RecentKind::Project},
+    };
+    // Its own tooltips say what each tab holds, which a truncated label's
+    // would only repeat.
+    if (!ImGui::BeginTabBar("##recenttabs", ImGuiTabBarFlags_NoTooltip |
+                                                ImGuiTabBarFlags_DrawSelectedOverline))
+        return;
+    for (const Tab& t : kTabs) {
+        const bool open = ui::BeginTabItem(*t.label);
+        ui::help_on_hover(*t.about);
+        if (!open) continue;
+
+        // A copy: opening, removing and clearing all reorder the list.
+        std::vector<RecentItem> rows;
+        for (const RecentItem& it : _recent.items())
+            if (t.kind < 0 || (int)it.kind == t.kind) rows.push_back(it);
+        if (scroll) ImGui::BeginChild("##rows", ImVec2(0, 0));
+        ImGui::Dummy(ImVec2(0, px(4.0f)));
+        if (rows.empty()) {
+            ui::TextDisabled(msg::home_recent_empty);
+            ui::TextDisabledWrapped(*t.about);
+        }
+        bool picked = false;
+        RecentItem go;
+        for (const RecentItem& it : rows) {
+            ImGui::PushID((int)it.kind);
+            ImGui::PushID(it.path.c_str());
+            // The Models tab keeps the badge: what a file holds is what tells
+            // its entries apart.
+            if (draw_recent_row(it, t.kind < 0 || it.kind == RecentKind::Model)) {
+                go = it;
+                picked = true;
+            }
+            draw_recent_menu(it, t.kind);
+            ImGui::PopID();
+            ImGui::PopID();
+        }
+        if (scroll) ImGui::EndChild();
+        ImGui::EndTabItem();
+        if (picked) open_recent(go);
+    }
+    ImGui::EndTabBar();
+}
+
+// The name over the path, a dot in the kind's colour before them; on the
+// right the kind, in that colour, over when it was last used. Drawn rather
+// than laid out so that both lines are one item to hover and click.
+bool GuiApp::draw_recent_row(const RecentItem& it, bool badge) {
+    const float line = ImGui::GetTextLineHeight();
+    const float lead = px(2.0f);
+    const float w = ImGui::GetContentRegionAvail().x;
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const bool blocked = recent_blocked(it);
+    // Lit while its menu is open, so the menu says which entry it is for.
+    const bool clicked = ui::SelectableRaw("##row", ImGui::IsPopupOpen("##menu"),
+                                           ImGuiSelectableFlags_None,
+                                           ImVec2(w, 2.0f * line + lead)) &&
+                         !blocked;
+    if (blocked) ui::help_on_hover(msg::home_recon_busy);
+    if (!ImGui::IsItemVisible()) return clicked;
+
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec4 color = recent_color(it.kind);
+    const float r = px(3.5f);
+    const float x = p.x + px(6.0f) + 2.0f * r + px(8.0f);
+    const float right = p.x + w - px(6.0f);
+    const float sep = px(14.0f);
+    dl->AddCircleFilled(ImVec2(p.x + px(6.0f) + r, p.y + 0.5f * line), r,
+                        ImGui::GetColorU32(color));
+
+    const char* kind = badge ? recent_badge(it).get() : "";
+    const std::string when = recent_when(it.time);
+    const float kind_w = *kind ? ImGui::CalcTextSize(kind).x + sep : 0.0f;
+    const float when_w = when.empty() ? 0.0f : ImGui::CalcTextSize(when.c_str()).x + sep;
+    const float min_w = px(60.0f);
+    // A path is a path in every language. Cut from the middle: the ends are
+    // what tell two of them apart.
+    const std::string name = elide_middle(recent_name(it), std::max(min_w, right - x - kind_w));
+    const std::string path = elide_middle(it.path, std::max(min_w, right - x - when_w));
+    if (!blocked && path != it.path) ui::help_on_hover_raw(it.path.c_str());
+    const ImU32 dim = ImGui::GetColorU32(ImGuiCol_TextDisabled);
+    dl->AddText(ImVec2(x, p.y), blocked ? dim : ImGui::GetColorU32(ImGuiCol_Text), name.c_str());
+    dl->AddText(ImVec2(x, p.y + line + lead), dim, path.c_str());
+    if (*kind)
+        dl->AddText(ImVec2(right - kind_w + sep, p.y), ImGui::GetColorU32(color), kind);
+    if (!when.empty())
+        dl->AddText(ImVec2(right - when_w + sep, p.y + line + lead), dim, when.c_str());
+    return clicked;
+}
+
+void GuiApp::draw_recent_menu(const RecentItem& it, int tab_kind) {
+    if (!ImGui::BeginPopupContextItem("##menu")) return;
+    if (ui::MenuItem(msg::home_recent_open, nullptr, false, !recent_blocked(it)))
+        open_recent(it);
+    const bool model = it.kind == RecentKind::Model || it.kind == RecentKind::Run;
+    const bool splats = it.kind == RecentKind::Run || it.content == ModelContent::Splats;
+    if (model) {
+        if (ui::MenuItem(rmsg::train_render)) {
+            _render_after_open = true;
+            request_open_splat(it.path);
+        }
+        if (ui::MenuItem(rmsg::train_edit)) {
+            _edit_after_open = true;
+            request_open_splat(it.path);
+        }
+    }
+    if (model && splats &&
+        ui::MenuItem(msg::home_make_mesh, nullptr, false, !_mesh.busy())) {
+        set_mesh_source(it.path);
+        _screen = Screen::Mesh;
+    }
+    ImGui::Separator();
+    if (ui::MenuItem(msg::home_recent_show)) {
+        std::error_code ec;
+        const fs::path p = fs::u8path(it.path);
+        open_url((fs::is_directory(p, ec) ? p : p.parent_path()).u8string());
+    }
+    if (ui::MenuItem(msg::home_recent_copy)) ImGui::SetClipboardText(it.path.c_str());
+    ImGui::Separator();
+    if (ui::MenuItem(msg::home_recent_remove)) {
+        _recent.remove(it.kind, it.path);
+        save_settings();
+    }
+    if (ui::MenuItem(msg::home_recent_clear)) {
+        if (tab_kind < 0) _recent.clear();
+        else _recent.clear((RecentKind)tab_kind);
+        save_settings();
+    }
+    ImGui::EndPopup();
+}
+
+void GuiApp::open_recent(RecentItem it) {
+    switch (it.kind) {
+        case RecentKind::Dataset:        request_open_dataset(it.path); break;
+        case RecentKind::Reconstruction: open_reconstruction(it.path); break;
+        case RecentKind::Model:
+        case RecentKind::Run:            request_open_splat(it.path); break;
+        case RecentKind::Project:
+            if (!open_render_project(it.path))
+                log(i18n::format(rmsg::project_open_failed, {it.path}));
+            break;
+    }
+}
+
+void GuiApp::open_reconstruction(const std::string& workspace) {
+    if (recent_blocked({RecentKind::Reconstruction, workspace})) return;
+    if (dataset_busy()) {
+        _screen = Screen::NewDataset;
+        return;
+    }
+    std::error_code ec;
+    std::vector<std::string> inputs;
+    for (const PrepInput& in : decode_record_inputs(read_dataset_record(workspace).inputs).rows)
+        if (!in.path.empty() && fs::exists(fs::u8path(in.path), ec)) inputs.push_back(in.path);
+    _redo_frames = _redo_masks = _redo_model = _redo_geometry = false;
+    if (!inputs.empty()) {
+        add_sources(inputs, /*replace=*/true);
+        _workspace = workspace;
+    } else if (folder_looks_like_dataset(workspace)) {
+        // Its inputs are gone, but what they made is a dataset: add to it.
+        add_existing_dataset(workspace);
+    } else {
+        close_native_previews();
+        close_splat();
+        _sources.clear();
+        _source_path_edits.clear();
+        _mask_preview_input = 0;
+        refresh_sources();
+        _workspace = workspace;
+    }
+    remember(RecentKind::Reconstruction, workspace);
+    _screen = Screen::NewDataset;
+}
+
+void GuiApp::probe_recent() {
+    if (_recent.poll_probe()) save_settings();
+    const double now = ImGui::GetTime();
+    if (_recent.probing() || now - _recent_probed_at < 3.0) return;
+    _recent_probed_at = now;
+    _recent.start_probe(classify_recent_model);
 }
 
 
@@ -3570,6 +3897,10 @@ bool GuiApp::launch_dataset_job() {
         for (int k = 0; k < kNumSteps; k++) made[k] = makes(plan[(Step)k].act);
         write_record_settings(_workspace, dataset_settings_json(capture_dataset_settings()),
                               encode_record_inputs({_sources, _mask.clicks}), made);
+    }
+    if (!_workspace.empty()) {
+        std::error_code ec;
+        remember(RecentKind::Reconstruction, fs::absolute(fs::u8path(_workspace), ec).u8string());
     }
     _restored_ws = _workspace;
     const std::string stamp = run_log_stamp();
@@ -7037,7 +7368,7 @@ void GuiApp::draw_viewer() {
         ui::help_on_hover(rmsg::enter_render_help);
     }
     ImGui::SameLine();
-    _compare.set_recents(_model_recents);
+    _compare.set_recents(recent_models(_recent));
     _compare.draw_toolbar();
 
     const float log_h = log_height(ImGui::GetContentRegionAvail().y);
@@ -7184,6 +7515,7 @@ void GuiApp::open_mesh_preview() {
     }
     _compare.add(out, &msg::mesh_side_mesh);
     _mesh_preview_open = true;
+    remember(RecentKind::Model, out);
 }
 
 void GuiApp::draw_mesh_options() {
@@ -7401,7 +7733,7 @@ void GuiApp::draw_mesh() {
                 _compare.set_shown(out, on, &msg::mesh_side_mesh);
             ImGui::PopID();
         }
-        _compare.set_recents(_model_recents);
+        _compare.set_recents(recent_models(_recent));
         _compare.draw_toolbar();
         draw_compare_panes();
     } else {
@@ -7676,13 +8008,14 @@ void GuiApp::draw_batch() {
     // usually assembled from -- they are the ones already known to parse.
     if (ui::Button(msg::batch_add_recent)) ImGui::OpenPopup("##batchrecent");
     if (ImGui::BeginPopup("##batchrecent")) {
-        if (_recents.empty()) {
+        const std::vector<std::string> datasets = _recent.paths(RecentKind::Dataset);
+        if (datasets.empty()) {
             ui::TextDisabled(msg::batch_no_recent);
         } else {
-            for (size_t i = 0; i < _recents.size(); i++) {
+            for (size_t i = 0; i < datasets.size(); i++) {
                 ImGui::PushID((int)i);
                 // A path is a path in every language.
-                if (ui::SelectableRaw(_recents[i])) add_batch_row(_recents[i]);
+                if (ui::SelectableRaw(datasets[i])) add_batch_row(datasets[i]);
                 ImGui::PopID();
             }
         }

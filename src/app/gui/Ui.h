@@ -286,6 +286,10 @@ inline bool SelectableRaw(const std::string& s, bool selected = false) {
 inline bool SelectableRaw(const char* s, bool selected, ImGuiSelectableFlags f) {
     return ImGui::Selectable(s, selected, f);
 }
+inline bool SelectableRaw(const char* s, bool selected, ImGuiSelectableFlags f,
+                          const ImVec2& size) {
+    return ImGui::Selectable(s, selected, f, size);
+}
 inline bool RadioButtonRaw(const char* s, bool active) {
     return ImGui::RadioButton(s, active);
 }
@@ -317,6 +321,11 @@ inline bool MenuItem(const Msg& m, std::initializer_list<Arg> a) {
 // An entry whose face is a number, not a word: the interface-size percentages.
 inline bool MenuItemRaw(const char* s, bool selected = false) {
     return ImGui::MenuItem(s, nullptr, selected);
+}
+// ... and one with a dim note where a shortcut would go. No defaults, so a
+// two-argument call cannot convert the note to `selected`.
+inline bool MenuItemRaw(const char* s, const char* note, bool selected, bool enabled) {
+    return ImGui::MenuItem(s, note, selected, enabled);
 }
 inline bool BeginTabItem(const Msg& m, ImGuiTabItemFlags flags = 0) {
     return ImGui::BeginTabItem(detail::label(m), nullptr, flags);
