@@ -480,6 +480,12 @@ void Context::init() {
     if (const char* env = spirula::env("VK_NATIVE_INT8");
         env && env[0] == '0')
         _caps.shader_int8 = false;
+    // SS_VK_CAS_UNIFORM_EXIT=0/1 overrides the detection either way; with
+    // SS_VK_NATIVE_ATOMICS=0 it runs the workaround on any device.
+    _caps.cas_uniform_exit =
+        device_issue(probe) == backend::DeviceIssue::AmdWindowsFloatAtomics;
+    if (const char* env = spirula::env("VK_CAS_UNIFORM_EXIT"); env && env[0])
+        _caps.cas_uniform_exit = env[0] != '0';
 
     std::vector<const char*> extensions;
     // Enabling this one is mandatory, not optional: the spec forbids creating
@@ -623,7 +629,9 @@ void Context::init() {
             "float-atomic-add %s, int64 %s, int8 %s, timestamps %s\n",
             _device_name.c_str(), deviceTypeName(probe.props.deviceType),
             subgroup, _caps.max_push_constants,
-            _caps.float32_atomic_add ? "native" : "EMULATED",
+            _caps.float32_atomic_add ? "native"
+            : _caps.cas_uniform_exit ? "EMULATED (uniform exit)"
+                                     : "EMULATED",
             _caps.shader_int64 ? "native" : "EMULATED",
             _caps.shader_int8 ? "native" : "emulated",
             _caps.timestamps ? "yes" : "no");
