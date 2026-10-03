@@ -9,6 +9,7 @@
 #include "checkpoint/SplatPly.h"
 #include "data/ScenePartition.h"
 #include "data/RegionMesh.h"
+#include "data/RoiDocument.h"
 #include "app/webviewer/RegionOverlay.h"
 #include "data/Json.h"
 #include "app/AppPaths.h"
@@ -31,6 +32,7 @@
 #include "i18n/catalog/MaskEdit.h"
 #include "i18n/catalog/Partition.h"
 #include "i18n/catalog/Render.h"
+#include "i18n/catalog/Roi.h"
 #include "i18n/catalog/Train.h"
 #include "i18n/catalog/TrainFields.h"
 
@@ -318,6 +320,7 @@ void GuiApp::shutdown() {
     _mask_editor.sam_drain_retiring();   // before nn::shutdown() frees the device
     _geometry_panel.destroy_gl();
     _partition_panel.destroy_gl();
+    _roi_editor.destroy_gl();
     if (_merge_thread.joinable()) _merge_thread.join();
     _colmap.cancel();
     _sfm.cancel();
@@ -771,6 +774,7 @@ void GuiApp::apply_preset(const std::string& preset) {
     fresh.seed_pointcloud = _cfg.seed_pointcloud;
     fresh.output_dir_prefix = _cfg.output_dir_prefix;
     fresh.output_dir_name = _cfg.output_dir_name;
+    fresh.roi_region = _cfg.roi_region;
     // The native viewport replaces the web viewer by default; it can be
     // re-enabled in Basic Options for remote monitoring.
     fresh.disable_viewer = true;
@@ -790,7 +794,7 @@ void GuiApp::apply_preset(const std::string& preset) {
 }
 
 // A saved preset carries the whole config, so this replaces more than a
-// built-in preset does -- but the same four fields stay out of its reach
+// built-in preset does -- but the same five fields stay out of its reach
 // (SS_PRESET_CONTEXT_FIELDS), because a preset is "how", not "where".
 void GuiApp::apply_user_preset(const TrainPreset& p) {
     if (native_work_busy() || _batch_active) return;
@@ -800,6 +804,7 @@ void GuiApp::apply_user_preset(const TrainPreset& p) {
     fresh.resume = _cfg.resume;
     fresh.output_dir_prefix = _cfg.output_dir_prefix;
     fresh.output_dir_name = _cfg.output_dir_name;
+    fresh.roi_region = _cfg.roi_region;
     // The image and mask folders are ordinary dataset options and travel with
     // a preset, but a preset that never moved them must not move them here:
     // the handoff out of a reconstruction points them at folders that only
@@ -1065,6 +1070,8 @@ void GuiApp::open_dataset(std::string dir, std::string image_dir,
     // reconstruction, where the log is that reconstruction's and is the first
     // thing anyone would look at if the result seems wrong.
     if (dir != _cfg.data && !keep_log) clear_log();
+    // Another dataset's region choice means nothing here.
+    if (dir != _cfg.data) _cfg.roi_region.clear();
     _cfg.data = dir;
     // image_dir / mask_dir: the runner hands its (possibly external) folders
     // over in-memory right after a run -- photos indexed where they are keep
@@ -2780,6 +2787,8 @@ std::string GuiApp::state_json() {
     out += _mask_editor.is_open() ? "true" : "false";
     out += ",\"partition_panel_open\":";
     out += _partition_panel.is_open() ? "true" : "false";
+    out += ",\"roi_editor_open\":";
+    out += _roi_editor.is_open() ? "true" : "false";
     // The app's one segmentation checkpoint, which both screens pick and fetch.
     static const char* kDownload[] = {"idle", "running", "done", "failed", "cancelled"};
     out += ",\"model_id\":" + quoted(_model_id);
@@ -2964,6 +2973,7 @@ void GuiApp::frame() {
         case Screen::Batch:  draw_batch();  break;
         case Screen::Mesh:   draw_mesh();   break;
     }
+    if (_roi_editor.is_open()) _roi_editor.draw();
 
     // A job cancelled by the editor's close finishes its stage off this thread.
     _mask_editor.sam_poll_retiring();
@@ -6032,6 +6042,9 @@ void GuiApp::draw_dataset_open_buttons(const DatasetFolders& f, bool model) {
         ImGui::SameLine();
         if (ui::Button(spirula::i18n::msg::partition::open_button)) open_partition_panel(f);
         ui::help_on_hover(spirula::i18n::msg::partition::open_button_help);
+        ImGui::SameLine();
+        if (ui::Button(spirula::i18n::msg::roi::editor_button)) open_roi_editor(f.dir);
+        ui::help_on_hover(spirula::i18n::msg::roi::editor_button_help);
     }
     if (!f.mask_dir.empty()) {
         if (model) ImGui::SameLine();
@@ -6064,6 +6077,86 @@ void GuiApp::open_partition_panel(const DatasetFolders& f) {
         if (!native_work_busy()) _screen = Screen::Batch;
     };
     _partition_panel.open(f.dir, std::move(hooks));
+}
+
+void GuiApp::open_roi_editor(const std::string& dataset, const std::string& file) {
+    // A reconstruction in flight is rewriting the model the editor would read.
+    if (dataset_busy()) return;
+    RoiEditor::Hooks hooks;
+    hooks.log = [this](const std::string& s) { log(s); };
+    // The training screen's preview shows the region the run would use, so a
+    // save re-reads it -- unless a run owns the session.
+    hooks.changed = [this](const std::string& ds) {
+        _roi_files_for.clear();
+        std::error_code ec;
+        const TrainRunner::Phase ph = _runner.phase();
+        if (!_cfg.data.empty() && fs::equivalent(ds, _cfg.data, ec) &&
+            (ph == TrainRunner::Phase::Ready || ph == TrainRunner::Phase::LoadError))
+            _parse_dirty = true;
+    };
+    _roi_editor.open(dataset, std::move(hooks), file);
+}
+
+// Which saved region the run trains in: the first by default, any other, or
+// none. What it writes is --roi-region's own spelling, so a batch row and the
+// command line read it the same way.
+void GuiApp::draw_roi_row(bool busy) {
+    namespace roimsg = spirula::i18n::msg::roi;
+    if (_cfg.data.empty()) return;
+    if (_roi_files_for != _cfg.data) {
+        _roi_files_for = _cfg.data;
+        _roi_files = spirula::list_roi_files(_cfg.data);
+    }
+    auto stem = [](const std::string& p) { return fs::path(p).stem().string(); };
+    const spirula::RoiChoice now = spirula::resolve_roi_setting(_cfg.roi_region, _cfg.data);
+    std::string shown;
+    if (now.off) shown = roimsg::train_none.get();
+    else if (_cfg.roi_region.empty())
+        shown = _roi_files.empty() ? std::string(roimsg::train_auto_none.get())
+                                   : i18n::format(roimsg::train_auto, {stem(_roi_files.front())});
+    else shown = stem(now.path);
+    ui::Text(roimsg::train_label);
+    ui::help_on_hover(roimsg::train_help);
+    ImGui::BeginDisabled(busy);
+    const float edit_w = ImGui::CalcTextSize(roimsg::train_edit_region.get()).x +
+                         2 * ImGui::GetStyle().FramePadding.x + ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth(std::max(px(120.0f), ImGui::GetContentRegionAvail().x - edit_w - px(8.0f)));
+    std::string pick;
+    bool picked = false;
+    if (ui::BeginComboRaw("##roirow", shown.c_str())) {
+        _roi_files = spirula::list_roi_files(_cfg.data);
+        const std::string auto_label =
+            _roi_files.empty() ? std::string(roimsg::train_auto_none.get())
+                               : i18n::format(roimsg::train_auto, {stem(_roi_files.front())});
+        if (ui::SelectableRaw(auto_label + "##auto", _cfg.roi_region.empty())) {
+            pick.clear();
+            picked = true;
+        }
+        for (size_t i = 0; i < _roi_files.size(); i++) {
+            ImGui::PushID((int)i);
+            std::error_code ec;
+            const bool on = !_cfg.roi_region.empty() && !now.off && fs::equivalent(now.path, _roi_files[i], ec);
+            if (ui::SelectableRaw(stem(_roi_files[i]), on)) {
+                pick = "roi/" + fs::path(_roi_files[i]).filename().generic_string();
+                picked = true;
+            }
+            ImGui::PopID();
+        }
+        if (ui::Selectable(roimsg::train_none, now.off)) {
+            pick = "off";
+            picked = true;
+        }
+        ImGui::EndCombo();
+    }
+    if (picked && pick != _cfg.roi_region) {
+        _cfg.roi_region = pick;
+        _cfg_ui.touched.insert("roi_region");
+        _parse_dirty = true;
+    }
+    ImGui::SameLine();
+    if (ui::Button(roimsg::train_edit_region))
+        open_roi_editor(_cfg.data, !now.off && !now.path.empty() ? now.path : std::string());
+    ImGui::EndDisabled();
 }
 
 int GuiApp::add_batch_partition_rows(const DatasetFolders& f, const std::string& partition,
@@ -9132,6 +9225,7 @@ void GuiApp::draw_train_settings() {
                   FileDialog::Mode::Folder);
     }
     ImGui::EndDisabled();
+    if (!_batch_active) draw_roi_row(busy);
 
     // Vulkan builds share the native picker with every built-in workflow.
 #ifdef SS_BACKEND_VULKAN

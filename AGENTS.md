@@ -91,7 +91,9 @@ src/
 │   │                         one owner), RegionMesh.h (a region's boundary as
 │   │                         triangles, for drawing), ScenePartition.h (split a scene into
 │   │                         parts that train separately -- READ
-│   │                         docs/notes/scene-partition.md)
+│   │                         docs/notes/scene-partition.md), RoiDocument.h (the
+│   │                         ROI editor's shape list, and which <dataset>/roi/*.json
+│   │                         a run trains in -- docs/notes/roi-editor.md)
 │   └── parsers/              COLMAP / Nerfstudio / Metashape readers
 ├── mesh/                   meshing pipeline: Delaunay3D, UV, export/import, and
 │                             MeshingDevice.h -- the DEVICE SEAM the portable

@@ -3155,68 +3155,105 @@ SS_MSG(roi_region,
     NL("Bestand met interessegebied"), RU("Файл области интереса"),
     TR("İlgi bölgesi dosyası"));
 SS_MSG(roi_region_help,
-    EN("A region JSON (boxes, spheres, half-spaces, a partition's label field, "
-       "combined with union, intersection and difference). Splats whose centre "
-       "lies outside it are drawn for relocation and growth with "
-       "--roi-outside-weight instead of 1, so the model stops growing there. A "
-       "partitioned run gets its part's region without this."),
-    JA("領域 JSON（ボックス、球、半空間、分割のラベルフィールドを和・積・差で組み"
-       "合わせたもの）。中心が領域外にあるスプラットは、再配置と成長の抽選で 1 の"
-       "代わりに --roi-outside-weight の重みになり、そこではモデルが成長しなくな"
-       "ります。分割学習ではこれなしでパートの領域が使われます。"),
-    ZH_HANS("区域 JSON（盒、球、半空间、分区的标签场，用并、交、差组合）。中心在区域"
-            "外的泼溅在重定位与增长抽样中以 --roi-outside-weight 而非 1 为权重，"
-            "模型因此不再在那里增长。分区训练无需此项即使用其分区的区域。"),
-    ZH_HANT("區域 JSON（盒、球、半空間、分區的標籤場，用聯集、交集、差集組合）。中"
-            "心在區域外的潑濺在重定位與增長抽樣中以 --roi-outside-weight 而非 1 為"
-            "權重，模型因此不再在那裡增長。分區訓練無需此項即使用其分區的區域。"),
-    KO("영역 JSON(상자, 구, 반공간, 분할의 라벨 필드를 합집합·교집합·차집합으로 "
-       "결합). 중심이 영역 밖인 스플랫은 재배치와 성장 추첨에서 1 대신 "
-       "--roi-outside-weight 가중치를 받아 그곳에서 모델이 더 자라지 않습니다. "
-       "분할 학습은 이것 없이도 파트의 영역을 씁니다."),
-    DE("Eine Regions-JSON (Quader, Kugeln, Halbräume, das Labelfeld einer "
-       "Partition, verknüpft mit Vereinigung, Schnitt und Differenz). Splats mit "
-       "Zentrum außerhalb ziehen bei Verlagerung und Wachstum mit "
-       "--roi-outside-weight statt 1, das Modell wächst dort also nicht weiter. "
-       "Ein partitionierter Lauf bekommt den Bereich seines Teils auch ohne dies."),
-    FR("Un JSON de région (boîtes, sphères, demi-espaces, le champ d'étiquettes "
-       "d'une partition, combinés par union, intersection et différence). Les "
-       "splats dont le centre est en dehors tirent, pour la relocalisation et la "
-       "croissance, avec --roi-outside-weight au lieu de 1 : le modèle cesse d'y "
-       "croître. Un entraînement partitionné reçoit la région de sa partie sans "
-       "cela."),
-    ES("Un JSON de región (cajas, esferas, semiespacios, el campo de etiquetas de "
-       "una partición, combinados con unión, intersección y diferencia). Los "
-       "splats con el centro fuera sortean, para reubicación y crecimiento, con "
-       "--roi-outside-weight en vez de 1, así que el modelo deja de crecer ahí. "
-       "Una ejecución particionada recibe la región de su parte sin esto."),
-    PT("Um JSON de região (caixas, esferas, semiespaços, o campo de rótulos de "
-       "uma partição, combinados por união, interseção e diferença). Os splats "
-       "com o centro fora sorteiam, para realocação e crescimento, com "
-       "--roi-outside-weight em vez de 1, pelo que o modelo deixa de crescer aí. "
-       "Um treino particionado recebe a região da sua parte sem isto."),
-    IT("Un JSON di regione (scatole, sfere, semispazi, il campo di etichette di "
-       "una partizione, combinati con unione, intersezione e differenza). Gli "
+    EN("A region JSON: what the ROI editor saves in the dataset's roi folder, or any "
+       "region (boxes, ellipsoids, cylinders, outlines, half-spaces, a partition's "
+       "label field, combined with union, intersection and difference). Unset, the "
+       "first file in <dataset>/roi is used; `off` trains the whole scene; a bare "
+       "name picks that file there. Splats whose centre lies outside it are drawn "
+       "for relocation and growth with --roi-outside-weight instead of 1, so the "
+       "model stops growing there. A partitioned run keeps to where its part and "
+       "the region overlap."),
+    JA("領域 JSON。ROI エディタがデータセットの roi フォルダに保存するもの、または任"
+       "意の領域（ボックス、楕円体、円柱、輪郭、半空間、分割のラベルフィールドを和・"
+       "積・差で組み合わせたもの）。未設定なら <dataset>/roi の先頭のファイルを使い、"
+       "`off` ならシーン全体を学習し、名前だけならそこにあるそのファイルを選びます。"
+       "中心が領域外にあるスプラットは、再配置と成長の抽選で 1 の代わりに "
+       "--roi-outside-weight の重みになり、そこではモデルが成長しなくなります。分割"
+       "学習ではパートと領域の重なりだけが使われます。"),
+    ZH_HANS("区域 JSON：ROI 编辑器保存在数据集 roi 文件夹中的文件，或任意区域（盒、椭"
+            "球、圆柱、轮廓、半空间、分区的标签场，用并、交、差组合）。未设置时使用 "
+            "<dataset>/roi 中的第一个文件；`off` 训练整个场景；只写名称则选取该文件"
+            "夹中的同名文件。中心在区域外的泼溅在重定位与增长抽样中以 "
+            "--roi-outside-weight 而非 1 为权重，模型因此不再在那里增长。分区训练只使"
+            "用其分区与该区域的交集。"),
+    ZH_HANT("區域 JSON：ROI 編輯器儲存在資料集 roi 資料夾中的檔案，或任意區域（盒、橢"
+            "球、圓柱、輪廓、半空間、分區的標籤場，用聯集、交集、差集組合）。未設定時"
+            "使用 <dataset>/roi 中的第一個檔案；`off` 訓練整個場景；只寫名稱則選取該"
+            "資料夾中的同名檔案。中心在區域外的潑濺在重定位與增長抽樣中以 "
+            "--roi-outside-weight 而非 1 為權重，模型因此不再在那裡增長。分區訓練只使"
+            "用其分區與該區域的交集。"),
+    KO("영역 JSON: ROI 편집기가 데이터셋의 roi 폴더에 저장한 파일, 또는 임의의 영역"
+       "(상자, 타원체, 원기둥, 윤곽, 반공간, 분할의 라벨 필드를 합집합·교집합·차집합"
+       "으로 결합). 비워 두면 <dataset>/roi의 첫 번째 파일을 쓰고, `off`이면 장면 "
+       "전체를 학습하며, 이름만 쓰면 그 폴더의 해당 파일을 고릅니다. 중심이 영역 밖인 "
+       "스플랫은 재배치와 성장 추첨에서 1 대신 --roi-outside-weight 가중치를 받아 "
+       "그곳에서 모델이 더 자라지 않습니다. 분할 학습은 파트와 이 영역이 겹치는 부분"
+       "만 씁니다."),
+    DE("Eine Regions-JSON: was der ROI-Editor im roi-Ordner des Datensatzes "
+       "speichert, oder jede andere Region (Quader, Ellipsoide, Zylinder, Umrisse, "
+       "Halbräume, das Labelfeld einer Partition, verknüpft mit Vereinigung, Schnitt "
+       "und Differenz). Leer wird die erste Datei in <dataset>/roi verwendet; `off` "
+       "trainiert die ganze Szene; ein bloßer Name wählt die gleichnamige Datei dort. "
+       "Splats mit Zentrum außerhalb ziehen bei Verlagerung und Wachstum mit "
+       "--roi-outside-weight statt 1, das Modell wächst dort also nicht weiter. Ein "
+       "partitionierter Lauf nutzt nur die Schnittmenge seines Teils mit der Region."),
+    FR("Un JSON de région : ce que l'éditeur de ROI enregistre dans le dossier roi du "
+       "jeu de données, ou toute autre région (boîtes, ellipsoïdes, cylindres, "
+       "contours, demi-espaces, le champ d'étiquettes d'une partition, combinés par "
+       "union, intersection et différence). Vide, le premier fichier de "
+       "<dataset>/roi est utilisé ; `off` entraîne toute la scène ; un simple nom y "
+       "choisit ce fichier. Les splats dont le centre est en dehors tirent, pour la "
+       "relocalisation et la croissance, avec --roi-outside-weight au lieu de 1 : le "
+       "modèle cesse d'y croître. Un entraînement partitionné n'en garde que "
+       "l'intersection avec sa partie."),
+    ES("Un JSON de región: lo que el editor de ROI guarda en la carpeta roi del "
+       "conjunto de datos, o cualquier región (cajas, elipsoides, cilindros, "
+       "contornos, semiespacios, el campo de etiquetas de una partición, combinados "
+       "con unión, intersección y diferencia). Vacío, se usa el primer archivo de "
+       "<dataset>/roi; `off` entrena toda la escena; un nombre solo elige ese "
+       "archivo allí. Los splats con el centro fuera sortean, para reubicación y "
+       "crecimiento, con --roi-outside-weight en vez de 1, así que el modelo deja de "
+       "crecer ahí. Una ejecución particionada usa solo su intersección con su parte."),
+    PT("Um JSON de região: o que o editor de ROI guarda na pasta roi do conjunto de "
+       "dados, ou qualquer região (caixas, elipsoides, cilindros, contornos, "
+       "semiespaços, o campo de rótulos de uma partição, combinados por união, "
+       "interseção e diferença). Vazio, usa-se o primeiro ficheiro de <dataset>/roi; "
+       "`off` treina a cena inteira; um nome simples escolhe esse ficheiro lá. Os "
+       "splats com o centro fora sorteiam, para realocação e crescimento, com "
+       "--roi-outside-weight em vez de 1, pelo que o modelo deixa de crescer aí. Um "
+       "treino particionado usa apenas a interseção com a sua parte."),
+    IT("Un JSON di regione: ciò che l'editor di ROI salva nella cartella roi del "
+       "dataset, o qualsiasi regione (scatole, ellissoidi, cilindri, contorni, "
+       "semispazi, il campo di etichette di una partizione, combinati con unione, "
+       "intersezione e differenza). Se vuoto si usa il primo file in <dataset>/roi; "
+       "`off` addestra l'intera scena; un nome semplice sceglie quel file lì. Gli "
        "splat con il centro fuori estraggono, per ricollocazione e crescita, con "
-       "--roi-outside-weight invece di 1, così il modello smette di crescere lì. "
-       "Un addestramento partizionato riceve la regione della sua parte senza "
-       "questo."),
-    NL("Een regio-JSON (dozen, bollen, halfruimten, het labelveld van een "
-       "partitie, gecombineerd met vereniging, doorsnede en verschil). Splats met "
-       "het middelpunt erbuiten loten bij verplaatsing en groei met "
-       "--roi-outside-weight in plaats van 1, zodat het model daar niet verder "
-       "groeit. Een gepartitioneerde run krijgt het gebied van zijn deel ook "
-       "zonder dit."),
-    RU("JSON области (коробки, сферы, полупространства, поле меток разбиения, "
-       "объединённые операциями объединения, пересечения и разности). Сплаты с "
-       "центром снаружи участвуют в выборке для перемещения и роста с весом "
-       "--roi-outside-weight вместо 1, так что модель там не растёт. "
-       "Разбитый запуск получает область своей части и без этого."),
-    TR("Bir bölge JSON'u (kutular, küreler, yarı uzaylar, bir bölümlemenin etiket "
-       "alanı; birleşim, kesişim ve farkla birleştirilmiş). Merkezi dışarıda "
-       "kalan splatlar yer değiştirme ve büyüme çekilişine 1 yerine "
-       "--roi-outside-weight ile girer; model orada büyümeyi bırakır. "
-       "Bölümlenmiş bir eğitim bunu vermeden parçasının bölgesini alır."));
+       "--roi-outside-weight invece di 1, così il modello smette di crescere lì. Un "
+       "addestramento partizionato usa solo l'intersezione con la sua parte."),
+    NL("Een regio-JSON: wat de ROI-editor in de roi-map van de dataset opslaat, of "
+       "elk ander gebied (dozen, ellipsoïden, cilinders, omtrekken, halfruimten, het "
+       "labelveld van een partitie, gecombineerd met vereniging, doorsnede en "
+       "verschil). Leeg wordt het eerste bestand in <dataset>/roi gebruikt; `off` "
+       "traint de hele scène; een losse naam kiest dat bestand daar. Splats met het "
+       "middelpunt erbuiten loten bij verplaatsing en groei met --roi-outside-weight "
+       "in plaats van 1, zodat het model daar niet verder groeit. Een "
+       "gepartitioneerde run gebruikt alleen de doorsnede met zijn deel."),
+    RU("JSON области: то, что редактор ROI сохраняет в папку roi набора данных, или "
+       "любая область (коробки, эллипсоиды, цилиндры, контуры, полупространства, "
+       "поле меток разбиения, объединённые операциями объединения, пересечения и "
+       "разности). Если пусто, берётся первый файл из <dataset>/roi; `off` обучает "
+       "всю сцену; одно имя выбирает этот файл там. Сплаты с центром снаружи "
+       "участвуют в выборке для перемещения и роста с весом --roi-outside-weight "
+       "вместо 1, так что модель там не растёт. Разбитый запуск использует только "
+       "пересечение своей части с областью."),
+    TR("Bir bölge JSON'u: ROI düzenleyicisinin veri kümesinin roi klasörüne "
+       "kaydettiği dosya ya da herhangi bir bölge (kutular, elipsoitler, silindirler, "
+       "ana hatlar, yarı uzaylar, bir bölümlemenin etiket alanı; birleşim, kesişim ve "
+       "farkla birleştirilmiş). Boş bırakılırsa <dataset>/roi içindeki ilk dosya "
+       "kullanılır; `off` tüm sahneyi eğitir; yalnızca bir ad oradaki o dosyayı "
+       "seçer. Merkezi dışarıda kalan splatlar yer değiştirme ve büyüme çekilişine 1 "
+       "yerine --roi-outside-weight ile girer; model orada büyümeyi bırakır. "
+       "Bölümlenmiş bir eğitim yalnızca parçasıyla kesişimini kullanır."));
 SS_MSG(roi_outside_weight,
     EN("Draw weight outside the region"), JA("領域外の抽選重み"),
     ZH_HANS("区域外的抽样权重"), ZH_HANT("區域外的抽樣權重"), KO("영역 밖 추첨 가중치"),

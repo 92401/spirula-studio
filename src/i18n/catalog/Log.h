@@ -1935,6 +1935,56 @@ SS_MSG(region_applied,
     RU("Область интереса: узлов программы {0}; сплаты снаружи участвуют в выборке с весом {1}"),
     TR("İlgi bölgesi: program düğümü {0}; dışarıdaki splatlar {1} ağırlığıyla çekilir"));
 
+SS_MSG(roi_file,
+    EN("Region of interest: {0}"), JA("関心領域: {0}"), ZH_HANS("感兴趣区域：{0}"),
+    ZH_HANT("感興趣區域：{0}"), KO("관심 영역: {0}"), DE("Interessenbereich: {0}"),
+    FR("Région d'intérêt : {0}"), ES("Región de interés: {0}"), PT("Região de interesse: {0}"),
+    IT("Regione di interesse: {0}"), NL("Interessegebied: {0}"), RU("Область интереса: {0}"),
+    TR("İlgi bölgesi: {0}"));
+
+SS_MSG(roi_file_auto,
+    EN("Region of interest: {0}, the first in the dataset's roi folder (--roi-region off "
+       "trains the whole scene)"),
+    JA("関心領域: {0}（データセットの roi フォルダの先頭。--roi-region off でシーン全体を"
+       "学習）"),
+    ZH_HANS("感兴趣区域：{0}，即数据集 roi 文件夹中的第一个（--roi-region off 训练整个"
+            "场景）"),
+    ZH_HANT("感興趣區域：{0}，即資料集 roi 資料夾中的第一個（--roi-region off 訓練整個"
+            "場景）"),
+    KO("관심 영역: {0}, 데이터셋 roi 폴더의 첫 번째 파일 (--roi-region off이면 장면 전체를 "
+       "학습)"),
+    DE("Interessenbereich: {0}, der erste im roi-Ordner des Datensatzes (--roi-region off "
+       "trainiert die ganze Szene)"),
+    FR("Région d'intérêt : {0}, la première du dossier roi du jeu de données (--roi-region "
+       "off entraîne toute la scène)"),
+    ES("Región de interés: {0}, la primera de la carpeta roi del conjunto de datos "
+       "(--roi-region off entrena toda la escena)"),
+    PT("Região de interesse: {0}, a primeira da pasta roi do conjunto de dados "
+       "(--roi-region off treina a cena inteira)"),
+    IT("Regione di interesse: {0}, la prima nella cartella roi del dataset (--roi-region "
+       "off addestra l'intera scena)"),
+    NL("Interessegebied: {0}, het eerste in de roi-map van de dataset (--roi-region off "
+       "traint de hele scène)"),
+    RU("Область интереса: {0}, первая в папке roi набора данных (--roi-region off "
+       "обучает всю сцену)"),
+    TR("İlgi bölgesi: {0}, veri kümesinin roi klasöründeki ilk dosya (--roi-region off "
+       "tüm sahneyi eğitir)"));
+
+SS_MSG(roi_file_missing,
+    EN("Region of interest file not found: {0}"),
+    JA("関心領域ファイルが見つかりません: {0}"),
+    ZH_HANS("找不到感兴趣区域文件：{0}"),
+    ZH_HANT("找不到感興趣區域檔案：{0}"),
+    KO("관심 영역 파일을 찾을 수 없습니다: {0}"),
+    DE("Datei des Interessenbereichs nicht gefunden: {0}"),
+    FR("Fichier de région d'intérêt introuvable : {0}"),
+    ES("No se encuentra el archivo de región de interés: {0}"),
+    PT("Ficheiro da região de interesse não encontrado: {0}"),
+    IT("File della regione di interesse non trovato: {0}"),
+    NL("Bestand met interessegebied niet gevonden: {0}"),
+    RU("Файл области интереса не найден: {0}"),
+    TR("İlgi bölgesi dosyası bulunamadı: {0}"));
+
 SS_MSG(region_masks,
     EN("Region of interest: {0} images masked to what they show of it; {1}% of pixels left out"),
     JA("関心領域: {0} 枚の画像を領域が写る部分に絞りました。画素の {1}% を除外"),

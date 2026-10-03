@@ -157,7 +157,7 @@ inline bool train_choices_free_form(const char* choices) {
     X(bool, init_ply_add_points, false, "dataset", "advanced", "")           \
     X(std::string, partition, "", "dataset", "advanced", "<file>.json")      \
     X(int, partition_part, -1, "dataset", "advanced", "")                    \
-    X(std::string, roi_region, "", "dataset", "advanced", "<file>.json")     \
+    X(std::string, roi_region, "", "dataset", "advanced", "<data>/<file>.json") \
     X(float, roi_outside_weight, 1e-4f, "dataset", "advanced", "")           \
     X(float, roi_outside_opacity_decay, 1.0f, "dataset", "advanced", "")     \
     X(bool, roi_mask_pixels, true, "dataset", "advanced", "")                \
@@ -414,6 +414,7 @@ struct TrainConfig {
     X(load_depths) X(load_normals) X(relative_scale) \
     X(cap_max) X(random_init) X(random_init_fraction) X(random_init_distribution) \
     X(random_init_center) X(random_init_spread) X(random_init_std) \
+    X(roi_region) \
     /* end */
 
 

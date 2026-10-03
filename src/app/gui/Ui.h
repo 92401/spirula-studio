@@ -476,6 +476,11 @@ inline bool DragFloatRaw(const char* id, float* v, float speed, float lo,
 inline bool DragFloat3Raw(const char* id, float v[3], float speed, const char* fmt) {
     return ImGui::DragFloat3(id, v, speed, 0.0f, 0.0f, fmt);
 }
+// Doubles, for coordinates a geo-referenced model puts beyond float's reach.
+inline bool DragDoubleNRaw(const char* id, double* v, int n, float speed, double lo,
+                           double hi, const char* fmt) {
+    return ImGui::DragScalarN(id, ImGuiDataType_Double, v, n, speed, &lo, &hi, fmt);
+}
 inline bool InputTextHintBufRaw(const char* id, const Msg& hint, char* buf,
                                 size_t buf_size) {
     return ImGui::InputTextWithHint(id, hint.get(), buf, buf_size);

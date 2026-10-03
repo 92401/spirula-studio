@@ -17,6 +17,7 @@
 #include "app/gui/FilmReel.h"
 #include "app/gui/GeometryPanel.h"
 #include "app/gui/PartitionPanel.h"
+#include "app/gui/RoiEditor.h"
 #include "app/gui/ImageCompare.h"
 #include "app/gui/MatchMatrix.h"
 #include "app/gui/PairPreview.h"
@@ -808,6 +809,13 @@ private:
     GeometryPanel _geometry_panel;
     PartitionPanel _partition_panel;
     void open_partition_panel(const DatasetFolders& f);
+    // The region a dataset trains in: the editor, and the training screen's
+    // row that picks which saved region a run uses.
+    RoiEditor _roi_editor;
+    void open_roi_editor(const std::string& dataset, const std::string& file = "");
+    void draw_roi_row(bool busy);
+    std::vector<std::string> _roi_files;
+    std::string _roi_files_for;
     // Queueing a partition's parts: the modal with the run's settings, the
     // "clear what is still pending?" question, and the rows it finally adds.
     struct PartitionQueue {

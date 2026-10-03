@@ -19,6 +19,7 @@
 #include "data/ScenePartition.h"
 #include "data/Json.h"
 #include "data/RegionProgram.h"
+#include "data/RoiDocument.h"
 #include "data/LabelField.h"
 #include "data/Knn.h"
 #include "sfm/core/Exif.h"
@@ -730,30 +731,56 @@ void TrainerSession::apply_partition_config(ParsedDataset& d) {
              {cfg.partition_part, (long long)a.frames_after, (long long)a.core,
               (long long)a.ring, (long long)a.points_after}));
     if (a.missing > 0) log(lfmt(lmsg::partition_missing_frames, {(long long)a.missing}));
-    if (cfg.roi_region.empty() && p.field)
-        roi = std::make_shared<LabelRegion>(p.field, cfg.partition_part);
+    if (&d == &ds && p.field) roi = std::make_shared<LabelRegion>(p.field, cfg.partition_part);
+}
+
+void TrainerSession::load_region() {
+    const RoiChoice choice = resolve_roi_setting(cfg.roi_region, cfg.data);
+    if (choice.path.empty()) {
+        // Spelled out, so a resume after a region is drawn does not pick it up.
+        if (cfg.roi_region.empty()) cfg.roi_region = "off";
+        return;
+    }
+    std::error_code ec;
+    if (!fs::is_regular_file(choice.path, ec))
+        throw std::runtime_error(lfmt(lmsg::roi_file_missing, {choice.path}));
+    std::string err;
+    std::shared_ptr<const Region> user = region_from_json(
+        json_parse_file(choice.path), fs::path(choice.path).parent_path().string(), err);
+    if (!user) throw std::runtime_error(choice.path + ": " + err);
+    log(lfmt(choice.automatic ? lmsg::roi_file_auto : lmsg::roi_file, {choice.path}));
+    if (choice.automatic) {
+        const fs::path rel = fs::path(choice.path).lexically_relative(cfg.data);
+        cfg.roi_region = rel.empty() ? choice.path : rel.generic_string();
+    }
+    // A partitioned run keeps to its part of the region.
+    if (roi) {
+        auto both = std::make_shared<CsgRegion>();
+        both->op = CsgOp::Intersection;
+        both->children = {roi, user};
+        roi = both;
+        for (size_t i = 0; i < roi_cloud_inside.size(); i++) {
+            const double* q = &roi_cloud[i * 3];
+            if (roi_cloud_inside[i] && !user->inside(q[0] + ds.center[0], q[1] + ds.center[1],
+                                                     q[2] + ds.center[2]))
+                roi_cloud_inside[i] = 0;
+        }
+    } else {
+        roi = user;
+    }
 }
 
 void TrainerSession::setup_region() {
-    if (!cfg.roi_region.empty()) {
-        std::string err;
-        std::unique_ptr<Region> r = region_from_json(
-            json_parse_file(cfg.roi_region),
-            fs::path(cfg.roi_region).parent_path().string(), err);
-        if (!r) throw std::runtime_error(cfg.roi_region + ": " + err);
-        roi = std::move(r);
-    }
     if (!roi) {
         engine_set_region({}, {}, {}, {}, {}, 1.0f);
         return;
     }
-    RegionProgram prog;
-    std::string err;
-    if (!compile_region(*roi, prog, err)) throw std::runtime_error(err);
     // The region is in the dataset's frame, the splats in the training frame.
     const double rs = cfg.relative_scale.value_or(1.0f);
     const double shift[3] = {-rs * ds.center[0], -rs * ds.center[1], -rs * ds.center[2]};
-    prog.apply_similarity(rs, shift);
+    RegionProgram prog;
+    std::string err;
+    if (!compile_region(*roi, prog, err, rs, shift)) throw std::runtime_error(err);
     // The training cameras, indexed, orient each splat's normal on the device.
     std::vector<int32_t> idx((size_t)ds.num_cameras);
     std::vector<float> centers((size_t)ds.num_cameras * 3);
@@ -852,7 +879,9 @@ void TrainerSession::load_dataset() {
     pcfg.metashape_ply           = cfg.metashape_ply;
     pcfg.metashape_psx           = cfg.metashape_psx;
     ds = parse_dataset(cfg.data, pcfg, cfg.data_format);
+    roi.reset();
     apply_partition_config(ds);
+    load_region();
     if (ds.center_mode != "none") {
         char xyz[96];
         std::snprintf(xyz, sizeof xyz, "%.12g, %.12g, %.12g",
