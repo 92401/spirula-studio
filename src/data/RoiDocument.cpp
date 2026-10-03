@@ -45,9 +45,10 @@ void write_shape(JsonWriter& w, const RoiShape& s) {
     w.field("kind", kKindNames[(int)s.kind]);
     w.field("op", kOpNames[(int)s.op]);
     w.field("enabled", s.enabled);
-    write_vec(w, "center", s.center, 3);
+    write_vec(w, "origin", s.origin, 3);
     write_vec(w, "rotation", s.R, 9);
-    write_vec(w, "half", s.half, 3);
+    write_vec(w, "lo", s.lo, 3);
+    write_vec(w, "hi", s.hi, 3);
     if (s.kind == RoiShapeKind::Prism) write_vec(w, "polygon", s.polygon.data(), s.polygon.size());
     w.end();
 }
@@ -64,9 +65,18 @@ bool read_shape(const JsonValue& v, RoiShape& s, std::string& error) {
     s.op = (RoiOp)std::max(0, op ? index_of(kOpNames, op->as_string()) : 0);
     if (const JsonValue* n = v.find("name")) s.name = n->as_string();
     if (const JsonValue* e = v.find("enabled")) s.enabled = e->as_bool(true);
-    if (!read_vec(v, "center", s.center, 3) || !read_vec(v, "half", s.half, 3)) {
-        error = "editor shape needs center[3] and half[3]";
-        return false;
+    double half[3];
+    if (!read_vec(v, "origin", s.origin, 3) ||
+        !(read_vec(v, "lo", s.lo, 3) && read_vec(v, "hi", s.hi, 3))) {
+        // The first files this editor wrote kept a centre and half extents.
+        if (!read_vec(v, "center", s.origin, 3) || !read_vec(v, "half", half, 3)) {
+            error = "editor shape needs origin[3], lo[3] and hi[3]";
+            return false;
+        }
+        for (int k = 0; k < 3; k++) {
+            s.lo[k] = -half[k];
+            s.hi[k] = half[k];
+        }
     }
     read_vec(v, "rotation", s.R, 9);
     if (s.kind == RoiShapeKind::Prism) {
@@ -87,34 +97,40 @@ bool shape_of_leaf(const JsonValue& v, RoiOp op, RoiShape& s) {
     if (!r) return false;
     s = RoiShape{};
     s.op = op;
+    double half[3] = {0, 0, 0};
+    const double* center = nullptr;
     if (auto* b = dynamic_cast<const BoxRegion*>(r.get())) {
         s.kind = RoiShapeKind::Box;
-        std::copy(b->center, b->center + 3, s.center);
-        std::copy(b->half, b->half + 3, s.half);
+        center = b->center;
+        std::copy(b->half, b->half + 3, half);
         std::copy(b->R, b->R + 9, s.R);
     } else if (auto* e = dynamic_cast<const EllipsoidRegion*>(r.get())) {
         s.kind = RoiShapeKind::Ellipsoid;
-        std::copy(e->center, e->center + 3, s.center);
-        std::copy(e->half, e->half + 3, s.half);
+        center = e->center;
+        std::copy(e->half, e->half + 3, half);
         std::copy(e->R, e->R + 9, s.R);
     } else if (auto* sp = dynamic_cast<const SphereRegion*>(r.get())) {
         s.kind = RoiShapeKind::Ellipsoid;
-        std::copy(sp->center, sp->center + 3, s.center);
-        for (double& h : s.half) h = sp->radius;
+        center = sp->center;
+        for (double& h : half) h = sp->radius;
     } else if (auto* c = dynamic_cast<const CylinderRegion*>(r.get())) {
         s.kind = RoiShapeKind::Cylinder;
-        std::copy(c->center, c->center + 3, s.center);
-        std::copy(c->half, c->half + 3, s.half);
+        center = c->center;
+        std::copy(c->half, c->half + 3, half);
         std::copy(c->R, c->R + 9, s.R);
     } else if (auto* p = dynamic_cast<const PrismRegion*>(r.get())) {
         s.kind = RoiShapeKind::Prism;
-        std::copy(p->center, p->center + 3, s.center);
+        center = p->center;
         std::copy(p->R, p->R + 9, s.R);
-        s.half[0] = s.half[1] = 0;
-        s.half[2] = p->half_height;
+        half[2] = p->half_height;
         s.polygon = p->polygon;
     } else {
         return false;
+    }
+    std::copy(center, center + 3, s.origin);
+    for (int k = 0; k < 3; k++) {
+        s.lo[k] = -half[k];
+        s.hi[k] = half[k];
     }
     return true;
 }
@@ -160,6 +176,15 @@ bool less_ignoring_case(const std::string& a, const std::string& b) {
 }  // namespace
 
 std::shared_ptr<Region> RoiShape::region() const {
+    // The middle of the sides, in the shape's frame and in the world's.
+    double mid[3], half[3], center[3];
+    for (int k = 0; k < 3; k++) {
+        mid[k] = 0.5 * (lo[k] + hi[k]);
+        half[k] = 0.5 * (hi[k] - lo[k]);
+    }
+    if (kind == RoiShapeKind::Prism) mid[0] = mid[1] = 0;
+    for (int k = 0; k < 3; k++)
+        center[k] = origin[k] + R[k] * mid[0] + R[3 + k] * mid[1] + R[6 + k] * mid[2];
     switch (kind) {
         case RoiShapeKind::Box: {
             auto r = std::make_shared<BoxRegion>();
@@ -194,10 +219,56 @@ std::shared_ptr<Region> RoiShape::region() const {
     return nullptr;
 }
 
+void roi_extents(const RoiShape& s, double lo[3], double hi[3]) {
+    for (int k = 0; k < 3; k++) {
+        lo[k] = s.lo[k];
+        hi[k] = s.hi[k];
+    }
+    if (s.kind != RoiShapeKind::Prism || s.polygon.size() < 2) return;
+    for (int k = 0; k < 2; k++) {
+        lo[k] = 1e300;
+        hi[k] = -1e300;
+    }
+    for (size_t i = 0; i + 1 < s.polygon.size(); i += 2)
+        for (int k = 0; k < 2; k++) {
+            lo[k] = std::min(lo[k], s.polygon[i + (size_t)k]);
+            hi[k] = std::max(hi[k], s.polygon[i + (size_t)k]);
+        }
+}
+
+void roi_set_extent(RoiShape& s, int axis, double lo, double hi) {
+    if (s.kind != RoiShapeKind::Prism || axis == 2) {
+        s.lo[axis] = lo;
+        s.hi[axis] = hi;
+        return;
+    }
+    double was_lo[3], was_hi[3];
+    roi_extents(s, was_lo, was_hi);
+    const double span = was_hi[axis] - was_lo[axis];
+    if (!(span > 0)) return;
+    const double k = (hi - lo) / span;
+    for (size_t i = (size_t)axis; i < s.polygon.size(); i += 2)
+        s.polygon[i] = lo + (s.polygon[i] - was_lo[axis]) * k;
+}
+
+void roi_center_pivot(RoiShape& s) {
+    double lo[3], hi[3], mid[3];
+    roi_extents(s, lo, hi);
+    for (int k = 0; k < 3; k++) mid[k] = 0.5 * (lo[k] + hi[k]);
+    for (int k = 0; k < 3; k++)
+        s.origin[k] += s.R[k] * mid[0] + s.R[3 + k] * mid[1] + s.R[6 + k] * mid[2];
+    for (int k = s.kind == RoiShapeKind::Prism ? 2 : 0; k < 3; k++) {
+        s.lo[k] -= mid[k];
+        s.hi[k] -= mid[k];
+    }
+    for (size_t i = 0; i < s.polygon.size(); i++) s.polygon[i] -= mid[i % 2];
+}
+
 bool operator==(const RoiShape& a, const RoiShape& b) {
     return a.name == b.name && a.kind == b.kind && a.op == b.op && a.enabled == b.enabled &&
-           std::equal(a.center, a.center + 3, b.center) && std::equal(a.R, a.R + 9, b.R) &&
-           std::equal(a.half, a.half + 3, b.half) && a.polygon == b.polygon;
+           std::equal(a.origin, a.origin + 3, b.origin) && std::equal(a.R, a.R + 9, b.R) &&
+           std::equal(a.lo, a.lo + 3, b.lo) && std::equal(a.hi, a.hi + 3, b.hi) &&
+           a.polygon == b.polygon;
 }
 
 std::shared_ptr<const Region> roi_region(const RoiDocument& doc) {

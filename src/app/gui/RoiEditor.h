@@ -52,9 +52,11 @@ public:
     void draw_viewport_overlay(const ViewportOverlay& v) override;
 
 private:
-    enum class Mode { Move = 0, Resize, Rotate };
-    // What a press took hold of: the selected shape's own handles, or a body.
-    enum class Grab { None, Body, Center, Axis, Face, Corner, Midpoint, Ring };
+    enum class Mode { Adjust = 0, Move, Resize, Rotate };
+    // What a press took hold of: the selected shape's own handles or sides,
+    // or a body. Face moves one side (Adjust); Stretch both sides of an axis
+    // and Scale all of them (Resize); Wall is an outline's edge.
+    enum class Grab { None, Body, Center, Axis, Face, Wall, Corner, Midpoint, Stretch, Scale, Ring };
     struct Handle {
         Grab kind = Grab::None;
         int index = 0;   // axis, corner or edge
@@ -97,14 +99,16 @@ private:
     void add_shape(spirula::RoiShape raw);
     void add_kind(spirula::RoiShapeKind kind);
     void start_box();
-    void start_cylinder();
+    // A cylinder or an ellipsoid where subject_start found the subject.
+    void start_subject(spirula::RoiShapeKind kind);
     // Numpad . on the selection, for a shape the user did not place by hand.
     void frame_selected();
-    bool cylinder_start(spirula::RoiShape& out) const;
+    bool subject_start(spirula::RoiShape& out) const;
     void start_outline(int replace = -1);
+    void set_draw_frame(const ViewProjection& cam);
     void finish_outline();
-    void cancel_outline();
-    void fit_height(spirula::RoiShape& shared) const;
+    void end_outline();
+    void fit_depth(spirula::RoiShape& shared) const;
 
     // ---- the view ----
     void refresh_overlays();
@@ -112,6 +116,10 @@ private:
     void update_drag(const ViewProjection& cam, float x, float y, bool shift, bool ctrl);
     void end_drag(bool keep);
     Handle hit_handle(const ViewProjection& cam, float x, float y) const;
+    // The side of the selected shape (shared frame) under the pointer.
+    Handle side_under(const spirula::RoiShape& s, const ViewProjection& cam, float x, float y) const;
+    void draw_side(ImDrawList* dl, const ViewProjection& cam, const ImVec2& origin,
+                   const spirula::RoiShape& s, const Handle& h) const;
     int pick_shape(const ViewProjection& cam, float x, float y, double* depth = nullptr) const;
     void handle_keys();
 
@@ -142,8 +150,8 @@ private:
     std::vector<double> _cams;      // camera centres, dataset frame
     spirula::Aabb _bounds;          // robust, dataset frame
     spirula::Sim3 _to_view;         // dataset frame -> the preview's model frame
-    bool _cyl_ok = false;           // the cameras circle a subject: _cyl_raw
-    spirula::RoiShape _cyl_raw;
+    bool _subject_ok = false;       // the cameras circle a subject: _subject_raw
+    spirula::RoiShape _subject_raw;
 
     // ---- the document ----
     spirula::RoiDocument _doc;
@@ -163,7 +171,7 @@ private:
     ViewportPanel _view;
     bool _attached = false;
     spirula::Sim3 _S, _S_inv;      // dataset frame <-> shared frame
-    Mode _mode = Mode::Move;
+    Mode _mode = Mode::Adjust;
     bool _show_all = true;
     Handle _hot;
     int _hover = -1;
@@ -174,16 +182,20 @@ private:
     float _press[2] = {0, 0};
     double _anchor[3] = {0, 0, 0};
     double _plane_n[3] = {0, 0, 1};
+    double _push_dir[3] = {0, 0, 1};   // shared frame, what Wall and Scale drag along
+    double _push_n[2] = {0, 0};        // a Wall's outward normal, in the outline's plane
     double _t0 = 0.0;
     double _angle = 0.0, _last_angle = 0.0;
     bool _press_empty = false;
     float _empty_xy[2] = {0, 0};
     ViewportInput _in;
-    // An outline being drawn, shared frame: x,y pairs at height _draw_z.
+    // An outline being drawn: x,y pairs on _draw_frame's plane (shared frame).
     bool _drawing = false;
+    bool _draw_fixed = false;
+    bool _was_ortho = false;
     int _draw_replace = -1;
     std::vector<double> _draw_pts;
-    double _draw_z = 0.0;
+    spirula::RoiShape _draw_frame;
 
     // ---- what the region keeps ----
     uint64_t _inside_gen = 0;

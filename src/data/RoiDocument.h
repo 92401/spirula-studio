@@ -23,14 +23,22 @@ struct RoiShape {
     RoiShapeKind kind = RoiShapeKind::Box;
     RoiOp op = RoiOp::Add;
     bool enabled = true;
-    double center[3] = {0, 0, 0};
+    double origin[3] = {0, 0, 0};                 // the pivot it moves and turns about
     double R[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};   // rows: the shape's axes
-    // Box and ellipsoid: half extents; cylinder: the two radii and half its
-    // height; prism: half its height in [2].
-    double half[3] = {1, 1, 1};
-    std::vector<double> polygon;   // prism: x,y pairs in its frame
+    // Where its sides sit along each axis, from the pivot: the box between
+    // them, or the ellipsoid or cylinder inscribed in that box. A prism's x
+    // and y sides are its polygon's (roi_extents); only its z is kept here.
+    double lo[3] = {-1, -1, -1};
+    double hi[3] = {1, 1, 1};
+    std::vector<double> polygon;   // prism: x,y pairs about the pivot
     std::shared_ptr<Region> region() const;
 };
+
+void roi_extents(const RoiShape& s, double lo[3], double hi[3]);
+// The sides along `axis` moved to [lo, hi]; a prism's polygon stretches.
+void roi_set_extent(RoiShape& s, int axis, double lo, double hi);
+// The pivot to the middle of the sides; the shape itself stays put.
+void roi_center_pivot(RoiShape& s);
 
 struct RoiDocument {
     std::vector<RoiShape> shapes;

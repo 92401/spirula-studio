@@ -19,7 +19,15 @@ deep however long the list is (the shader's limit is 32). A list that *opens*
 with a cut starts from all of space -- "everything but the crowd in the
 corner" is one shape.
 
-Four kinds of shape, all in a frame of their own (centre, three axes):
+Four kinds of shape, each in a frame of its own: a **pivot** it moves by and
+turns about, three axes, and where its two **sides** sit along each axis,
+measured from the pivot (`lo`, `hi`). A box is the box between the sides, an
+ellipsoid or a cylinder the one inscribed in it; an outline's x and y sides are
+its polygon's bounds, so moving one stretches the corners (`roi_set_extent`).
+Keeping the sides rather than a centre and a half size is what lets one side
+move -- by a handle or by a typed number -- and the opposite one stay put,
+however the shape has been moved and turned; `roi_center_pivot` puts the pivot
+back in the middle without moving the shape.
 
 | shape | region | device node |
 |---|---|---|
@@ -32,8 +40,8 @@ Union, difference and intersection of these reach any topology a user asks
 for -- holes, separate islands, an L-shaped yard, a building minus its
 courtyard -- without a mesh, which matters because `MeshRegion` has no device
 form. The outline is the shape that carries the "complex" part: any simple or
-self-crossing polygon (even-odd rule), drawn from above where most scenes
-are a plan.
+self-crossing polygon (even-odd rule), drawn in whatever view the user has --
+a plan from above, a facade from the side.
 
 The prism's polygon does not fit the fixed six-float4 node, so its vertices
 follow it as whole payload nodes (`RegionProgram::push_prism`,
@@ -47,7 +55,8 @@ payload node, on the device against the host.
 `<dataset>/roi/<name>.json`, written by `write_roi_file`. The file *is* a region
 JSON -- `region_from_json` reads it unchanged, and so does anything else that
 takes `--roi-region` -- with the list beside it under `"editor"` (names, the
-disabled shapes, the operations as drawn). Opening a region with no `"editor"`
+disabled shapes, the operations, and each shape's `origin`, `rotation`, `lo`,
+`hi` and `polygon` as drawn). Opening a region with no `"editor"`
 key imports it when it is a fold of leaf shapes (`roi_from_region`); anything
 else (a label field, a half-space, a mesh) is shown as not editable and still
 trains as it is. Every coordinate is in the dataset's own frame -- the frame
@@ -90,7 +99,8 @@ The window is the Partition panel's layout: controls on the left, the
 dataset's point cloud and cameras on the right in the same `ViewportPanel`
 preview, with the editor installed as its `ViewportInteractor`.
 
-**Getting started** is three buttons, each adding a shape:
+**Getting started** is four buttons, each adding a shape, and a row with one
+button per kind that adds it where the view is looking:
 
 - *Box around the scene*: the 1st..99th percentile of the points along the
   horizontal principal axis and up, padded 5%.
@@ -103,14 +113,18 @@ preview, with the editor installed as its `ViewportInteractor`.
   their own middle, with the scene somewhere else). Radius 0.7 of the median
   camera distance; height from the points inside. Mip-NeRF 360 garden takes the
   first branch, a 360-rig orbit of a windmill the second.
-- *Outline drawn from above*: the view snaps to the orthographic top view and
-  each click places a corner on the plane through the orbit pivot; Enter, a
-  right click, a double-click or the first corner closes it. The extrusion
-  covers the 2nd..98th percentile of the heights of the points inside the
-  footprint, padded 10%.
+- *Ellipsoid around the subject*: the same place and sides, rounded.
+- *Outline drawn in this view*: the view turns orthographic, keeping its
+  direction, so a straight edge on screen is a straight wall through the
+  scene. Each click places a corner on the plane through the orbit pivot
+  square to the view (`set_draw_frame`; it follows the camera until the first
+  corner pins it); Enter, a right click, a double-click or the first corner
+  closes it, and the projection goes back to what it was. The outline runs
+  along the line of sight over the 2nd..98th percentile of the depths of the
+  points inside the footprint, padded 10%.
 
-The view frames a box or cylinder start, since the box usually swallows the
-camera.
+The view frames a start shape, since a box around the scene usually swallows
+the camera.
 
 **Editing** works the same on every shape, in the levelled frame the viewport
 navigates (+Z up), so a box drawn level stays level whatever the
@@ -119,15 +133,24 @@ reconstruction's own axes:
 - click a shape to select it; drag it to move it along the ground (along the
   view plane when the ground is seen edge-on); a shape the camera stands
   inside is not grabbed by its body, or every click would take it;
-- three modes, as buttons and Blender's keys: **Move** (G) adds axis arrows
-  and a centre handle; **Resize** (S) puts a handle on each face -- dragging
-  one moves that face and leaves the opposite one, Shift moves both -- and, on
-  an outline, corner handles (drag), edge midpoints (drag to add a corner) and
-  double-click to remove a corner; **Rotate** (R) shows a ring per axis,
-  Ctrl for 15-degree steps;
-- the side panel has the same numbers: position in dataset coordinates,
-  size along the shape's own axes, turn / tilt / roll in degrees, the
-  operation, and Level, which keeps the turn and drops the tilt;
+- four modes, as buttons and keys. **Adjust** (A, what a new shape opens in)
+  is the one for shaping: hovering the selected shape lights the side under
+  the pointer -- a box's face, an ellipsoid's pole, a cylinder's wall or cap,
+  an outline's wall or end -- and dragging pushes or pulls that side alone
+  (`side_under`; Shift moves the opposite side too). An outline's wall moves
+  along its own outward normal, carrying its two corners; its corners drag,
+  an edge midpoint drags out a new corner, and a corner double-clicked goes.
+  The same sides have handles too, for one seen edge-on. A click on another
+  shape only selects it here, so a slip does not move it. **Move** (G) drags
+  a shape along the ground and adds axis arrows and a pivot handle. **Resize**
+  (S) stretches both sides of an axis at once from its side handles, and
+  scales the whole shape about its middle from its eight corner handles (Ctrl
+  in tenths). **Rotate** (R) shows a ring per axis about the pivot, Ctrl for
+  15-degree steps;
+- the side panel has the same numbers: the pivot in dataset coordinates, turn
+  / tilt / roll in degrees, and a row per axis with both sides and the length
+  between them (a new length keeps the middle), plus Level (keeps the turn,
+  drops the tilt), Center Pivot, and for an outline its corners one by one;
 - Delete, Ctrl+D, Ctrl+Z / Ctrl+Y (an undo step per gesture or committed
   field edit), Esc to cancel a drag or let go of the selection, Ctrl+S.
 

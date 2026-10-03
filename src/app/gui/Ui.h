@@ -334,6 +334,9 @@ inline bool CollapsingHeader(const Msg& m, ImGuiTreeNodeFlags flags = 0) {
     return ImGui::CollapsingHeader(detail::label(m), flags);
 }
 inline bool TreeNode(const Msg& m) { return ImGui::TreeNode(detail::label(m)); }
+inline bool TreeNode(const Msg& m, std::initializer_list<Arg> a) {
+    return ImGui::TreeNode(detail::label(format(m, a), m));
+}
 inline void SeparatorText(const Msg& m) {
     ImGui::SeparatorText(detail::label(m));
 }

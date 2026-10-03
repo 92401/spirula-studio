@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -80,13 +81,23 @@ const spirula::i18n::Msg& kind_label(RoiShapeKind k) {
 
 V3 world_of(const RoiShape& s, double x, double y, double z) {
     V3 p;
-    for (int k = 0; k < 3; k++) p[k] = s.center[k] + s.R[k] * x + s.R[3 + k] * y + s.R[6 + k] * z;
+    for (int k = 0; k < 3; k++) p[k] = s.origin[k] + s.R[k] * x + s.R[3 + k] * y + s.R[6 + k] * z;
     return p;
 }
 
 void local_of(const RoiShape& s, const double p[3], double q[3]) {
-    const double d[3] = {p[0] - s.center[0], p[1] - s.center[1], p[2] - s.center[2]};
+    const double d[3] = {p[0] - s.origin[0], p[1] - s.origin[1], p[2] - s.origin[2]};
     for (int r = 0; r < 3; r++) q[r] = dot3(&s.R[r * 3], d);
+}
+
+// The middle of the side at `sign` along `axis`, in the shape's frame.
+V3 side_point(const RoiShape& s, int axis, int sign) {
+    double lo[3], hi[3];
+    spirula::roi_extents(s, lo, hi);
+    V3 q;
+    for (int k = 0; k < 3; k++) q[k] = 0.5 * (lo[k] + hi[k]);
+    q[axis] = sign > 0 ? hi[axis] : lo[axis];
+    return q;
 }
 
 void local_dir(const RoiShape& s, const double v[3], double q[3]) {
@@ -159,10 +170,15 @@ double seg_distance(ImVec2 p, ImVec2 a, ImVec2 b) {
 // The first surface the ray enters, from outside the shape only: a shape the
 // camera stands in would otherwise take every click.
 bool ray_entry(const RoiShape& s, const double ro[3], const double rd[3], double& t_hit) {
-    double o[3], d[3];
+    double o[3], d[3], lo[3], hi[3], h[3];
     local_of(s, ro, o);
     local_dir(s, rd, d);
-    const double* h = s.half;
+    spirula::roi_extents(s, lo, hi);
+    // About the middle of the sides; a prism's polygon stays about the pivot.
+    for (int k = 0; k < 3; k++) {
+        h[k] = 0.5 * (hi[k] - lo[k]);
+        if (s.kind != RoiShapeKind::Prism || k == 2) o[k] -= 0.5 * (lo[k] + hi[k]);
+    }
     switch (s.kind) {
         case RoiShapeKind::Box: {
             double t0 = -1e300, t1 = 1e300;
@@ -250,7 +266,12 @@ bool ray_entry(const RoiShape& s, const double ro[3], const double rd[3], double
 // The shape's wireframe as polylines, in the frame its centre is in.
 std::vector<std::vector<V3>> outline(const RoiShape& s) {
     std::vector<std::vector<V3>> lines;
-    const double* h = s.half;
+    double lo[3], hi[3], m[3], h[3];
+    spirula::roi_extents(s, lo, hi);
+    for (int k = 0; k < 3; k++) {
+        m[k] = 0.5 * (lo[k] + hi[k]);
+        h[k] = 0.5 * (hi[k] - lo[k]);
+    }
     auto seg = [&](V3 a, V3 b, int n) {
         std::vector<V3> l;
         for (int i = 0; i <= n; i++) {
@@ -265,8 +286,8 @@ std::vector<std::vector<V3>> outline(const RoiShape& s) {
         for (int i = 0; i <= 64; i++) {
             const double a = 2 * kPi * i / 64;
             double q[3];
-            q[ax] = rx * std::cos(a);
-            q[ay] = ry * std::sin(a);
+            q[ax] = m[ax] + rx * std::cos(a);
+            q[ay] = m[ay] + ry * std::sin(a);
             q[az] = z;
             l.push_back(world_of(s, q[0], q[1], q[2]));
         }
@@ -279,26 +300,26 @@ std::vector<std::vector<V3>> outline(const RoiShape& s) {
                 for (int sb : {-1, 1})
                     for (int sc : {-1, 1}) {
                         V3 p, q;
-                        p[a] = -h[a];
-                        q[a] = h[a];
-                        p[b] = q[b] = sb * h[b];
-                        p[c] = q[c] = sc * h[c];
+                        p[a] = lo[a];
+                        q[a] = hi[a];
+                        p[b] = q[b] = sb > 0 ? hi[b] : lo[b];
+                        p[c] = q[c] = sc > 0 ? hi[c] : lo[c];
                         seg(p, q, 12);
                     }
             }
             break;
         case RoiShapeKind::Ellipsoid:
-            ring(0, 1, h[0], h[1], 2, 0);
-            ring(1, 2, h[1], h[2], 0, 0);
-            ring(0, 2, h[0], h[2], 1, 0);
+            ring(0, 1, h[0], h[1], 2, m[2]);
+            ring(1, 2, h[1], h[2], 0, m[0]);
+            ring(0, 2, h[0], h[2], 1, m[1]);
             break;
         case RoiShapeKind::Cylinder:
-            ring(0, 1, h[0], h[1], 2, -h[2]);
-            ring(0, 1, h[0], h[1], 2, h[2]);
+            ring(0, 1, h[0], h[1], 2, lo[2]);
+            ring(0, 1, h[0], h[1], 2, hi[2]);
             for (int i = 0; i < 4; i++) {
                 const double a = kPi / 2 * i;
-                const double x = h[0] * std::cos(a), y = h[1] * std::sin(a);
-                seg(V3{x, y, -h[2]}, V3{x, y, h[2]}, 8);
+                const double x = m[0] + h[0] * std::cos(a), y = m[1] + h[1] * std::sin(a);
+                seg(V3{x, y, lo[2]}, V3{x, y, hi[2]}, 8);
             }
             break;
         case RoiShapeKind::Prism: {
@@ -307,8 +328,8 @@ std::vector<std::vector<V3>> outline(const RoiShape& s) {
                 const size_t j = (i + 1) % n;
                 const double x0 = s.polygon[i * 2], y0 = s.polygon[i * 2 + 1];
                 const double x1 = s.polygon[j * 2], y1 = s.polygon[j * 2 + 1];
-                for (double z : {-h[2], h[2]}) seg(V3{x0, y0, z}, V3{x1, y1, z}, 8);
-                seg(V3{x0, y0, -h[2]}, V3{x0, y0, h[2]}, 4);
+                for (double z : {lo[2], hi[2]}) seg(V3{x0, y0, z}, V3{x1, y1, z}, 8);
+                seg(V3{x0, y0, lo[2]}, V3{x0, y0, hi[2]}, 4);
             }
             break;
         }
@@ -503,9 +524,9 @@ void RoiEditor::poll_load() {
     _view.set_interactor(this);
     _attached = true;
     update_frame();
-    RoiShape cyl;
-    _cyl_ok = cylinder_start(cyl);
-    if (_cyl_ok) _cyl_raw = to_raw(cyl);
+    RoiShape subject;
+    _subject_ok = subject_start(subject);
+    if (_subject_ok) _subject_raw = to_raw(subject);
     refresh_files();
     if (!_want_file.empty()) load_file(_want_file);
     else if (!_files.empty()) load_file(_files.front());
@@ -513,8 +534,8 @@ void RoiEditor::poll_load() {
 }
 
 void RoiEditor::close_now() {
+    if (_drawing) end_outline();
     _open = false;
-    _drawing = false;
     _grab = Handle{};
     _view.set_interactor(nullptr);
     _view.detach();
@@ -672,23 +693,21 @@ void RoiEditor::update_frame() {
     _S_inv = _S.inverse();
 }
 
-RoiShape RoiEditor::to_shared(const RoiShape& s) const {
+static RoiShape moved_by(const RoiShape& s, const Sim3& S) {
     RoiShape o = s;
-    _S.apply(s.center, o.center);
-    for (int r = 0; r < 3; r++) _S.rotate(&s.R[r * 3], &o.R[r * 3]);
-    for (double& h : o.half) h *= _S.s;
-    for (double& v : o.polygon) v *= _S.s;
+    S.apply(s.origin, o.origin);
+    for (int r = 0; r < 3; r++) S.rotate(&s.R[r * 3], &o.R[r * 3]);
+    for (int k = 0; k < 3; k++) {
+        o.lo[k] *= S.s;
+        o.hi[k] *= S.s;
+    }
+    for (double& v : o.polygon) v *= S.s;
     return o;
 }
 
-RoiShape RoiEditor::to_raw(const RoiShape& s) const {
-    RoiShape o = s;
-    _S_inv.apply(s.center, o.center);
-    for (int r = 0; r < 3; r++) _S_inv.rotate(&s.R[r * 3], &o.R[r * 3]);
-    for (double& h : o.half) h *= _S_inv.s;
-    for (double& v : o.polygon) v *= _S_inv.s;
-    return o;
-}
+RoiShape RoiEditor::to_shared(const RoiShape& s) const { return moved_by(s, _S); }
+
+RoiShape RoiEditor::to_raw(const RoiShape& s) const { return moved_by(s, _S_inv); }
 
 // The scene's size in the shared frame: what a new shape is measured against.
 double RoiEditor::shared_size() const {
@@ -738,12 +757,16 @@ void RoiEditor::add_kind(RoiShapeKind kind) {
     RoiShape s;
     s.kind = kind;
     for (int k = 0; k < 3; k++) {
-        s.center[k] = target[k];
-        s.half[k] = h;
+        s.origin[k] = target[k];
+        s.lo[k] = -h;
+        s.hi[k] = h;
     }
-    if (kind == RoiShapeKind::Cylinder) s.half[2] = 1.5 * h;
+    if (kind == RoiShapeKind::Cylinder) {
+        s.lo[2] = -1.5 * h;
+        s.hi[2] = 1.5 * h;
+    }
     add_shape(to_raw(s));
-    _mode = Mode::Resize;
+    _mode = Mode::Adjust;
 }
 
 void RoiEditor::start_box() {
@@ -783,18 +806,19 @@ void RoiEditor::start_box() {
     }
     const V3 c = world_of(s, 0.5 * (lo[0] + hi[0]), 0.5 * (lo[1] + hi[1]), 0.5 * (lo[2] + hi[2]));
     for (int k = 0; k < 3; k++) {
-        s.center[k] = c[k] + (k == 0 ? mx : k == 1 ? my : 0.0);
-        s.half[k] = std::max(0.5 * (hi[k] - lo[k]), 1e-6 * shared_size());
+        s.origin[k] = c[k] + (k == 0 ? mx : k == 1 ? my : 0.0);
+        s.hi[k] = std::max(0.5 * (hi[k] - lo[k]), 1e-6 * shared_size());
+        s.lo[k] = -s.hi[k];
     }
     add_shape(to_raw(s));
     frame_selected();
-    _mode = Mode::Resize;
+    _mode = Mode::Adjust;
 }
 
 // An upright cylinder inside the circle the cameras stand on, centred where
 // their optical axes meet, or for a 360 rig on the circle's middle; false
 // unless the cameras surround it and it holds a share of the scene.
-bool RoiEditor::cylinder_start(RoiShape& out) const {
+bool RoiEditor::subject_start(RoiShape& out) const {
     const int64_t n = _ds.num_cameras;
     if (n < 6) return false;
     double A[9] = {}, b[3] = {};
@@ -837,12 +861,15 @@ bool RoiEditor::cylinder_start(RoiShape& out) const {
         if ((double)z.size() < min_share * (double)(pts.size() / 3) || z.size() < 20) return false;
         out = RoiShape{};
         out.kind = RoiShapeKind::Cylinder;
-        out.center[0] = f[0];
-        out.center[1] = f[1];
         const double lo = percentile(z, 0.02), hi = percentile(z, 0.98);
-        out.center[2] = 0.5 * (lo + hi);
-        out.half[0] = out.half[1] = radius;
-        out.half[2] = std::max(0.6 * (hi - lo), 1e-6 * shared_size());
+        out.origin[0] = f[0];
+        out.origin[1] = f[1];
+        out.origin[2] = 0.5 * (lo + hi);
+        const double hz = std::max(0.6 * (hi - lo), 1e-6 * shared_size());
+        out.lo[0] = out.lo[1] = -radius;
+        out.hi[0] = out.hi[1] = radius;
+        out.lo[2] = -hz;
+        out.hi[2] = hz;
         return true;
     };
     const double det = A[0] * (A[4] * A[8] - A[5] * A[7]) - A[1] * (A[3] * A[8] - A[5] * A[6]) +
@@ -875,13 +902,13 @@ bool RoiEditor::cylinder_start(RoiShape& out) const {
     return fit(mid, 0.75 * kPi, 0.15);
 }
 
-void RoiEditor::start_cylinder() {
-    if (!_cyl_ok) return;
-    RoiShape s = _cyl_raw;
-    s.name.clear();
+void RoiEditor::start_subject(RoiShapeKind kind) {
+    if (!_subject_ok) return;
+    RoiShape s = _subject_raw;
+    s.kind = kind;
     add_shape(s);
     frame_selected();
-    _mode = Mode::Resize;
+    _mode = Mode::Adjust;
 }
 
 void RoiEditor::frame_selected() {
@@ -891,69 +918,83 @@ void RoiEditor::frame_selected() {
     _view.frame_view(cf, (float)r);
 }
 
+// Drawn in the view as it is, made orthographic so a straight edge on screen
+// is a straight wall through the scene.
 void RoiEditor::start_outline(int replace) {
+    if (!_drawing) _was_ortho = _view.ortho();
     _drawing = true;
+    _draw_fixed = false;
     _draw_replace = replace;
     _draw_pts.clear();
     _grab = Handle{};
-    float target[3];
-    _view.nav_target(target);
-    _draw_z = target[2];
-    // From above, in the orthographic view: an outline is a plan.
-    _view.snap_view(2, false);
+    _view.set_ortho(true);
 }
 
-void RoiEditor::cancel_outline() {
+void RoiEditor::end_outline() {
     _drawing = false;
     _draw_pts.clear();
+    _view.set_ortho(_was_ortho);
 }
 
-// The outline's height: what the points inside its footprint span.
-void RoiEditor::fit_height(RoiShape& s) const {
+// The plane an outline is drawn on: through the orbit pivot, square to the
+// view; rows right, up, toward the viewer. Follows the camera until the
+// first corner pins it.
+void RoiEditor::set_draw_frame(const ViewProjection& cam) {
+    float target[3];
+    _view.nav_target(target);
+    for (int k = 0; k < 3; k++) {
+        _draw_frame.origin[k] = target[k];
+        _draw_frame.R[k] = cam.w2c[k];
+        _draw_frame.R[3 + k] = -cam.w2c[4 + k];
+        _draw_frame.R[6 + k] = -cam.w2c[8 + k];
+    }
+}
+
+// How deep an outline runs: what the points inside its footprint span along
+// its axis.
+void RoiEditor::fit_depth(RoiShape& s) const {
     const std::vector<double> pts = fit_points(_points, _S);
     std::vector<double> z, all;
     const size_t n = s.polygon.size() / 2;
     for (size_t i = 0; i + 2 < pts.size(); i += 3) {
-        all.push_back(pts[i + 2]);
         double q[3];
         local_of(s, &pts[i], q);
-        if (spirula::polygon_contains(s.polygon.data(), n, q[0], q[1])) z.push_back(pts[i + 2]);
+        all.push_back(q[2]);
+        if (spirula::polygon_contains(s.polygon.data(), n, q[0], q[1])) z.push_back(q[2]);
     }
     std::vector<double>& use = z.size() >= 20 ? z : all;
     if (use.empty()) return;
     const double lo = percentile(use, 0.02), hi = percentile(use, 0.98);
     const double pad = 0.1 * (hi - lo) + 1e-6 * shared_size();
-    s.center[2] = 0.5 * (lo + hi);
-    s.half[2] = 0.5 * (hi - lo) + pad;
+    s.lo[2] = lo - pad;
+    s.hi[2] = hi + pad;
 }
 
 void RoiEditor::finish_outline() {
     const size_t n = _draw_pts.size() / 2;
     if (n < 3) {
-        cancel_outline();
+        end_outline();
         return;
     }
     RoiShape s;
     if (_draw_replace >= 0 && _draw_replace < (int)_doc.shapes.size())
         s = to_shared(_doc.shapes[(size_t)_draw_replace]);
     s.kind = RoiShapeKind::Prism;
-    level_axes(0.0, s.R);
+    std::copy(_draw_frame.R, _draw_frame.R + 9, s.R);
     double cx = 0, cy = 0;
     for (size_t i = 0; i < n; i++) { cx += _draw_pts[i * 2]; cy += _draw_pts[i * 2 + 1]; }
     cx /= (double)n;
     cy /= (double)n;
-    s.center[0] = cx;
-    s.center[1] = cy;
-    s.center[2] = _draw_z;
+    const V3 o = world_of(_draw_frame, cx, cy, 0.0);
+    std::copy(o.begin(), o.end(), s.origin);
     s.polygon.clear();
     for (size_t i = 0; i < n; i++) {
         s.polygon.push_back(_draw_pts[i * 2] - cx);
         s.polygon.push_back(_draw_pts[i * 2 + 1] - cy);
     }
-    s.half[0] = s.half[1] = 0;
-    fit_height(s);
-    _drawing = false;
-    _draw_pts.clear();
+    s.lo[0] = s.lo[1] = s.hi[0] = s.hi[1] = 0;
+    fit_depth(s);
+    end_outline();
     if (_draw_replace >= 0 && _draw_replace < (int)_doc.shapes.size()) {
         _doc.shapes[(size_t)_draw_replace] = to_raw(s);
         _sel = _draw_replace;
@@ -963,7 +1004,7 @@ void RoiEditor::finish_outline() {
         s.name.clear();
         add_shape(to_raw(s));
     }
-    _mode = Mode::Resize;
+    _mode = Mode::Adjust;
 }
 
 // ===========================================================================
@@ -1044,13 +1085,26 @@ void RoiEditor::refresh_overlays() {
 
 namespace {
 
-struct Spot {
-    float x, y;
-    bool ok;
-};
-
 constexpr float kArrowPx = 84.0f;
 constexpr float kRingPx = 70.0f;
+
+// Corner `c` of the box the sides make (bit k: the high side of axis k).
+V3 box_corner(const double lo[3], const double hi[3], int c) {
+    return V3{(c & 1) ? hi[0] : lo[0], (c & 2) ? hi[1] : lo[1], (c & 4) ? hi[2] : lo[2]};
+}
+
+// The outward normal of an outline's edge from corner `i` to the next, in its
+// plane; the winding decides which side is out.
+void wall_normal(const RoiShape& s, int i, double n[2]) {
+    const size_t nv = s.polygon.size() / 2, a = (size_t)i, b = (a + 1) % nv;
+    double area = 0;
+    for (size_t k = 0, j = nv - 1; k < nv; j = k++)
+        area += s.polygon[j * 2] * s.polygon[k * 2 + 1] - s.polygon[k * 2] * s.polygon[j * 2 + 1];
+    const double dx = s.polygon[b * 2] - s.polygon[a * 2], dy = s.polygon[b * 2 + 1] - s.polygon[a * 2 + 1];
+    const double len = std::max(std::hypot(dx, dy), 1e-300), sg = area >= 0 ? 1.0 : -1.0;
+    n[0] = sg * dy / len;
+    n[1] = -sg * dx / len;
+}
 
 }  // namespace
 
@@ -1059,9 +1113,9 @@ RoiEditor::Handle RoiEditor::hit_handle(const ViewProjection& cam, float x, floa
     if (_sel < 0 || _sel >= (int)_doc.shapes.size()) return none;
     const RoiShape s = to_shared(_doc.shapes[(size_t)_sel]);
     const ImVec2 m(x, y);
-    const double ppu = pixels_per_unit(cam, s.center);
+    const double ppu = pixels_per_unit(cam, s.origin);
     ImVec2 c;
-    const bool c_ok = proj(cam, s.center, c);
+    const bool c_ok = proj(cam, s.origin, c);
     const float r_hit = px(9.0f), l_hit = px(6.0f);
     Handle best;
     double best_d = 1e30;
@@ -1071,41 +1125,40 @@ RoiEditor::Handle RoiEditor::hit_handle(const ViewProjection& cam, float x, floa
             best = h;
         }
     };
+    auto take_point = [&](const V3& q, const Handle& h, double bias = 0.0) {
+        const V3 p = world_of(s, q[0], q[1], q[2]);
+        ImVec2 sp;
+        if (proj(cam, p.data(), sp)) take(std::hypot(m.x - sp.x, m.y - sp.y) + bias, h, r_hit);
+    };
     if (_mode == Mode::Move) {
         if (c_ok) take(std::hypot(m.x - c.x, m.y - c.y), Handle{Grab::Center, 0, 1}, r_hit + px(3));
         if (c_ok && ppu > 0)
             for (int k = 0; k < 3; k++) {
                 double e[3] = {0, 0, 0};
                 e[k] = px(kArrowPx) / ppu;
-                const double end[3] = {s.center[0] + e[0], s.center[1] + e[1], s.center[2] + e[2]};
+                const double end[3] = {s.origin[0] + e[0], s.origin[1] + e[1], s.origin[2] + e[2]};
                 ImVec2 q;
                 if (!proj(cam, end, q)) continue;
                 if (std::hypot(m.x - c.x, m.y - c.y) < px(12)) continue;
                 take(seg_distance(m, c, q), Handle{Grab::Axis, k, 1}, l_hit);
             }
-    } else if (_mode == Mode::Resize) {
-        const bool prism = s.kind == RoiShapeKind::Prism;
-        for (int k = prism ? 2 : 0; k < 3; k++)
-            for (int sg : {-1, 1}) {
-                double q[3] = {0, 0, 0};
-                q[k] = sg * s.half[k];
-                const V3 p = world_of(s, q[0], q[1], q[2]);
-                ImVec2 sp;
-                if (proj(cam, p.data(), sp))
-                    take(std::hypot(m.x - sp.x, m.y - sp.y), Handle{Grab::Face, k, sg}, r_hit);
-            }
-        if (prism) {
+    } else if (_mode == Mode::Adjust || _mode == Mode::Resize) {
+        const Grab side = _mode == Mode::Adjust ? Grab::Face : Grab::Stretch;
+        for (int k = 0; k < 3; k++)
+            for (int sg : {-1, 1}) take_point(side_point(s, k, sg), Handle{side, k, sg});
+        if (_mode == Mode::Resize) {
+            double lo[3], hi[3];
+            spirula::roi_extents(s, lo, hi);
+            for (int cn = 0; cn < 8; cn++) take_point(box_corner(lo, hi, cn), Handle{Grab::Scale, cn, 1});
+        } else if (s.kind == RoiShapeKind::Prism) {
             const size_t n = s.polygon.size() / 2;
             for (size_t i = 0; i < n; i++) {
                 const size_t j = (i + 1) % n;
-                const V3 a = world_of(s, s.polygon[i * 2], s.polygon[i * 2 + 1], s.half[2]);
-                const V3 b = world_of(s, 0.5 * (s.polygon[i * 2] + s.polygon[j * 2]),
-                                      0.5 * (s.polygon[i * 2 + 1] + s.polygon[j * 2 + 1]), s.half[2]);
-                ImVec2 sa, sb;
-                if (proj(cam, a.data(), sa))
-                    take(std::hypot(m.x - sa.x, m.y - sa.y) - 1.0, Handle{Grab::Corner, (int)i, 1}, r_hit);
-                if (proj(cam, b.data(), sb))
-                    take(std::hypot(m.x - sb.x, m.y - sb.y), Handle{Grab::Midpoint, (int)i, 1}, r_hit);
+                take_point(V3{s.polygon[i * 2], s.polygon[i * 2 + 1], s.hi[2]},
+                           Handle{Grab::Corner, (int)i, 1}, -1.0);
+                take_point(V3{0.5 * (s.polygon[i * 2] + s.polygon[j * 2]),
+                              0.5 * (s.polygon[i * 2 + 1] + s.polygon[j * 2 + 1]), s.hi[2]},
+                           Handle{Grab::Midpoint, (int)i, 1});
             }
         }
     } else if (c_ok && ppu > 0) {
@@ -1120,7 +1173,7 @@ RoiEditor::Handle RoiEditor::hit_handle(const ViewProjection& cam, float x, floa
                 const double a = 2 * kPi * i / 64;
                 double p[3];
                 for (int t = 0; t < 3; t++)
-                    p[t] = s.center[t] + rad * (std::cos(a) * u[t] + std::sin(a) * v[t]);
+                    p[t] = s.origin[t] + rad * (std::cos(a) * u[t] + std::sin(a) * v[t]);
                 ImVec2 q;
                 if (!proj(cam, p, q)) { have = false; continue; }
                 if (have) d = std::min(d, seg_distance(m, prev, q));
@@ -1131,6 +1184,121 @@ RoiEditor::Handle RoiEditor::hit_handle(const ViewProjection& cam, float x, floa
         }
     }
     return best;
+}
+
+RoiEditor::Handle RoiEditor::side_under(const RoiShape& s, const ViewProjection& cam, float x,
+                                        float y) const {
+    double ro[3], rd[3], t;
+    if (!pointer_ray(cam, x, y, ro, rd) || !ray_entry(s, ro, rd, t)) return Handle{};
+    const double p[3] = {ro[0] + t * rd[0], ro[1] + t * rd[1], ro[2] + t * rd[2]};
+    double q[3], lo[3], hi[3], u[3];
+    local_of(s, p, q);
+    spirula::roi_extents(s, lo, hi);
+    for (int k = 0; k < 3; k++)
+        u[k] = (q[k] - 0.5 * (lo[k] + hi[k])) / std::max(0.5 * (hi[k] - lo[k]), 1e-300);
+    auto face = [](int k, double v) { return Handle{Grab::Face, k, v < 0 ? -1 : 1}; };
+    const bool on_cap = std::fabs(u[2]) > 1.0 - 1e-6;
+    switch (s.kind) {
+        case RoiShapeKind::Box:
+        case RoiShapeKind::Ellipsoid: {
+            int k = 0;
+            for (int a = 1; a < 3; a++)
+                if (std::fabs(u[a]) > std::fabs(u[k])) k = a;
+            return face(k, u[k]);
+        }
+        case RoiShapeKind::Cylinder:
+            if (on_cap) return face(2, u[2]);
+            return std::fabs(u[0]) >= std::fabs(u[1]) ? face(0, u[0]) : face(1, u[1]);
+        case RoiShapeKind::Prism: {
+            if (on_cap) return face(2, u[2]);
+            const size_t n = s.polygon.size() / 2;
+            int best = 0;
+            double best_d = 1e300;
+            for (size_t i = 0; i < n; i++) {
+                const size_t j = (i + 1) % n;
+                const double ax = s.polygon[i * 2], ay = s.polygon[i * 2 + 1];
+                const double vx = s.polygon[j * 2] - ax, vy = s.polygon[j * 2 + 1] - ay;
+                const double l2 = vx * vx + vy * vy;
+                const double f = l2 > 0 ? std::clamp(((q[0] - ax) * vx + (q[1] - ay) * vy) / l2, 0.0, 1.0) : 0.0;
+                const double d = std::hypot(q[0] - ax - f * vx, q[1] - ay - f * vy);
+                if (d < best_d) {
+                    best_d = d;
+                    best = (int)i;
+                }
+            }
+            return Handle{Grab::Wall, best, 1};
+        }
+    }
+    return Handle{};
+}
+
+// The side a drag in Adjust would move, filled and traced.
+void RoiEditor::draw_side(ImDrawList* dl, const ViewProjection& cam, const ImVec2& o,
+                          const RoiShape& s, const Handle& h) const {
+    double lo[3], hi[3], mid[3], half[3];
+    spirula::roi_extents(s, lo, hi);
+    for (int k = 0; k < 3; k++) {
+        mid[k] = 0.5 * (lo[k] + hi[k]);
+        half[k] = 0.5 * (hi[k] - lo[k]);
+    }
+    std::vector<V3> loop;   // closed, in the shape's frame
+    if (h.kind == Grab::Wall) {
+        const size_t n = s.polygon.size() / 2, i = (size_t)h.index, j = (i + 1) % n;
+        loop = {V3{s.polygon[i * 2], s.polygon[i * 2 + 1], lo[2]}, V3{s.polygon[j * 2], s.polygon[j * 2 + 1], lo[2]},
+                V3{s.polygon[j * 2], s.polygon[j * 2 + 1], hi[2]}, V3{s.polygon[i * 2], s.polygon[i * 2 + 1], hi[2]}};
+    } else if (h.kind == Grab::Face) {
+        const int k = h.index, a = (k + 1) % 3, b = (k + 2) % 3;
+        const double side = h.sign > 0 ? hi[k] : lo[k];
+        if (s.kind == RoiShapeKind::Prism && k == 2) {
+            for (size_t i = 0; i + 1 < s.polygon.size(); i += 2) loop.push_back(V3{s.polygon[i], s.polygon[i + 1], side});
+        } else if (s.kind == RoiShapeKind::Cylinder && k == 2) {
+            for (int i = 0; i < 48; i++) {
+                const double t = 2 * kPi * i / 48;
+                loop.push_back(V3{mid[0] + half[0] * std::cos(t), mid[1] + half[1] * std::sin(t), side});
+            }
+        } else if (s.kind == RoiShapeKind::Cylinder) {
+            // The stretch of wall around that side: top arc out, bottom back.
+            const double t0 = k == 0 ? (h.sign > 0 ? 0.0 : kPi) : (h.sign > 0 ? 0.5 * kPi : -0.5 * kPi);
+            for (int e = 0; e < 2; e++)
+                for (int i = 0; i <= 12; i++) {
+                    const double t = t0 + (e ? -1.0 : 1.0) * 0.6 * (i / 6.0 - 1.0);
+                    loop.push_back(V3{mid[0] + half[0] * std::cos(t), mid[1] + half[1] * std::sin(t),
+                                      e ? lo[2] : hi[2]});
+                }
+        } else if (s.kind == RoiShapeKind::Ellipsoid) {
+            // The cap around that pole, where it bulges most.
+            const double f = 0.85, r = std::sqrt(1 - f * f);
+            for (int i = 0; i < 48; i++) {
+                const double t = 2 * kPi * i / 48;
+                V3 q;
+                q[k] = mid[k] + h.sign * f * half[k];
+                q[a] = mid[a] + r * half[a] * std::cos(t);
+                q[b] = mid[b] + r * half[b] * std::sin(t);
+                loop.push_back(q);
+            }
+        } else {
+            for (int c = 0; c < 4; c++) {
+                V3 q;
+                q[k] = side;
+                q[a] = (c == 1 || c == 2) ? hi[a] : lo[a];
+                q[b] = c >= 2 ? hi[b] : lo[b];
+                loop.push_back(q);
+            }
+        }
+    }
+    if (loop.empty()) return;
+    std::vector<ImVec2> pts;
+    std::vector<V3> world;
+    for (const V3& q : loop) {
+        const V3 p = world_of(s, q[0], q[1], q[2]);
+        world.push_back(p);
+        ImVec2 sp;
+        if (proj(cam, p.data(), sp)) pts.push_back(ImVec2(o.x + sp.x, o.y + sp.y));
+    }
+    if (pts.size() == loop.size() && pts.size() >= 3)
+        dl->AddConcavePolyFilled(pts.data(), (int)pts.size(), IM_COL32(255, 235, 90, 60));
+    world.push_back(world.front());
+    draw_polyline(dl, cam, o, world, kHot, px(2.5f));
 }
 
 int RoiEditor::pick_shape(const ViewProjection& cam, float x, float y, double* depth) const {
@@ -1164,7 +1332,7 @@ void RoiEditor::begin_drag(const Handle& h, const ViewProjection& cam, float x, 
         case Grab::Center: {
             // Along the ground; seen edge-on the ground is no plane to drag
             // on, so the view's own plane instead.
-            for (int k = 0; k < 3; k++) _anchor[k] = _start.center[k];
+            for (int k = 0; k < 3; k++) _anchor[k] = _start.origin[k];
             if (h.kind == Grab::Body && ray) {
                 double t;
                 if (ray_entry(_start, ro, rd, t))
@@ -1179,12 +1347,35 @@ void RoiEditor::begin_drag(const Handle& h, const ViewProjection& cam, float x, 
         case Grab::Axis: {
             double e[3] = {0, 0, 0};
             e[h.index] = 1;
-            if (!line_param(cam, x, y, _start.center, e, _t0)) _t0 = 0;
+            if (!line_param(cam, x, y, _start.origin, e, _t0)) _t0 = 0;
             break;
         }
-        case Grab::Face: {
+        case Grab::Face:
+        case Grab::Stretch: {
             const double* a = &_start.R[h.index * 3];
-            if (!line_param(cam, x, y, _start.center, a, _t0)) _t0 = 0;
+            if (!line_param(cam, x, y, _start.origin, a, _t0)) _t0 = 0;
+            break;
+        }
+        case Grab::Wall: {
+            wall_normal(_start, h.index, _push_n);
+            for (int k = 0; k < 3; k++) _push_dir[k] = _start.R[k] * _push_n[0] + _start.R[3 + k] * _push_n[1];
+            if (!line_param(cam, x, y, _start.origin, _push_dir, _t0)) _t0 = 0;
+            break;
+        }
+        case Grab::Scale: {
+            // Along the diagonal from the middle through the grabbed corner.
+            double lo[3], hi[3], mid[3];
+            spirula::roi_extents(_start, lo, hi);
+            for (int k = 0; k < 3; k++) mid[k] = 0.5 * (lo[k] + hi[k]);
+            const V3 m = world_of(_start, mid[0], mid[1], mid[2]);
+            const V3 cq = box_corner(lo, hi, h.index);
+            const V3 cw = world_of(_start, cq[0], cq[1], cq[2]);
+            for (int k = 0; k < 3; k++) {
+                _anchor[k] = m[k];
+                _push_dir[k] = cw[k] - m[k];
+            }
+            normalize3(_push_dir);
+            if (!line_param(cam, x, y, _anchor, _push_dir, _t0) || !(_t0 > 1e-12)) _t0 = 0;
             break;
         }
         case Grab::Midpoint: {
@@ -1201,13 +1392,13 @@ void RoiEditor::begin_drag(const Handle& h, const ViewProjection& cam, float x, 
         case Grab::Corner: {
             const int i = _grab.index;
             const V3 p = world_of(_start, _start.polygon[(size_t)i * 2], _start.polygon[(size_t)i * 2 + 1],
-                                  _start.half[2]);
+                                  _start.hi[2]);
             for (int k = 0; k < 3; k++) _anchor[k] = p[k];
             break;
         }
         case Grab::Ring: {
             ImVec2 c;
-            _last_angle = proj(cam, _start.center, c)
+            _last_angle = proj(cam, _start.origin, c)
                               ? std::atan2((double)(y - c.y), (double)(x - c.x)) : 0.0;
             break;
         }
@@ -1218,7 +1409,7 @@ void RoiEditor::begin_drag(const Handle& h, const ViewProjection& cam, float x, 
 
 void RoiEditor::update_drag(const ViewProjection& cam, float x, float y, bool shift, bool ctrl) {
     RoiShape s = _start;
-    const double min_half = 1e-5 * shared_size();
+    const double min_len = 2e-5 * shared_size();
     switch (_grab.kind) {
         case Grab::Body:
         case Grab::Center: {
@@ -1226,28 +1417,65 @@ void RoiEditor::update_drag(const ViewProjection& cam, float x, float y, bool sh
             if (!ray_plane(cam, x, y, _anchor, _plane_n, hit) ||
                 !ray_plane(cam, _press[0], _press[1], _anchor, _plane_n, hit0))
                 return;
-            for (int k = 0; k < 3; k++) s.center[k] += hit[k] - hit0[k];
+            for (int k = 0; k < 3; k++) s.origin[k] += hit[k] - hit0[k];
             break;
         }
         case Grab::Axis: {
             double e[3] = {0, 0, 0}, t;
             e[_grab.index] = 1;
-            if (!line_param(cam, x, y, _start.center, e, t)) return;
-            s.center[_grab.index] += t - _t0;
+            if (!line_param(cam, x, y, _start.origin, e, t)) return;
+            s.origin[_grab.index] += t - _t0;
             break;
         }
-        case Grab::Face: {
+        case Grab::Face:
+        case Grab::Stretch: {
             const int k = _grab.index, sg = _grab.sign;
             const double* a = &_start.R[k * 3];
             double t;
-            if (!line_param(cam, x, y, _start.center, a, t)) return;
+            if (!line_param(cam, x, y, _start.origin, a, t)) return;
             const double delta = t - _t0;
-            if (shift) {
-                s.half[k] = std::max(min_half, _start.half[k] + sg * delta);
-            } else {
-                s.half[k] = std::max(min_half, _start.half[k] + 0.5 * sg * delta);
-                const double off = sg * (s.half[k] - _start.half[k]);
-                for (int r = 0; r < 3; r++) s.center[r] = _start.center[r] + off * a[r];
+            double lo[3], hi[3];
+            spirula::roi_extents(_start, lo, hi);
+            // The grabbed side follows the pointer; when both move, the
+            // opposite one mirrors it. Neither passes the other.
+            const bool both = _grab.kind == Grab::Stretch || shift;
+            double& grabbed = sg > 0 ? hi[k] : lo[k];
+            double& other = sg > 0 ? lo[k] : hi[k];
+            grabbed += delta;
+            if (both) other -= delta;
+            if (hi[k] - lo[k] < min_len) {
+                if (both) {
+                    const double m = 0.5 * (lo[k] + hi[k]);
+                    lo[k] = m - 0.5 * min_len;
+                    hi[k] = m + 0.5 * min_len;
+                } else {
+                    grabbed = other + sg * min_len;
+                }
+            }
+            spirula::roi_set_extent(s, k, lo[k], hi[k]);
+            break;
+        }
+        case Grab::Wall: {
+            double t;
+            if (!line_param(cam, x, y, _start.origin, _push_dir, t)) return;
+            const double delta = t - _t0;
+            const size_t n = s.polygon.size() / 2, i = (size_t)_grab.index, j = (i + 1) % n;
+            for (size_t v : {i, j}) {
+                s.polygon[v * 2] += delta * _push_n[0];
+                s.polygon[v * 2 + 1] += delta * _push_n[1];
+            }
+            break;
+        }
+        case Grab::Scale: {
+            double t;
+            if (!(_t0 > 0) || !line_param(cam, x, y, _anchor, _push_dir, t)) return;
+            double f = std::max(t / _t0, 1e-3);
+            if (ctrl) f = std::max(0.1, std::round(f * 10) / 10);
+            double lo[3], hi[3];
+            spirula::roi_extents(_start, lo, hi);
+            for (int k = 0; k < 3; k++) {
+                const double m = 0.5 * (lo[k] + hi[k]), h = 0.5 * (hi[k] - lo[k]) * f;
+                spirula::roi_set_extent(s, k, m - h, m + h);
             }
             break;
         }
@@ -1266,17 +1494,17 @@ void RoiEditor::update_drag(const ViewProjection& cam, float x, float y, bool sh
         case Grab::Ring: {
             const double* ax = &_start.R[_grab.index * 3];
             ImVec2 c;
-            if (!proj(cam, _start.center, c)) return;
+            if (!proj(cam, _start.origin, c)) return;
             const double a = std::atan2((double)(y - c.y), (double)(x - c.x));
             _angle += std::remainder(a - _last_angle, 2 * kPi);
             _last_angle = a;
             // The pointer turns clockwise on screen as y grows downward; a
             // turn about an axis facing the viewer looks the other way.
-            const double to_eye[3] = {cam.eye[0] - _start.center[0], cam.eye[1] - _start.center[1],
-                                      cam.eye[2] - _start.center[2]};
+            const double to_eye[3] = {cam.eye[0] - _start.origin[0], cam.eye[1] - _start.origin[1],
+                                      cam.eye[2] - _start.origin[2]};
             double angle = dot3(ax, to_eye) > 0 ? -_angle : _angle;
             if (ctrl) angle = std::round(angle / (kPi / 12)) * (kPi / 12);
-            const Sim3 rot = Sim3::rotation_about(ax, angle, _start.center);
+            const Sim3 rot = Sim3::rotation_about(ax, angle, _start.origin);
             for (int r = 0; r < 3; r++) rot.rotate(&_start.R[r * 3], &s.R[r * 3]);
             break;
         }
@@ -1336,21 +1564,23 @@ bool RoiEditor::on_viewport_input(const ViewportInput& in) {
             finish_outline();
             return true;
         }
+        if (!_draw_fixed) set_draw_frame(cam);
         if (in.clicked) {
-            const double up[3] = {0, 0, 1}, at[3] = {0, 0, _draw_z};
-            double hit[3];
-            if (!ray_plane(cam, in.x, in.y, at, up, hit)) return true;
+            double hit[3], q[3];
+            if (!ray_plane(cam, in.x, in.y, _draw_frame.origin, &_draw_frame.R[6], hit)) return true;
             // The first corner, clicked again, closes the outline.
             if (_draw_pts.size() >= 6) {
-                const double first[3] = {_draw_pts[0], _draw_pts[1], _draw_z};
+                const V3 first = world_of(_draw_frame, _draw_pts[0], _draw_pts[1], 0.0);
                 ImVec2 f;
-                if (proj(cam, first, f) && std::hypot(f.x - in.x, f.y - in.y) < px(10.0f)) {
+                if (proj(cam, first.data(), f) && std::hypot(f.x - in.x, f.y - in.y) < px(10.0f)) {
                     finish_outline();
                     return true;
                 }
             }
-            _draw_pts.push_back(hit[0]);
-            _draw_pts.push_back(hit[1]);
+            _draw_fixed = true;
+            local_of(_draw_frame, hit, q);
+            _draw_pts.push_back(q[0]);
+            _draw_pts.push_back(q[1]);
         }
         return in.hovered;
     }
@@ -1372,6 +1602,11 @@ bool RoiEditor::on_viewport_input(const ViewportInput& in) {
 
     _hot = in.hovered ? hit_handle(cam, in.x, in.y) : Handle{};
     _hover = in.hovered && _hot.kind == Grab::None ? pick_shape(cam, in.x, in.y) : -1;
+    // In Adjust the selected shape's own surface is a handle, where it is in front.
+    if (_mode == Mode::Adjust && _hover >= 0 && _hover == _sel) {
+        _hot = side_under(to_shared(_doc.shapes[(size_t)_sel]), cam, in.x, in.y);
+        if (_hot.kind != Grab::None) _hover = -1;
+    }
 
     if (in.double_clicked && _hot.kind == Grab::Corner && _sel >= 0) {
         RoiShape& s = _doc.shapes[(size_t)_sel];
@@ -1389,9 +1624,13 @@ bool RoiEditor::on_viewport_input(const ViewportInput& in) {
             return true;
         }
         if (_hover >= 0) {
+            // Adjusting is what a drag does to the selection; a click on
+            // another shape only picks it.
             select(_hover);
-            begin_drag(Handle{Grab::Body, 0, 1}, cam, in.x, in.y);
-            _armed = true;
+            if (_mode != Mode::Adjust) {
+                begin_drag(Handle{Grab::Body, 0, 1}, cam, in.x, in.y);
+                _armed = true;
+            }
             return true;
         }
         _press_empty = true;
@@ -1427,17 +1666,28 @@ void RoiEditor::draw_viewport_overlay(const ViewportOverlay& v) {
 
     if (_sel >= 0 && _sel < (int)_doc.shapes.size() && !_drawing && _editable) {
         const RoiShape s = to_shared(_doc.shapes[(size_t)_sel]);
-        const double ppu = pixels_per_unit(cam, s.center);
+        const double ppu = pixels_per_unit(cam, s.origin);
         ImVec2 c;
-        const bool c_ok = proj(cam, s.center, c);
+        const bool c_ok = proj(cam, s.origin, c);
         auto is_hot = [&](Grab g, int idx, int sg) {
             const Handle& h = _grab.kind != Grab::None ? _grab : _hot;
             return h.kind == g && h.index == idx && h.sign == sg;
         };
         const float r = px(5.0f);
+        const Handle& now = _grab.kind != Grab::None ? _grab : _hot;
+        if (_mode == Mode::Adjust && (now.kind == Grab::Face || now.kind == Grab::Wall))
+            draw_side(dl, cam, o, s, now);
+        auto square = [&](const V3& q, ImU32 col) {
+            const V3 p = world_of(s, q[0], q[1], q[2]);
+            ImVec2 sp;
+            if (!proj(cam, p.data(), sp)) return;
+            dl->AddRectFilled(at(ImVec2(sp.x - r - px(1.5f), sp.y - r - px(1.5f))),
+                              at(ImVec2(sp.x + r + px(1.5f), sp.y + r + px(1.5f))), IM_COL32(20, 20, 20, 200));
+            dl->AddRectFilled(at(ImVec2(sp.x - r, sp.y - r)), at(ImVec2(sp.x + r, sp.y + r)), col);
+        };
         if (_mode == Mode::Move && c_ok && ppu > 0) {
             for (int k = 0; k < 3; k++) {
-                double end[3] = {s.center[0], s.center[1], s.center[2]};
+                double end[3] = {s.origin[0], s.origin[1], s.origin[2]};
                 end[k] += px(kArrowPx) / ppu;
                 ImVec2 q;
                 if (!proj(cam, end, q)) continue;
@@ -1454,28 +1704,22 @@ void RoiEditor::draw_viewport_overlay(const ViewportOverlay& v) {
             const ImU32 col = is_hot(Grab::Center, 0, 1) ? kHot : IM_COL32(245, 245, 245, 255);
             dl->AddCircleFilled(at(c), r + px(2), IM_COL32(20, 20, 20, 200));
             dl->AddCircleFilled(at(c), r, col);
-        } else if (_mode == Mode::Resize) {
-            const bool prism = s.kind == RoiShapeKind::Prism;
-            for (int k = prism ? 2 : 0; k < 3; k++)
-                for (int sg : {-1, 1}) {
-                    double q[3] = {0, 0, 0};
-                    q[k] = sg * s.half[k];
-                    const V3 p = world_of(s, q[0], q[1], q[2]);
-                    ImVec2 sp;
-                    if (!proj(cam, p.data(), sp)) continue;
-                    const ImU32 col = is_hot(Grab::Face, k, sg) ? kHot : kAxisCol[k];
-                    dl->AddRectFilled(at(ImVec2(sp.x - r - px(1.5f), sp.y - r - px(1.5f))),
-                                      at(ImVec2(sp.x + r + px(1.5f), sp.y + r + px(1.5f))),
-                                      IM_COL32(20, 20, 20, 200));
-                    dl->AddRectFilled(at(ImVec2(sp.x - r, sp.y - r)), at(ImVec2(sp.x + r, sp.y + r)), col);
-                }
-            if (prism) {
+        } else if (_mode == Mode::Adjust || _mode == Mode::Resize) {
+            const Grab side = _mode == Mode::Adjust ? Grab::Face : Grab::Stretch;
+            for (int k = 0; k < 3; k++)
+                for (int sg : {-1, 1}) square(side_point(s, k, sg), is_hot(side, k, sg) ? kHot : kAxisCol[k]);
+            if (_mode == Mode::Resize) {
+                double lo[3], hi[3];
+                spirula::roi_extents(s, lo, hi);
+                for (int cn = 0; cn < 8; cn++) square(box_corner(lo, hi, cn), is_hot(Grab::Scale, cn, 1)
+                                                                                  ? kHot : IM_COL32(245, 245, 245, 255));
+            } else if (s.kind == RoiShapeKind::Prism) {
                 const size_t n = s.polygon.size() / 2;
                 for (size_t i = 0; i < n; i++) {
                     const size_t j = (i + 1) % n;
-                    const V3 a = world_of(s, s.polygon[i * 2], s.polygon[i * 2 + 1], s.half[2]);
+                    const V3 a = world_of(s, s.polygon[i * 2], s.polygon[i * 2 + 1], s.hi[2]);
                     const V3 b = world_of(s, 0.5 * (s.polygon[i * 2] + s.polygon[j * 2]),
-                                          0.5 * (s.polygon[i * 2 + 1] + s.polygon[j * 2 + 1]), s.half[2]);
+                                          0.5 * (s.polygon[i * 2 + 1] + s.polygon[j * 2 + 1]), s.hi[2]);
                     ImVec2 sa, sb;
                     if (proj(cam, b.data(), sb))
                         dl->AddCircle(at(sb), r - px(1), is_hot(Grab::Midpoint, (int)i, 1) ? kHot
@@ -1498,7 +1742,7 @@ void RoiEditor::draw_viewport_overlay(const ViewportOverlay& v) {
                     const double a = 2 * kPi * i / 64;
                     V3 p;
                     for (int t = 0; t < 3; t++)
-                        p[t] = s.center[t] + rad * (std::cos(a) * u[t] + std::sin(a) * w[t]);
+                        p[t] = s.origin[t] + rad * (std::cos(a) * u[t] + std::sin(a) * w[t]);
                     l.push_back(p);
                 }
                 draw_polyline(dl, cam, o, l, is_hot(Grab::Ring, k, 1) ? kHot : kAxisCol[k], px(2.5f));
@@ -1511,9 +1755,9 @@ void RoiEditor::draw_viewport_overlay(const ViewportOverlay& v) {
         const ImU32 col = IM_COL32(255, 220, 90, 255);
         std::vector<ImVec2> pts;
         for (size_t i = 0; i + 1 < _draw_pts.size(); i += 2) {
-            const double p[3] = {_draw_pts[i], _draw_pts[i + 1], _draw_z};
+            const V3 p = world_of(_draw_frame, _draw_pts[i], _draw_pts[i + 1], 0.0);
             ImVec2 q;
-            if (proj(cam, p, q)) pts.push_back(at(q));
+            if (proj(cam, p.data(), q)) pts.push_back(at(q));
         }
         for (size_t i = 0; i + 1 < pts.size(); i++) dl->AddLine(pts[i], pts[i + 1], col, px(2.0f));
         if (!pts.empty() && _in.hovered) {
@@ -1532,6 +1776,7 @@ void RoiEditor::draw_viewport_overlay(const ViewportOverlay& v) {
     // see is a modal grammar nobody uses.
     const spirula::i18n::Msg& hint = _drawing                ? rmsg::hint_draw
                                      : _sel < 0              ? rmsg::hint_none
+                                     : _mode == Mode::Adjust ? rmsg::hint_adjust
                                      : _mode == Mode::Move   ? rmsg::hint_move
                                      : _mode == Mode::Resize ? rmsg::hint_resize
                                                              : rmsg::hint_rotate;
@@ -1552,7 +1797,7 @@ void RoiEditor::handle_keys() {
     if (io.WantTextInput || !_editable) return;
     const bool ctrl = io.KeyCtrl;
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
-        if (_drawing) cancel_outline();
+        if (_drawing) end_outline();
         else if (_grab.kind != Grab::None) end_drag(false);
         else select(-1);
     }
@@ -1589,6 +1834,7 @@ void RoiEditor::handle_keys() {
         return;
     }
     if (!ctrl && !io.KeyAlt) {
+        if (ImGui::IsKeyPressed(ImGuiKey_A, false)) _mode = Mode::Adjust;
         if (ImGui::IsKeyPressed(ImGuiKey_G, false)) _mode = Mode::Move;
         if (ImGui::IsKeyPressed(ImGuiKey_S, false)) _mode = Mode::Resize;
         if (ImGui::IsKeyPressed(ImGuiKey_R, false)) _mode = Mode::Rotate;
@@ -1695,10 +1941,14 @@ void RoiEditor::draw_start() {
     ImGui::BeginDisabled(_drawing);
     if (ui::Button(rmsg::start_box, ImVec2(w, 0))) start_box();
     ui::help_on_hover(rmsg::start_box_help);
-    ImGui::BeginDisabled(!_cyl_ok);
-    if (ui::Button(rmsg::start_cylinder, ImVec2(w, 0))) start_cylinder();
+    ImGui::BeginDisabled(!_subject_ok);
+    if (ui::Button(rmsg::start_cylinder, ImVec2(w, 0))) start_subject(RoiShapeKind::Cylinder);
     ImGui::EndDisabled();
-    ui::help_on_hover_disabled(_cyl_ok ? rmsg::start_cylinder_help : rmsg::start_cylinder_off);
+    ui::help_on_hover_disabled(_subject_ok ? rmsg::start_cylinder_help : rmsg::start_cylinder_off);
+    ImGui::BeginDisabled(!_subject_ok);
+    if (ui::Button(rmsg::start_ellipsoid, ImVec2(w, 0))) start_subject(RoiShapeKind::Ellipsoid);
+    ImGui::EndDisabled();
+    ui::help_on_hover_disabled(_subject_ok ? rmsg::start_ellipsoid_help : rmsg::start_cylinder_off);
     if (ui::Button(rmsg::start_outline, ImVec2(w, 0))) start_outline();
     ui::help_on_hover(rmsg::start_outline_help);
     ImGui::EndDisabled();
@@ -1707,14 +1957,12 @@ void RoiEditor::draw_start() {
 void RoiEditor::draw_shape_list() {
     ui::SeparatorText(rmsg::shapes_head);
     ImGui::BeginDisabled(_drawing);
-    if (ui::Button(rmsg::btn_add)) ImGui::OpenPopup("##roiadd");
-    if (ImGui::BeginPopup("##roiadd")) {
-        for (RoiShapeKind k : {RoiShapeKind::Box, RoiShapeKind::Ellipsoid, RoiShapeKind::Cylinder,
-                               RoiShapeKind::Prism})
-            if (ui::MenuItem(kind_label(k))) add_kind(k);
-        ImGui::EndPopup();
+    ui::Text(rmsg::add_label);
+    for (RoiShapeKind k : {RoiShapeKind::Box, RoiShapeKind::Ellipsoid, RoiShapeKind::Cylinder,
+                           RoiShapeKind::Prism}) {
+        ImGui::SameLine();
+        if (ui::Button(kind_label(k))) add_kind(k);
     }
-    ImGui::SameLine();
     ImGui::BeginDisabled(_sel < 0);
     if (ui::Button(rmsg::btn_duplicate)) {
         RoiShape copy = _doc.shapes[(size_t)_sel];
@@ -1822,45 +2070,21 @@ void RoiEditor::draw_properties() {
         commit();
     }
 
+    // Dataset units, whatever the view's scale.
     const double unit = std::max(1e-9, shared_size() / std::max(_S.s, 1e-300));
     const float speed = (float)(unit * 0.002);
     const char* fmt = unit > 100 ? "%.2f" : unit > 1 ? "%.3f" : "%.4f";
     const float lw = px(-90.0f);
+    auto edited = [this] {
+        if (ImGui::IsItemDeactivatedAfterEdit()) commit();
+    };
 
     ImGui::SetNextItemWidth(lw);
-    double c[3] = {raw.center[0], raw.center[1], raw.center[2]};
-    if (ui::DragDoubleNRaw("##pos", c, 3, speed, 0.0, 0.0, fmt)) {
-        std::copy(c, c + 3, raw.center);
-        touch();
-    }
-    if (ImGui::IsItemDeactivatedAfterEdit()) commit();
+    if (ui::DragDoubleNRaw("##pos", raw.origin, 3, speed, 0.0, 0.0, fmt)) touch();
+    edited();
     ImGui::SameLine();
     ui::Text(rmsg::lbl_position);
     ui::help_on_hover(rmsg::position_help);
-
-    const double min_size = unit * 1e-5;
-    if (raw.kind == RoiShapeKind::Prism) {
-        double h = 2 * raw.half[2];
-        ImGui::SetNextItemWidth(lw);
-        if (ui::DragDoubleNRaw("##height", &h, 1, speed, min_size, 1e300, fmt)) {
-            raw.half[2] = std::max(min_size, 0.5 * h);
-            touch();
-        }
-        if (ImGui::IsItemDeactivatedAfterEdit()) commit();
-        ImGui::SameLine();
-        ui::Text(rmsg::lbl_height);
-    } else {
-        double size[3] = {2 * raw.half[0], 2 * raw.half[1], 2 * raw.half[2]};
-        ImGui::SetNextItemWidth(lw);
-        if (ui::DragDoubleNRaw("##size", size, 3, speed, min_size, 1e300, fmt)) {
-            for (int k = 0; k < 3; k++) raw.half[k] = std::max(min_size, 0.5 * size[k]);
-            touch();
-        }
-        if (ImGui::IsItemDeactivatedAfterEdit()) commit();
-        ImGui::SameLine();
-        ui::Text(rmsg::lbl_size);
-        ui::help_on_hover(rmsg::size_help);
-    }
 
     // Angles in the shared frame, where +Z is up.
     RoiShape s = to_shared(raw);
@@ -1878,23 +2102,102 @@ void RoiEditor::draw_properties() {
         raw = to_raw(s);
         touch();
     }
-    if (ImGui::IsItemDeactivatedAfterEdit()) commit();
+    edited();
     ImGui::SameLine();
     ui::Text(rmsg::lbl_rotation);
     ui::help_on_hover(rmsg::rotation_help);
+
+    // Each pair of sides along the shape's own axes, from the pivot.
+    ui::Text(rmsg::lbl_sides);
+    ui::help_on_hover(rmsg::sides_help);
+    const double min_len = unit * 2e-5;
+    const ImGuiTableFlags flags = ImGuiTableFlags_SizingStretchSame | ImGuiTableFlags_NoPadOuterX;
+    if (ImGui::BeginTable("##sides", 4, flags)) {
+        ui::TableSetupColumnRaw("##axis", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize());
+        ui::TableSetupColumnRaw("-");
+        ui::TableSetupColumnRaw("+");
+        ui::TableSetupColumn(rmsg::lbl_length);
+        ImGui::TableHeadersRow();
+        double lo[3], hi[3];
+        spirula::roi_extents(raw, lo, hi);
+        for (int k = 0; k < 3; k++) {
+            ImGui::PushID(k);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ui::TextColoredRaw(ImGui::ColorConvertU32ToFloat4(kAxisCol[k]), k == 0 ? "X" : k == 1 ? "Y" : "Z");
+            double a = lo[k], b = hi[k], len = hi[k] - lo[k];
+            bool changed = false;
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ui::DragDoubleNRaw("##lo", &a, 1, speed, -1e300, b - min_len, fmt)) changed = true;
+            edited();
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ui::DragDoubleNRaw("##hi", &b, 1, speed, a + min_len, 1e300, fmt)) changed = true;
+            edited();
+            ImGui::TableNextColumn();
+            ImGui::SetNextItemWidth(-FLT_MIN);
+            if (ui::DragDoubleNRaw("##len", &len, 1, speed, min_len, 1e300, fmt)) {
+                const double m = 0.5 * (lo[k] + hi[k]);
+                a = m - 0.5 * len;
+                b = m + 0.5 * len;
+                changed = true;
+            }
+            edited();
+            if (changed) {
+                spirula::roi_set_extent(raw, k, std::min(a, b - min_len), std::max(b, a + min_len));
+                touch();
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
     if (ui::Button(rmsg::btn_level)) {
+        s = to_shared(raw);
+        euler_of(s.R, e);
         e[1] = e[2] = 0;
         rotation_of(e, s.R);
-        _doc.shapes[(size_t)_sel] = to_raw(s);
+        raw = to_raw(s);
         touch();
         commit();
     }
     ui::help_on_hover(rmsg::btn_level_help);
-    if (_doc.shapes[(size_t)_sel].kind == RoiShapeKind::Prism) {
-        ImGui::SameLine();
-        if (ui::Button(rmsg::btn_redraw)) start_outline(_sel);
-        ImGui::SameLine();
-        ui::TextDisabled(rmsg::lbl_corners, {(long long)(_doc.shapes[(size_t)_sel].polygon.size() / 2)});
+    ImGui::SameLine();
+    if (ui::Button(rmsg::btn_center_pivot)) {
+        spirula::roi_center_pivot(raw);
+        touch();
+        commit();
+    }
+    ui::help_on_hover(rmsg::btn_center_pivot_help);
+
+    if (raw.kind != RoiShapeKind::Prism) return;
+    ImGui::SameLine();
+    if (ui::Button(rmsg::btn_redraw)) {
+        start_outline(_sel);
+        return;
+    }
+    const size_t n = raw.polygon.size() / 2;
+    if (ui::TreeNode(rmsg::lbl_corners, {(long long)n})) {
+        int remove = -1;
+        for (size_t i = 0; i < n; i++) {
+            ImGui::PushID((int)i);
+            ui::TextDisabledRaw(std::to_string(i + 1));
+            ImGui::SameLine(px(36.0f));
+            ImGui::SetNextItemWidth(px(-36.0f));
+            if (ui::DragDoubleNRaw("##corner", &raw.polygon[i * 2], 2, speed, 0.0, 0.0, fmt)) touch();
+            edited();
+            ImGui::SameLine();
+            ImGui::BeginDisabled(n <= 3);
+            if (ui::ButtonRaw("x##del")) remove = (int)i;
+            ImGui::EndDisabled();
+            ImGui::PopID();
+        }
+        if (remove >= 0) {
+            raw.polygon.erase(raw.polygon.begin() + remove * 2, raw.polygon.begin() + remove * 2 + 2);
+            touch();
+            commit();
+        }
+        ImGui::TreePop();
     }
 }
 
@@ -1914,6 +2217,8 @@ void RoiEditor::draw_stats() {
 void RoiEditor::draw_toolbar() {
     const float w = px(96.0f);
     ImGui::BeginDisabled(_drawing);
+    if (ui::KeyButton(rmsg::mode_adjust, w, "A", _mode == Mode::Adjust)) _mode = Mode::Adjust;
+    ImGui::SameLine();
     if (ui::KeyButton(rmsg::mode_move, w, "G", _mode == Mode::Move)) _mode = Mode::Move;
     ImGui::SameLine();
     if (ui::KeyButton(rmsg::mode_resize, w, "S", _mode == Mode::Resize)) _mode = Mode::Resize;

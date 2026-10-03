@@ -1,10 +1,11 @@
 // roi_document_test -- data/RoiDocument.h: how a list of shapes folds into one
-// region, the file the editor writes and reads back (and a plain region JSON
-// it can import), and which file the trainer picks from a dataset's roi/.
+// region, a shape's sides and pivot, the file the editor writes and reads back
+// (and a plain region JSON it can import), and which file the trainer picks.
 
 #include "data/RoiDocument.h"
 
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -25,8 +26,11 @@ spirula::RoiShape box(double x, double half, spirula::RoiOp op) {
     spirula::RoiShape s;
     s.kind = spirula::RoiShapeKind::Box;
     s.op = op;
-    s.center[0] = x;
-    for (double& h : s.half) h = half;
+    s.origin[0] = x;
+    for (int k = 0; k < 3; k++) {
+        s.lo[k] = -half;
+        s.hi[k] = half;
+    }
     return s;
 }
 
@@ -67,6 +71,33 @@ int main() {
         check(roi_region(all_off) == nullptr, "every shape disabled: no region");
     }
 
+    // ---- moving sides ----
+    {
+        RoiShape b = box(0, 1, RoiOp::Add);
+        const double R[9] = {0, 1, 0, -1, 0, 0, 0, 0, 1};   // turned: its x is world y
+        std::copy(R, R + 9, b.R);
+        roi_set_extent(b, 0, -1, 4);
+        auto r = b.region();
+        check(r->inside(0, 3.9f, 0) && !r->inside(0, 4.1f, 0) && r->inside(0, -0.9f, 0) &&
+                  !r->inside(0, -1.1f, 0),
+              "a side moved along a turned box's own axis; the opposite one stays");
+        RoiShape c = b;
+        roi_center_pivot(c);
+        bool same = std::fabs(c.origin[1] - 1.5) < 1e-12 && std::fabs(c.hi[0] - 2.5) < 1e-12;
+        for (double y = -2; y <= 5; y += 0.25)
+            same = same && c.region()->inside(0, (float)y, 0) == r->inside(0, (float)y, 0);
+        check(same, "centring the pivot leaves the shape where it was");
+
+        RoiShape p;
+        p.kind = RoiShapeKind::Prism;
+        p.polygon = {0, 0, 2, 0, 2, 1, 1, 1, 1, 2, 0, 2};
+        roi_set_extent(p, 0, 0, 4);
+        double lo[3], hi[3];
+        roi_extents(p, lo, hi);
+        check(lo[0] == 0 && hi[0] == 4 && hi[1] == 2 && p.polygon[6] == 2,
+              "an outline's side stretches its corners, the far side fixed");
+    }
+
     const fs::path dir = fs::temp_directory_path() /
                          ("roi_document_test_" +
                           std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
@@ -78,14 +109,15 @@ int main() {
         RoiShape p;
         p.name = "footprint";
         p.kind = RoiShapeKind::Prism;
-        p.center[2] = 1;
-        p.half[2] = 2;
+        p.origin[2] = 1;
+        p.lo[2] = -2;
+        p.hi[2] = 3;   // a pivot off the middle survives the file
         p.polygon = {0, 0, 4, 0, 4, 1, 1, 1, 1, 4, 0, 4};
         RoiShape e;
         e.name = "dome";
         e.kind = RoiShapeKind::Ellipsoid;
-        e.half[0] = 2;
-        e.center[1] = 5312345.678901;   // geo-referenced: %.9g would round this
+        e.hi[0] = 2;
+        e.origin[1] = 5312345.678901;   // geo-referenced: %.9g would round this
         const double Rx[9] = {1, 0, 0, 0, 0, 1, 0, -1, 0};
         std::copy(Rx, Rx + 9, e.R);
         RoiShape c = box(10, 1, RoiOp::Subtract);

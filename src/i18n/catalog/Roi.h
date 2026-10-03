@@ -309,39 +309,83 @@ SS_MSG(start_cylinder_off,
     RU("Камеры не окружают один объект."),
     TR("Kameralar tek bir öznenin etrafını sarmıyor."));
 
+SS_MSG(start_ellipsoid,
+    EN("Ellipsoid Around the Subject"), JA("被写体を囲む楕円体"), ZH_HANS("包围主体的椭球"),
+    ZH_HANT("包圍主體的橢球"), KO("피사체를 감싸는 타원체"), DE("Ellipsoid um das Motiv"),
+    FR("Ellipsoïde autour du sujet"), ES("Elipsoide alrededor del sujeto"),
+    PT("Elipsoide à volta do motivo"), IT("Ellissoide attorno al soggetto"),
+    NL("Ellipsoïde om het onderwerp"), RU("Эллипсоид вокруг объекта"),
+    TR("Öznenin Etrafında Elipsoit"));
+
+SS_MSG(start_ellipsoid_help,
+    EN("The same place and size as the cylinder, rounded: for a subject that stands "
+       "free, such as a statue or a plant."),
+    JA("円柱と同じ位置と大きさの丸い形。彫像や植物のように独立して立つ被写体に向きます。"),
+    ZH_HANS("与圆柱位置和大小相同，但为圆润的形状：适合雕像、植物等独立的主体。"),
+    ZH_HANT("與圓柱位置和大小相同，但為圓潤的形狀：適合雕像、植物等獨立的主體。"),
+    KO("원기둥과 같은 위치와 크기의 둥근 모양으로, 조각상이나 식물처럼 홀로 선 피사체에 "
+       "알맞습니다."),
+    DE("Gleicher Ort und gleiche Größe wie der Zylinder, nur gerundet: für ein frei "
+       "stehendes Motiv wie eine Statue oder eine Pflanze."),
+    FR("Même place et même taille que le cylindre, en arrondi : pour un sujet isolé, "
+       "comme une statue ou une plante."),
+    ES("El mismo lugar y tamaño que el cilindro, redondeado: para un sujeto aislado, "
+       "como una estatua o una planta."),
+    PT("O mesmo lugar e tamanho do cilindro, arredondado: para um motivo isolado, como "
+       "uma estátua ou uma planta."),
+    IT("Stessa posizione e dimensione del cilindro, ma arrotondato: per un soggetto "
+       "isolato, come una statua o una pianta."),
+    NL("Dezelfde plaats en grootte als de cilinder, maar rond: voor een vrijstaand "
+       "onderwerp zoals een beeld of een plant."),
+    RU("То же место и размер, что у цилиндра, но скруглённое: для отдельно стоящего "
+       "объекта вроде статуи или растения."),
+    TR("Silindirle aynı yer ve boyutta, yuvarlatılmış: heykel ya da bitki gibi tek "
+       "başına duran bir özne için."));
+
 SS_MSG(start_outline,
-    EN("Outline Drawn from Above"), JA("上から描く輪郭"), ZH_HANS("从上方绘制轮廓"),
-    ZH_HANT("從上方繪製輪廓"), KO("위에서 그리는 윤곽"), DE("Umriss von oben gezeichnet"),
-    FR("Contour tracé vu de dessus"), ES("Contorno dibujado desde arriba"),
-    PT("Contorno desenhado de cima"), IT("Contorno disegnato dall'alto"),
-    NL("Omtrek van bovenaf getekend"), RU("Контур, нарисованный сверху"),
-    TR("Yukarıdan Çizilen Ana Hat"));
+    EN("Outline Drawn in This View"), JA("このビューで描く輪郭"), ZH_HANS("在当前视图中绘制轮廓"),
+    ZH_HANT("在目前視圖中繪製輪廓"), KO("현재 보기에서 그리는 윤곽"),
+    DE("Umriss in dieser Ansicht zeichnen"), FR("Contour tracé dans cette vue"),
+    ES("Contorno dibujado en esta vista"), PT("Contorno desenhado nesta vista"),
+    IT("Contorno disegnato in questa vista"), NL("Omtrek in deze weergave getekend"),
+    RU("Контур, нарисованный в этом виде"), TR("Bu Görünümde Çizilen Ana Hat"));
 
 SS_MSG(start_outline_help,
-    EN("Click the corners of the area in a view from above. The outline is raised to "
-       "the height of the points inside it."),
-    JA("上からの視点で範囲の角をクリックします。輪郭は内側の点の高さまで立ち上げられ"
-       "ます。"),
-    ZH_HANS("在俯视图中点击区域的各个角。轮廓会被拉伸到其内部点云的高度。"),
-    ZH_HANT("在俯視圖中點擊區域的各個角。輪廓會被拉伸到其內部點雲的高度。"),
-    KO("위에서 본 화면에서 영역의 모서리를 클릭합니다. 윤곽은 안쪽 점들의 높이까지 "
-       "세워집니다."),
-    DE("In einer Ansicht von oben die Ecken des Gebiets anklicken. Der Umriss wird bis "
-       "zur Höhe der Punkte darin hochgezogen."),
-    FR("Cliquez les coins de la zone dans une vue de dessus. Le contour est élevé à la "
-       "hauteur des points qu'il contient."),
-    ES("Haz clic en las esquinas de la zona en una vista desde arriba. El contorno se "
-       "eleva hasta la altura de los puntos que contiene."),
-    PT("Clique nos cantos da área numa vista de cima. O contorno é levantado até à "
-       "altura dos pontos que contém."),
-    IT("Fai clic sugli angoli dell'area in una vista dall'alto. Il contorno viene "
-       "alzato fino all'altezza dei punti al suo interno."),
-    NL("Klik in een bovenaanzicht op de hoeken van het gebied. De omtrek wordt "
-       "opgetrokken tot de hoogte van de punten erin."),
-    RU("Щёлкните углы области в виде сверху. Контур поднимается до высоты точек "
-       "внутри него."),
-    TR("Yukarıdan bakan bir görünümde alanın köşelerine tıklayın. Ana hat, içindeki "
-       "noktaların yüksekliğine kadar yükseltilir."));
+    EN("The view turns orthographic, looking the way it does now; click the corners "
+       "of the area as you see it. The outline runs along your line of sight, as deep "
+       "as the points inside it reach."),
+    JA("現在の向きのまま正射投影に切り替わります。見えているとおりに範囲の角をクリック"
+       "してください。輪郭は視線の方向に伸び、内側の点が届く深さまで取られます。"),
+    ZH_HANS("视图保持当前方向切换为正交投影；按所见点击区域的各个角。轮廓沿视线方向延伸，"
+            "深度覆盖其内部的点。"),
+    ZH_HANT("視圖保持目前方向切換為正交投影；依所見點擊區域的各個角。輪廓沿視線方向延伸，"
+            "深度涵蓋其內部的點。"),
+    KO("보기가 현재 방향 그대로 직교 투영으로 바뀝니다. 보이는 대로 영역의 모서리를 "
+       "클릭하세요. 윤곽은 시선 방향으로 뻗어, 안쪽 점들이 닿는 깊이까지 이어집니다."),
+    DE("Die Ansicht wird in ihrer jetzigen Richtung orthografisch; die Ecken des "
+       "Gebiets so anklicken, wie es zu sehen ist. Der Umriss reicht entlang der "
+       "Blickrichtung so tief wie die Punkte darin."),
+    FR("La vue passe en orthographique sans changer de direction ; cliquez les coins "
+       "de la zone telle que vous la voyez. Le contour s'étend le long de votre ligne "
+       "de visée, aussi loin que les points qu'il contient."),
+    ES("La vista pasa a ortográfica sin cambiar de dirección; haz clic en las esquinas "
+       "de la zona tal como la ves. El contorno se extiende a lo largo de tu línea de "
+       "visión, tan hondo como llegan los puntos que contiene."),
+    PT("A vista passa a ortográfica sem mudar de direção; clique nos cantos da área tal "
+       "como a vê. O contorno estende-se ao longo da sua linha de visão, tão fundo "
+       "quanto os pontos que contém."),
+    IT("La vista passa all'ortografica senza cambiare direzione; fai clic sugli angoli "
+       "dell'area così come la vedi. Il contorno si estende lungo la linea di vista, "
+       "profondo quanto i punti al suo interno."),
+    NL("De weergave wordt orthografisch in de huidige richting; klik op de hoeken van "
+       "het gebied zoals je het ziet. De omtrek loopt langs je kijkrichting, zo diep "
+       "als de punten erin reiken."),
+    RU("Вид переходит в ортографическую проекцию, не меняя направления; щёлкните углы "
+       "области так, как вы её видите. Контур тянется вдоль линии взгляда на всю "
+       "глубину точек внутри него."),
+    TR("Görünüm yönü değişmeden ortografik olur; alanın köşelerine gördüğünüz gibi "
+       "tıklayın. Ana hat bakış doğrultunuz boyunca, içindeki noktaların uzandığı "
+       "derinliğe kadar uzanır."));
 
 // ===========================================================================
 // The shapes
@@ -352,11 +396,11 @@ SS_MSG(shapes_head,
     FR("Formes"), ES("Formas"), PT("Formas"), IT("Forme"), NL("Vormen"), RU("Фигуры"),
     TR("Şekiller"));
 
-SS_MSG(btn_add,
-    EN("Add Shape"), JA("図形を追加"), ZH_HANS("添加形状"), ZH_HANT("新增形狀"),
-    KO("도형 추가"), DE("Form hinzufügen"), FR("Ajouter une forme"), ES("Añadir forma"),
-    PT("Adicionar forma"), IT("Aggiungi forma"), NL("Vorm toevoegen"),
-    RU("Добавить фигуру"), TR("Şekil Ekle"));
+SS_MSG(add_label,
+    EN("Add a shape:"), JA("図形を追加:"), ZH_HANS("添加形状："), ZH_HANT("新增形狀："),
+    KO("도형 추가:"), DE("Form hinzufügen:"), FR("Ajouter une forme :"),
+    ES("Añadir una forma:"), PT("Adicionar uma forma:"), IT("Aggiungi una forma:"),
+    NL("Vorm toevoegen:"), RU("Добавить фигуру:"), TR("Şekil ekle:"));
 
 SS_MSG(kind_box,
     EN("Box"), JA("ボックス"), ZH_HANS("盒"), ZH_HANT("盒"), KO("상자"), DE("Quader"),
@@ -510,63 +554,113 @@ SS_MSG(lbl_position,
     DE("Position"), FR("Position"), ES("Posición"), PT("Posição"), IT("Posizione"),
     NL("Positie"), RU("Положение"), TR("Konum"));
 
-SS_MSG(lbl_size,
-    EN("Size"), JA("サイズ"), ZH_HANS("尺寸"), ZH_HANT("尺寸"), KO("크기"), DE("Größe"),
-    FR("Taille"), ES("Tamaño"), PT("Tamanho"), IT("Dimensioni"), NL("Afmeting"),
-    RU("Размер"), TR("Boyut"));
+SS_MSG(lbl_sides,
+    EN("Sides"), JA("各面"), ZH_HANS("各面"), ZH_HANT("各面"), KO("면"), DE("Seiten"),
+    FR("Côtés"), ES("Lados"), PT("Lados"), IT("Lati"), NL("Zijden"), RU("Стороны"),
+    TR("Kenarlar"));
+
+SS_MSG(lbl_length,
+    EN("Length"), JA("長さ"), ZH_HANS("长度"), ZH_HANT("長度"), KO("길이"), DE("Länge"),
+    FR("Longueur"), ES("Longitud"), PT("Comprimento"), IT("Lunghezza"), NL("Lengte"),
+    RU("Длина"), TR("Uzunluk"));
 
 SS_MSG(lbl_rotation,
     EN("Rotation"), JA("回転"), ZH_HANS("旋转"), ZH_HANT("旋轉"), KO("회전"),
     DE("Drehung"), FR("Rotation"), ES("Rotación"), PT("Rotação"), IT("Rotazione"),
     NL("Rotatie"), RU("Поворот"), TR("Döndürme"));
 
-SS_MSG(lbl_height,
-    EN("Height"), JA("高さ"), ZH_HANS("高度"), ZH_HANT("高度"), KO("높이"), DE("Höhe"),
-    FR("Hauteur"), ES("Altura"), PT("Altura"), IT("Altezza"), NL("Hoogte"), RU("Высота"),
-    TR("Yükseklik"));
-
 SS_MSG(position_help,
-    EN("The centre, in the dataset's own coordinates."),
-    JA("中心。データセット自身の座標で表します。"),
-    ZH_HANS("中心点，使用数据集自身的坐标。"),
-    ZH_HANT("中心點，使用資料集自身的座標。"),
-    KO("중심점으로, 데이터셋 자체의 좌표입니다."),
-    DE("Der Mittelpunkt, in den eigenen Koordinaten des Datensatzes."),
-    FR("Le centre, dans les coordonnées propres du jeu de données."),
-    ES("El centro, en las coordenadas propias del conjunto de datos."),
-    PT("O centro, nas coordenadas próprias do conjunto de dados."),
-    IT("Il centro, nelle coordinate proprie del dataset."),
-    NL("Het middelpunt, in de eigen coördinaten van de dataset."),
-    RU("Центр в собственных координатах набора данных."),
-    TR("Merkez, veri kümesinin kendi koordinatlarında."));
+    EN("The shape's pivot, which it moves by and turns about, in the dataset's own "
+       "coordinates."),
+    JA("図形のピボット（移動と回転の基準点）。データセット自身の座標で表します。"),
+    ZH_HANS("形状的枢轴点，移动和旋转都以它为基准，使用数据集自身的坐标。"),
+    ZH_HANT("形狀的樞軸點，移動和旋轉都以它為基準，使用資料集自身的座標。"),
+    KO("도형의 피벗으로, 이동과 회전의 기준점입니다. 데이터셋 자체의 좌표입니다."),
+    DE("Der Drehpunkt der Form, an dem sie bewegt und um den sie gedreht wird, in den "
+       "eigenen Koordinaten des Datensatzes."),
+    FR("Le pivot de la forme, par lequel elle se déplace et autour duquel elle tourne, "
+       "dans les coordonnées propres du jeu de données."),
+    ES("El pivote de la forma, desde el que se mueve y alrededor del que gira, en las "
+       "coordenadas propias del conjunto de datos."),
+    PT("O pivô da forma, pelo qual se move e em torno do qual roda, nas coordenadas "
+       "próprias do conjunto de dados."),
+    IT("Il perno della forma, con cui si sposta e attorno a cui ruota, nelle coordinate "
+       "proprie del dataset."),
+    NL("Het draaipunt van de vorm, waarmee hij verschuift en waarom hij draait, in de "
+       "eigen coördinaten van de dataset."),
+    RU("Опорная точка фигуры, по которой она перемещается и вокруг которой "
+       "поворачивается, в собственных координатах набора данных."),
+    TR("Şeklin taşındığı ve etrafında döndüğü pivot noktası, veri kümesinin kendi "
+       "koordinatlarında."));
 
-SS_MSG(size_help,
-    EN("Lengths along the shape's own axes, in the dataset's units. Drag a handle in "
-       "the view with Resize, or type a number."),
-    JA("図形自身の軸に沿った長さ（データセットの単位）。ビューで「サイズ変更」のハンド"
-       "ルをドラッグするか、数値を入力します。"),
-    ZH_HANS("沿形状自身各轴的长度，单位与数据集相同。可在视图中用“缩放”拖动手柄，或直"
-            "接输入数字。"),
-    ZH_HANT("沿形狀自身各軸的長度，單位與資料集相同。可在視圖中用「縮放」拖動控點，或直"
-            "接輸入數字。"),
-    KO("도형 자체 축을 따른 길이(데이터셋 단위). 보기에서 크기 조절 핸들을 끌거나 "
-       "숫자를 입력합니다."),
-    DE("Längen entlang der eigenen Achsen der Form, in Einheiten des Datensatzes. In "
-       "der Ansicht mit Größe einen Griff ziehen oder eine Zahl eingeben."),
-    FR("Longueurs le long des axes propres de la forme, en unités du jeu de données. "
-       "Tirez une poignée dans la vue avec Redimensionner, ou tapez un nombre."),
-    ES("Longitudes a lo largo de los ejes propios de la forma, en unidades del conjunto "
-       "de datos. Arrastra un tirador en la vista con Redimensionar o escribe un número."),
-    PT("Comprimentos ao longo dos eixos próprios da forma, nas unidades do conjunto de "
-       "dados. Arraste uma pega na vista com Redimensionar ou escreva um número."),
-    IT("Lunghezze lungo gli assi propri della forma, nelle unità del dataset. Trascina "
-       "una maniglia nella vista con Ridimensiona o digita un numero."),
-    NL("Lengtes langs de eigen assen van de vorm, in eenheden van de dataset. Sleep in "
-       "de weergave een greep met Formaat of typ een getal."),
-    RU("Длины вдоль собственных осей фигуры в единицах набора данных. Перетащите "
-       "маркер в виде в режиме «Размер» или введите число."),
-    TR("Şeklin kendi eksenleri boyunca uzunluklar, veri kümesinin biriminde. "
-       "Görünümde Boyutlandır ile bir tutamacı sürükleyin ya da bir sayı yazın."));
+SS_MSG(sides_help,
+    EN("Where each pair of opposite sides sits along the shape's own axes, measured "
+       "from its pivot, and the length between them. Moving one side leaves the other "
+       "where it is; a new length moves both. An outline's corners stretch with its X "
+       "and Y sides."),
+    JA("図形自身の軸に沿って、向かい合う各面がピボットからどこにあるかと、その間の長さ。"
+       "片方の面を動かしても反対側はそのままで、長さを変えると両方が動きます。輪郭の角は "
+       "X と Y の面に合わせて伸び縮みします。"),
+    ZH_HANS("沿形状自身各轴，每对相对的面距枢轴点的位置，以及两者之间的长度。移动一面时，"
+            "对面保持不动；修改长度则两面一起移动。轮廓的角点会随其 X、Y 两面伸缩。"),
+    ZH_HANT("沿形狀自身各軸，每對相對的面距樞軸點的位置，以及兩者之間的長度。移動一面時，"
+            "對面保持不動；修改長度則兩面一起移動。輪廓的角點會隨其 X、Y 兩面伸縮。"),
+    KO("도형 자체 축을 따라 마주 보는 두 면이 피벗에서 어디에 있는지와 그 사이의 길이. "
+       "한 면을 옮기면 반대쪽은 그대로이고, 길이를 바꾸면 양쪽이 함께 움직입니다. 윤곽의 "
+       "모서리는 X와 Y 면에 맞춰 늘어나거나 줄어듭니다."),
+    DE("Wo jedes Paar gegenüberliegender Seiten entlang der eigenen Achsen der Form "
+       "liegt, gemessen vom Drehpunkt, und die Länge dazwischen. Eine verschobene Seite "
+       "lässt die andere, wo sie ist; eine neue Länge verschiebt beide. Die Ecken eines "
+       "Umrisses dehnen sich mit seinen X- und Y-Seiten."),
+    FR("Où se trouve chaque paire de côtés opposés le long des axes propres de la "
+       "forme, mesurée depuis son pivot, et la longueur qui les sépare. Déplacer un côté "
+       "laisse l'autre en place ; une nouvelle longueur déplace les deux. Les coins d'un "
+       "contour s'étirent avec ses côtés X et Y."),
+    ES("Dónde está cada par de lados opuestos a lo largo de los ejes propios de la "
+       "forma, medido desde su pivote, y la longitud entre ellos. Mover un lado deja el "
+       "otro donde está; una longitud nueva mueve ambos. Las esquinas de un contorno se "
+       "estiran con sus lados X e Y."),
+    PT("Onde fica cada par de lados opostos ao longo dos eixos próprios da forma, "
+       "medido a partir do pivô, e o comprimento entre eles. Mover um lado deixa o outro "
+       "onde está; um novo comprimento move os dois. Os cantos de um contorno esticam "
+       "com os lados X e Y."),
+    IT("Dove si trova ogni coppia di lati opposti lungo gli assi propri della forma, "
+       "misurata dal perno, e la lunghezza tra loro. Spostare un lato lascia l'altro "
+       "dov'è; una nuova lunghezza li sposta entrambi. Gli angoli di un contorno si "
+       "allungano con i lati X e Y."),
+    NL("Waar elk paar tegenoverliggende zijden langs de eigen assen van de vorm ligt, "
+       "gemeten vanaf het draaipunt, en de lengte ertussen. Een zijde verschuiven laat "
+       "de andere staan; een nieuwe lengte verschuift beide. De hoeken van een omtrek "
+       "rekken mee met de X- en Y-zijden."),
+    RU("Где лежит каждая пара противоположных сторон вдоль собственных осей фигуры, "
+       "считая от опорной точки, и длина между ними. Сдвиг одной стороны оставляет "
+       "другую на месте; новая длина сдвигает обе. Углы контура растягиваются вместе с "
+       "его сторонами X и Y."),
+    TR("Karşılıklı her kenar çiftinin şeklin kendi eksenleri boyunca pivottan ölçülen "
+       "yeri ve aralarındaki uzunluk. Bir kenarı taşımak diğerini yerinde bırakır; yeni "
+       "bir uzunluk ikisini de taşır. Bir ana hattın köşeleri X ve Y kenarlarıyla "
+       "birlikte esner."));
+
+SS_MSG(btn_center_pivot,
+    EN("Center Pivot"), JA("ピボットを中央へ"), ZH_HANS("枢轴居中"), ZH_HANT("樞軸置中"),
+    KO("피벗을 가운데로"), DE("Drehpunkt zentrieren"), FR("Centrer le pivot"),
+    ES("Centrar el pivote"), PT("Centrar o pivô"), IT("Centra il perno"),
+    NL("Draaipunt centreren"), RU("Центрировать опору"), TR("Pivotu Ortala"));
+
+SS_MSG(btn_center_pivot_help,
+    EN("Move the pivot to the middle of the shape; the shape itself stays where it is."),
+    JA("ピボットを図形の中央へ移します。図形そのものは動きません。"),
+    ZH_HANS("把枢轴点移到形状中间；形状本身保持不动。"),
+    ZH_HANT("把樞軸點移到形狀中間；形狀本身保持不動。"),
+    KO("피벗을 도형의 가운데로 옮깁니다. 도형 자체는 그대로입니다."),
+    DE("Den Drehpunkt in die Mitte der Form legen; die Form selbst bleibt, wo sie ist."),
+    FR("Placer le pivot au milieu de la forme ; la forme elle-même ne bouge pas."),
+    ES("Llevar el pivote al centro de la forma; la forma en sí no se mueve."),
+    PT("Levar o pivô para o meio da forma; a forma em si não se move."),
+    IT("Porta il perno al centro della forma; la forma stessa resta dov'è."),
+    NL("Het draaipunt naar het midden van de vorm verplaatsen; de vorm zelf blijft staan."),
+    RU("Перенести опорную точку в середину фигуры; сама фигура остаётся на месте."),
+    TR("Pivotu şeklin ortasına taşır; şeklin kendisi yerinde kalır."));
 
 SS_MSG(rotation_help,
     EN("Degrees: turned about the up axis, then tilted forward, then sideways."),
@@ -625,6 +719,11 @@ SS_MSG(lbl_corners,
 // The view
 // ===========================================================================
 
+SS_MSG(mode_adjust,
+    EN("Adjust"), JA("調整"), ZH_HANS("调整"), ZH_HANT("調整"), KO("조정"), DE("Anpassen"),
+    FR("Ajuster"), ES("Ajustar"), PT("Ajustar"), IT("Regola"), NL("Aanpassen"), RU("Правка"),
+    TR("Ayarla"));
+
 SS_MSG(mode_move,
     EN("Move"), JA("移動"), ZH_HANS("移动"), ZH_HANT("移動"), KO("이동"), DE("Bewegen"),
     FR("Déplacer"), ES("Mover"), PT("Mover"), IT("Sposta"), NL("Verplaatsen"),
@@ -659,6 +758,52 @@ SS_MSG(hint_none,
     RU("Щёлкните фигуру, чтобы выбрать её. Перетаскивание в другом месте вращает вид."),
     TR("Seçmek için bir şekle tıklayın. Etrafa bakmak için başka bir yeri sürükleyin."));
 
+SS_MSG(hint_adjust,
+    EN("Drag any side of the shape to push or pull just that side; Shift moves the "
+       "opposite side too. On an outline, drag a wall or a corner, drag a midpoint to "
+       "add a corner, double-click a corner to remove it."),
+    JA("図形の面をドラッグすると、その面だけを押し引きできます。Shift を押すと反対側も"
+       "動きます。輪郭では壁や角をドラッグし、中点をドラッグして角を追加し、角をダブル"
+       "クリックして削除します。"),
+    ZH_HANS("拖动形状的任一面，只推拉该面；按住 Shift 对面也一起移动。对轮廓，可拖动侧壁"
+            "或角点，拖动中点以添加角点，双击角点将其删除。"),
+    ZH_HANT("拖動形狀的任一面，只推拉該面；按住 Shift 對面也一起移動。對輪廓，可拖動側壁"
+            "或角點，拖動中點以新增角點，雙擊角點將其刪除。"),
+    KO("도형의 아무 면이나 끌면 그 면만 밀고 당깁니다. Shift를 누르면 반대쪽도 함께 "
+       "움직입니다. 윤곽에서는 벽이나 모서리를 끌고, 중점을 끌어 모서리를 추가하고, "
+       "모서리를 두 번 클릭해 지웁니다."),
+    DE("Eine beliebige Seite der Form ziehen, um nur diese Seite zu schieben oder zu "
+       "ziehen; mit Umschalt bewegt sich die gegenüberliegende mit. Bei einem Umriss eine "
+       "Wand oder Ecke ziehen, einen Mittelpunkt ziehen, um eine Ecke hinzuzufügen, eine "
+       "Ecke doppelklicken, um sie zu entfernen."),
+    FR("Faites glisser n'importe quel côté de la forme pour pousser ou tirer ce seul "
+       "côté ; avec Maj, le côté opposé bouge aussi. Sur un contour, tirez une paroi ou un "
+       "coin, tirez un milieu pour ajouter un coin, double-cliquez un coin pour le "
+       "retirer."),
+    ES("Arrastra cualquier lado de la forma para empujar o tirar solo de ese lado; con "
+       "Mayús se mueve también el opuesto. En un contorno, arrastra una pared o una "
+       "esquina, arrastra un punto medio para añadir una esquina y haz doble clic en una "
+       "esquina para quitarla."),
+    PT("Arraste qualquer lado da forma para empurrar ou puxar só esse lado; com Shift o "
+       "lado oposto também se move. Num contorno, arraste uma parede ou um canto, arraste "
+       "um ponto médio para acrescentar um canto e faça duplo clique num canto para o "
+       "remover."),
+    IT("Trascina un lato qualsiasi della forma per spingere o tirare solo quel lato; con "
+       "Maiusc si muove anche quello opposto. Su un contorno, trascina una parete o un "
+       "angolo, trascina un punto medio per aggiungere un angolo, fai doppio clic su un "
+       "angolo per toglierlo."),
+    NL("Sleep een willekeurige zijde van de vorm om alleen die zijde te duwen of te "
+       "trekken; met Shift beweegt de tegenoverliggende mee. Bij een omtrek: sleep een "
+       "wand of hoek, sleep een middelpunt om een hoek toe te voegen, dubbelklik op een "
+       "hoek om hem te verwijderen."),
+    RU("Тащите любую сторону фигуры, чтобы двигать только её; с Shift противоположная "
+       "сторона движется тоже. У контура тащите стенку или угол, тащите середину стороны, "
+       "чтобы добавить угол, двойной щелчок по углу удаляет его."),
+    TR("Yalnızca o kenarı itmek ya da çekmek için şeklin herhangi bir kenarını "
+       "sürükleyin; Shift ile karşı kenar da hareket eder. Bir ana hatta bir duvarı ya da "
+       "köşeyi sürükleyin, köşe eklemek için orta noktayı sürükleyin, silmek için köşeye "
+       "çift tıklayın."));
+
 SS_MSG(hint_move,
     EN("Drag the shape along the ground, or an arrow along its axis. Delete removes it, "
        "Esc lets go of it."),
@@ -686,40 +831,40 @@ SS_MSG(hint_move,
        "kaldırır, Esc seçimi bırakır."));
 
 SS_MSG(hint_resize,
-    EN("Drag a handle to move that side; with Shift both sides move. On an outline, "
-       "drag a corner, drag a midpoint to add one, double-click a corner to remove it."),
-    JA("ハンドルをドラッグするとその面が動き、Shift を押すと両側が動きます。輪郭では角"
-       "をドラッグし、中点をドラッグして角を追加し、角をダブルクリックして削除します。"),
-    ZH_HANS("拖动手柄移动该面；按住 Shift 两侧一起移动。对轮廓，可拖动角点，拖动中点以"
-            "添加角点，双击角点将其删除。"),
-    ZH_HANT("拖動控點移動該面；按住 Shift 兩側一起移動。對輪廓，可拖動角點，拖動中點以"
-            "新增角點，雙擊角點將其刪除。"),
-    KO("핸들을 끌면 그 면이 움직이고, Shift를 누르면 양쪽이 함께 움직입니다. 윤곽에서는 "
-       "모서리를 끌고, 중점을 끌어 모서리를 추가하고, 모서리를 두 번 클릭해 지웁니다."),
-    DE("Einen Griff ziehen, um diese Seite zu verschieben; mit Umschalt bewegen sich "
-       "beide Seiten. Bei einem Umriss eine Ecke ziehen, einen Mittelpunkt ziehen, um "
-       "eine hinzuzufügen, eine Ecke doppelklicken, um sie zu entfernen."),
-    FR("Tirez une poignée pour déplacer ce côté ; avec Maj, les deux côtés bougent. Sur "
-       "un contour, tirez un coin, tirez un milieu pour en ajouter un, double-cliquez un "
-       "coin pour le retirer."),
-    ES("Arrastra un tirador para mover ese lado; con Mayús se mueven ambos lados. En un "
-       "contorno, arrastra una esquina, arrastra un punto medio para añadir una y haz "
-       "doble clic en una esquina para quitarla."),
-    PT("Arraste uma pega para mover esse lado; com Shift movem-se os dois lados. Num "
-       "contorno, arraste um canto, arraste um ponto médio para acrescentar um e faça "
-       "duplo clique num canto para o remover."),
-    IT("Trascina una maniglia per spostare quel lato; con Maiusc si muovono entrambi i "
-       "lati. Su un contorno, trascina un angolo, trascina un punto medio per "
-       "aggiungerne uno, fai doppio clic su un angolo per toglierlo."),
-    NL("Sleep een greep om die kant te verplaatsen; met Shift bewegen beide kanten. Bij "
-       "een omtrek: sleep een hoek, sleep een middelpunt om er een toe te voegen, "
-       "dubbelklik op een hoek om hem te verwijderen."),
-    RU("Тащите маркер, чтобы сдвинуть эту сторону; с Shift двигаются обе стороны. У "
-       "контура тащите угол, тащите середину стороны, чтобы добавить угол, двойной "
-       "щелчок по углу удаляет его."),
-    TR("O kenarı taşımak için bir tutamacı sürükleyin; Shift ile iki kenar birlikte "
-       "taşınır. Bir ana hatta köşeyi sürükleyin, köşe eklemek için orta noktayı "
-       "sürükleyin, silmek için köşeye çift tıklayın."));
+    EN("Drag a side's handle to stretch the shape evenly along that axis, or a corner "
+       "handle to scale all of it about its middle. Ctrl scales in tenths."),
+    JA("面のハンドルをドラッグするとその軸に沿って両側へ均等に伸縮し、角のハンドルを"
+       "ドラッグすると中心を基準に全体を拡大縮小します。Ctrl で 0.1 倍刻み。"),
+    ZH_HANS("拖动面上的手柄，沿该轴向两侧均匀伸缩；拖动角上的手柄，以中心为基准整体缩放。"
+            "按住 Ctrl 以 0.1 倍为步长。"),
+    ZH_HANT("拖動面上的控點，沿該軸向兩側均勻伸縮；拖動角上的控點，以中心為基準整體縮放。"
+            "按住 Ctrl 以 0.1 倍為步長。"),
+    KO("면의 핸들을 끌면 그 축을 따라 양쪽으로 고르게 늘어나고, 모서리 핸들을 끌면 "
+       "가운데를 기준으로 전체 크기가 바뀝니다. Ctrl을 누르면 0.1배씩 바뀝니다."),
+    DE("Den Griff einer Seite ziehen, um die Form entlang dieser Achse gleichmäßig zu "
+       "dehnen, oder einen Eckgriff, um sie als Ganzes um ihre Mitte zu skalieren. Strg "
+       "skaliert in Zehnteln."),
+    FR("Tirez la poignée d'un côté pour étirer la forme également le long de cet axe, ou "
+       "une poignée de coin pour la mettre à l'échelle tout entière autour de son milieu. "
+       "Ctrl procède par dixièmes."),
+    ES("Arrastra el tirador de un lado para estirar la forma por igual a lo largo de ese "
+       "eje, o uno de esquina para escalarla entera alrededor de su centro. Ctrl escala "
+       "en décimas."),
+    PT("Arraste a pega de um lado para esticar a forma por igual ao longo desse eixo, ou "
+       "uma pega de canto para a redimensionar inteira em torno do seu centro. Ctrl "
+       "escala em décimas."),
+    IT("Trascina la maniglia di un lato per allungare la forma in modo uniforme lungo "
+       "quell'asse, o una maniglia d'angolo per ridimensionarla tutta attorno al suo "
+       "centro. Ctrl procede per decimi."),
+    NL("Sleep de greep van een zijde om de vorm gelijkmatig langs die as uit te rekken, "
+       "of een hoekgreep om hem in zijn geheel om zijn midden te schalen. Ctrl schaalt in "
+       "tienden."),
+    RU("Тащите маркер стороны, чтобы равномерно растянуть фигуру вдоль этой оси, или "
+       "угловой маркер, чтобы масштабировать её целиком относительно середины. Ctrl — "
+       "шагами по десятой."),
+    TR("Şekli o eksen boyunca eşit biçimde germek için bir kenarın tutamacını, ortası "
+       "etrafında bütünüyle ölçeklemek için bir köşe tutamacını sürükleyin. Ctrl onda "
+       "birlik adımlarla ölçekler."));
 
 SS_MSG(hint_rotate,
     EN("Drag a ring to turn the shape about that axis. Ctrl turns in 15-degree steps."),
