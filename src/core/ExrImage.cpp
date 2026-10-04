@@ -221,27 +221,10 @@ std::string parse_part(Reader& r, Part& part) {
 // Colour space
 // ===========================================================================
 
-struct GamutEntry {
-    const char* name;
-    float xy[8];   // Rx Ry Gx Gy Bx By Wx Wy
-};
-
-// The white point is part of the match: core/ColorSpace.h's "DCI-P3" is the
-// theatrical white, and passing P3-D65 off as it is a visible green shift, so
-// that one is reported as unknown rather than as nearly right.
-const GamutEntry kGamutTable[] = {
-    {"Rec.709",    {0.640f, 0.330f, 0.300f, 0.600f, 0.150f, 0.060f, 0.3127f, 0.3290f}},
-    {"ACES2065-1", {0.7347f, 0.2653f, 0.0f, 1.0f, 0.0001f, -0.0770f, 0.32168f, 0.33767f}},
-    {"ACEScg",     {0.713f, 0.293f, 0.165f, 0.830f, 0.128f, 0.044f, 0.32168f, 0.33767f}},
-    {"Rec.2020",   {0.708f, 0.292f, 0.170f, 0.797f, 0.131f, 0.046f, 0.3127f, 0.3290f}},
-    {"AdobeRGB",   {0.640f, 0.330f, 0.210f, 0.710f, 0.150f, 0.060f, 0.3127f, 0.3290f}},
-    {"DCI-P3",     {0.680f, 0.320f, 0.265f, 0.690f, 0.150f, 0.060f, 0.314f, 0.351f}},
-};
-
 void resolve_gamut(const Part& part, Info& info) {
     info.chromaticities = part.has_chroma;
     if (!part.has_chroma) return;
-    for (const GamutEntry& g : kGamutTable) {
+    for (const colorspace::GamutPrimaries& g : colorspace::kGamutPrimaries) {
         bool same = true;
         for (int i = 0; i < 8 && same; i++)
             same = std::fabs(part.chroma[i] - g.xy[i]) <= 0.002f;
@@ -986,7 +969,8 @@ struct Decoder {
 
     std::string open(const std::string& path);
     std::string read_offsets(Reader& r);
-    std::string run(int threads);
+    // Chunks 0, stride, 2*stride, ...
+    std::string run(int threads, size_t stride = 1);
     std::string decode_chunk(size_t i, Scratch& s);
     void emit_rows(const Rect& r, const uint8_t* blk, Scratch& s);
 };
@@ -1259,9 +1243,9 @@ std::string Decoder::decode_chunk(size_t i, Scratch& s) {
     return "";
 }
 
-std::string Decoder::run(int threads) {
-    const size_t n = offsets.size();
-    if (n == 0) return "the file has no image chunks";
+std::string Decoder::run(int threads, size_t stride) {
+    if (offsets.empty()) return "the file has no image chunks";
+    const size_t n = (offsets.size() + stride - 1) / stride;
     unsigned hc = std::thread::hardware_concurrency();
     int want = threads > 0 ? threads : (hc > 0 ? (int)hc : 1);
     want = std::max(1, std::min<int>(want, (int)n));
@@ -1272,7 +1256,7 @@ std::string Decoder::run(int threads) {
     if (want == 1) {
         Scratch s;
         for (size_t i = 0; i < n; i++)
-            if (const std::string e = decode_chunk(i, s); !e.empty()) return e;
+            if (const std::string e = decode_chunk(i * stride, s); !e.empty()) return e;
         return "";
     }
 
@@ -1287,7 +1271,7 @@ std::string Decoder::run(int threads) {
             for (;;) {
                 const size_t i = next.fetch_add(1);
                 if (i >= n) return;
-                const std::string e = decode_chunk(i, s);
+                const std::string e = decode_chunk(i * stride, s);
                 if (e.empty()) continue;
                 std::lock_guard<std::mutex> lk(mu);
                 if (first.empty()) first = e;
@@ -1354,7 +1338,7 @@ std::string decode(const std::string& path, const Options& opt, Info& info,
 
 std::string decode_srgb8(const std::string& path, const Options& opt, Info& info,
                          std::vector<uint8_t>& out, const std::string& gamut,
-                         std::optional<bool> is_linear) {
+                         std::optional<bool> is_linear, std::vector<uint8_t>* unexposed) {
     if (opt.channels != 1 && opt.channels != 3 && opt.channels != 4)
         return "an EXR can be decoded to 1, 3 or 4 channels";
     Decoder d;
@@ -1362,17 +1346,55 @@ std::string decode_srgb8(const std::string& path, const Options& opt, Info& info
     d.out_channels = opt.channels;
     info = d.info;
 
-    const colorspace::Srgb8Encoder enc(gamut.empty() ? d.info.gamut : gamut,
-                                       is_linear.value_or(d.info.is_linear));
+    const std::string& space = gamut.empty() ? d.info.gamut : gamut;
+    const bool linear = is_linear.value_or(d.info.is_linear);
+    const colorspace::Srgb8Encoder plain(space, linear);
     const size_t w = (size_t)d.info.width, h = (size_t)d.info.height;
-    out.resize(w * h * (size_t)opt.channels);
-    if (!d.covers_display()) std::fill(out.begin(), out.end(), (uint8_t)0);
     const int nc = opt.channels;
+
+    // Auto exposure meters every eighth chunk, which costs an eighth of a
+    // decode rather than holding the whole image as float.
+    std::vector<float> luma;
+    if (opt.exposure.automatic) {
+        const size_t step = colorspace::exposure_sample_step(w, h);
+        std::mutex mu;
+        d.sink = [&](int, int x0, int n, const float* px) {
+            std::vector<float> got;
+            for (size_t i = (step - (size_t)x0 % step) % step; i < (size_t)n; i += step) {
+                float v[3];
+                plain.to_linear(px + i * (size_t)nc, nc, v);
+                got.push_back(colorspace::luma709(v));
+            }
+            std::lock_guard<std::mutex> lk(mu);
+            luma.insert(luma.end(), got.begin(), got.end());
+        };
+        if (const std::string e = d.run(opt.threads, d.offsets.size() >= 64 ? 8 : 1);
+            !e.empty())
+            return e;
+    }
+    info.gain = colorspace::exposure_gain(opt.exposure, luma);
+    const colorspace::Srgb8Encoder enc(space, linear, info.gain);
+
+    out.resize(w * h * (size_t)nc);
+    if (!d.covers_display()) std::fill(out.begin(), out.end(), (uint8_t)0);
+    const bool both = unexposed && info.gain != 1.0f;
+    if (unexposed) unexposed->assign(both ? out.size() : 0, 0);
     uint8_t* dst = out.data();
-    d.sink = [&enc, dst, w, nc](int y, int x0, int n, const float* px) {
-        enc(px, dst + ((size_t)y * w + (size_t)x0) * (size_t)nc, (size_t)n, nc);
+    uint8_t* raw = both ? unexposed->data() : nullptr;
+    std::atomic<float> peak{0.0f};
+    d.sink = [&](int y, int x0, int n, const float* px) {
+        const size_t at = ((size_t)y * w + (size_t)x0) * (size_t)nc;
+        enc(px, dst + at, (size_t)n, nc);
+        if (raw) plain(px, raw + at, (size_t)n, nc);
+        float m = 0.0f;
+        for (size_t i = 0; i < (size_t)n * (size_t)nc; i++)
+            if (nc != 4 || i % 4 != 3) m = std::max(m, px[i]);
+        float cur = peak.load(std::memory_order_relaxed);
+        while (m > cur && !peak.compare_exchange_weak(cur, m, std::memory_order_relaxed)) {}
     };
-    return d.run(opt.threads);
+    const std::string e = d.run(opt.threads);
+    info.peak = peak.load();
+    return e;
 }
 
 }  // namespace exr

@@ -254,6 +254,10 @@ bool run_geometry_step(const GeometryJob& job, const std::string& dataset,
     }
     if (job.image_is_linear.has_value())
         argv.push_back(*job.image_is_linear ? "--image-linear" : "--no-image-linear");
+    if (!job.image_exposure.empty()) {
+        argv.push_back("--image-exposure");
+        argv.push_back(job.image_exposure);
+    }
 
     std::string cmd;
     for (const std::string& a : argv) cmd += (cmd.empty() ? "$ " : " ") + a;

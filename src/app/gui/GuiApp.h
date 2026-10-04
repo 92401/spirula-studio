@@ -545,7 +545,7 @@ private:
     bool any_found_masks() const;
     // Adopt the EXR colour space when the pictures are EXRs, unless the user
     // has already set one by hand.
-    void adopt_exr_color_space();
+    void adopt_file_color_space();
     void run_pending_if_stopped();
     void append_logs();
     void log(const std::string& s, bool detail = false);
@@ -601,7 +601,7 @@ private:
     std::string _pending_path;       // dataset dir for Pending::OpenDataset
     bool _pending_batch_skip = false;  // Pending::StartBatch's argument
     bool _parse_dirty = false;       // dataparser option edited -> reload
-    bool _color_space_touched = false;  // see adopt_exr_color_space
+    bool _color_space_touched = false;  // see adopt_file_color_space
 
     // ---- the one frozen native GPU choice ----
     // Typed request, including explicit Auto; frozen flag makes it immutable.

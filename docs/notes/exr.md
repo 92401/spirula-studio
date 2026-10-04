@@ -88,7 +88,12 @@ the transfer still leaves the primaries to the file and vice versa. The same spl
 screen offers **From the file / Linear light / Display-encoded** next to the
 gamut's own **From the file**, and its runners state on the child's command
 line only the half the user answered. The give-away for such a file is a
-maximum of exactly 1.0 across a whole scene-linear capture.
+maximum of exactly 1.0 across a whole scene-linear capture, and `spirula sfm`
+warns when it sees one: every image it decoded as linear peaked at exactly 1.0.
+
+A TIFF with an ICC profile declares its colour space the same way and goes
+through the same adoption (`imagefile::declared_color_space`,
+`docs/notes/tiff.md`).
 
 ## Where it is wired in
 
@@ -96,7 +101,9 @@ Callers that also read stb_image's formats reach it through
 `core/ImageFile.h`, which dispatches TIFF (`docs/notes/tiff.md`) the same way.
 
 - `spirula sfm` — `sfm::loadGrayImage`, decoding to sRGB on the decode pool
-  with `threads = 1` (the pool above already owns every core).
+  with `threads = 1` (the pool above already owns every core). An exposure
+  for what the detectors see applies here and in the two below
+  (`docs/notes/analysis-exposure.md`).
 - `spirula sam` / `spirula geometry` — `nn::load_image`, same conversion.
 - Training — `DataManager`'s RGB decode. An EXR probes as `FLOAT32`, never
   `UINT16`: half-float carries values above 1 and 16-bit normalized would clip

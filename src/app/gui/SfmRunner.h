@@ -195,6 +195,9 @@ struct SfmJob {
     // what those detectors and models were trained on. Empty = Rec.709/sRGB.
     std::string image_gamut;
     std::optional<bool> image_is_linear;
+    // What the detectors and models see, brightened in linear light: "", "auto"
+    // or stops (core/ColorSpace.h). Training reads the files as they are.
+    std::string image_exposure;
     // false: the sparse point cloud stays sRGB (train with point-color-gamut
     // Rec.709). true: written in the images' space, the trainer's default.
     bool point_color_in_image_space = false;

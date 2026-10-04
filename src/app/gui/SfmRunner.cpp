@@ -277,6 +277,7 @@ void SfmRunner::take_masking(PrepJob& prep) {
     prep.mask_detector_threshold = _live.prep.mask_detector_threshold;
     prep.image_gamut = _live.prep.image_gamut;
     prep.image_is_linear = _live.prep.image_is_linear;
+    prep.image_exposure = _live.prep.image_exposure;
 }
 
 void SfmRunner::cancel() { _cancel = true; }
@@ -729,6 +730,10 @@ std::vector<std::string> SfmRunner::recon_args(const SfmJob& job,
     if (job.image_is_linear.has_value())
         argv.push_back(*job.image_is_linear ? "--image-linear"
                                             : "--no-image-linear");
+    if (!job.image_exposure.empty()) {
+        argv.push_back("--image-exposure");
+        argv.push_back(job.image_exposure);
+    }
     if (job.point_color_in_image_space) {
         argv.push_back("--point-color");
         argv.push_back("image");
