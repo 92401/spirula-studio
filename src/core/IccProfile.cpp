@@ -154,7 +154,7 @@ M3 adapt_to_d50(const M3& m) {
     return mul(mul(ki, scale), mul(kBradford, m));
 }
 
-bool near(const M3& a, const M3& b) {
+bool is_near(const M3& a, const M3& b) {
     for (int i = 0; i < 9; i++)
         if (std::fabs(a[i] - b[i]) > 0.003) return false;
     return true;
@@ -166,7 +166,7 @@ void match_gamut(const M3& colorants, ColorSpace& out) {
     for (const colorspace::GamutPrimaries& g : colorspace::kGamutPrimaries) {
         M3 m;
         if (!rgb_to_xyz(g.xy, m)) continue;
-        if (near(colorants, adapt_to_d50(m)) || near(colorants, m)) {
+        if (is_near(colorants, adapt_to_d50(m)) || is_near(colorants, m)) {
             out.gamut = std::string(g.name) == "Rec.709" ? "" : g.name;
             return;
         }
