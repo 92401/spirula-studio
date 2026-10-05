@@ -46,9 +46,9 @@ struct GrayImage {
     std::vector<uint8_t> color;
     float gain = 1.0f;        // the exposure in `rgb` and `data`, linear light
     float peak = 0.0f;        // largest colour value in the file; 1.0 is white
-    // Optional keypoint mask, at *its own* resolution (sfm/core/Mask.h): it is
-    // sampled in uv, so it neither has to match this image's decoded size nor
-    // the source file's. Empty unless the loader was given a mask path.
+    // Keypoint mask at its own resolution, sampled in uv (sfm/core/Mask.h).
+    // Empty unless the loader was given a mask path or the image's alpha has
+    // a transparent pixel.
     Mask mask;
     // What the file's EXIF said, if anything (sfm/core/Exif.h). Parsed here so
     // the batch decode pool absorbs the cost, and because this is the last

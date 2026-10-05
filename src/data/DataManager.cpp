@@ -425,7 +425,7 @@ void place_rgb_over(const std::string& path, const T* px, int w, int h, const fl
 
 // `decode_threads` is what an EXR or TIFF may use: 1 on the worker pool, which
 // is already 16 wide, and every core for a lone image the viewer asked for.
-// `over`, when set, composites an 8- or 16-bit file's alpha onto that colour.
+// `over`, when set, composites the file's alpha onto that colour.
 void decode_rgb_into(const std::string& path,
                      int expected_h, int expected_w,
                      PixelDType dtype,
@@ -461,10 +461,21 @@ void decode_rgb_into(const std::string& path,
         exr::Info info;
         exr::Options opt;
         opt.threads = decode_threads;
+        opt.channels = over ? 4 : 3;
         std::vector<float> px;
         const std::string err = exr::decode(path, opt, info, px);
         if (!err.empty())
             throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        if (over) {
+            // EXR colour is premultiplied by its alpha, so the background
+            // only fills what the alpha leaves.
+            const size_t n = (size_t)info.width * info.height;
+            std::vector<float> rgb(n * 3);
+            for (size_t i = 0; i < n; ++i)
+                for (int c = 0; c < 3; ++c)
+                    rgb[i * 3 + c] = px[i * 4 + c] + over[c] * (1.0f - px[i * 4 + 3]);
+            px.swap(rgb);
+        }
         place_rgb(path, px.data(), info.width, info.height, turns_cw, expected_h, expected_w,
                   dst);
     } else if (dtype == PixelDType::UINT16) {
@@ -531,7 +542,21 @@ void decode_alpha_mask_into(const std::string& path,
 {
     int w, h, ch;
     std::vector<stbi_uc> alpha;
-    if (tiff::is_tiff(path)) {
+    if (exr::is_exr(path)) {
+        exr::Info info;
+        exr::Options opt;
+        opt.channels = 4;
+        opt.threads = 1;
+        std::vector<float> px;
+        const std::string err = exr::decode(path, opt, info, px);
+        if (!err.empty())
+            throw std::runtime_error(decode_failure(path) + " (" + err + ")");
+        w = info.width;
+        h = info.height;
+        alpha.resize((size_t)w * h);
+        for (size_t i = 0; i < alpha.size(); ++i)
+            alpha[i] = (stbi_uc)std::lround(std::clamp(px[i * 4 + 3], 0.0f, 1.0f) * 255.0f);
+    } else if (tiff::is_tiff(path)) {
         tiff::Info info;
         tiff::Options opt;
         opt.channels = 4;

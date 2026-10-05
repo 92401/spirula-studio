@@ -45,8 +45,10 @@ A training image's mask comes from up to two places:
   `flip_mask` swaps that for files that paint what to remove;
 - **the image's own alpha channel**, for an RGBA (or gray + alpha) image whose
   alpha is not opaque everywhere -- a render or a cut-out with a transparent
-  background. Opaque from 128 up, the gate the dataset screen's JPEG
-  conversion uses when it turns alpha into a mask file.
+  background. PNG, TIFF and EXR (its `A` channel) alike. Opaque from 128 up
+  (0.5 for an EXR), the gate the dataset screen's JPEG conversion uses when it
+  turns alpha into a mask file. `spirula sfm` reads the same alpha when it
+  finds features, so a cut-out's background gets no keypoints either.
 
 With both, a pixel is kept only where both keep it, and `flip_mask` applies
 to the file alone: alpha always means "transparent is not the subject". The two
@@ -58,9 +60,10 @@ aspect ratio differs from its image's is stretched onto it with a warning.
 
 Against a constant background (`background_mode` `color`), a cut-out image's
 colour is also composited onto `background_color` by its alpha as it is
-decoded: a transparent pixel's ground truth is the background it is rendered
-on, which is what eval scores a render against over the whole frame, what the
-Images tab shows, and what a soft edge renders as. The other background modes
+decoded (an EXR's colour is premultiplied, so the background fills only what
+its alpha leaves): a transparent pixel's ground truth is the background it is
+rendered on, which is what eval scores a render against over the whole frame,
+what the Images tab shows, and what a soft edge renders as. The other background modes
 have no one colour to composite onto and keep the stored one.
 
 What a masked-out pixel means is `apply_loss_for_mask` (the GUI's Mask mode):

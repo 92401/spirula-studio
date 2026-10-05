@@ -136,6 +136,45 @@ void applyExifOrientation(GrayImage& img) {
     img.exif.orientation = 1;
 }
 
+// A cut-out's alpha as a mask gated at 128, read apart from the colour so the
+// exposure path stays as it is. Empty when the file has no alpha, or nothing
+// in it is transparent -- most RGBA files.
+Mask loadAlpha(const std::string& path) {
+    int w = 0, h = 0, chan = 0;
+    std::vector<uint8_t> own;
+    stbi_uc* stb = nullptr;
+    const uint8_t* px = nullptr;
+    if (imagefile::handles(path)) {
+        imagefile::Info info;
+        if (!imagefile::probe(path, info).empty() || (info.channels != 2 && info.channels != 4))
+            return Mask();
+        imagefile::Options opt;
+        opt.channels = 4;
+        opt.threads = 1;
+        if (!imagefile::decode_srgb8(path, opt, info, own).empty()) return Mask();
+        w = info.width;
+        h = info.height;
+        px = own.data();
+    } else {
+        if (!stbi_info(path.c_str(), &w, &h, &chan) || (chan != 2 && chan != 4)) return Mask();
+        stb = stbi_load(path.c_str(), &w, &h, &chan, 4);
+        if (!stb) return Mask();
+        px = stb;
+    }
+    Mask m;
+    m.width = w;
+    m.height = h;
+    m.bits.resize((size_t)w * h);
+    bool any = false;
+    for (size_t i = 0; i < m.bits.size(); i++) {
+        m.bits[i] = px[4 * i + 3] >= 128 ? 1 : 0;
+        any = any || !m.bits[i];
+    }
+    if (stb) stbi_image_free(stb);
+    if (!any) m.bits.clear();
+    return m;
+}
+
 }  // namespace
 
 GrayImage loadGrayImage(const std::string& path, int max_image_size, bool want_color,
@@ -219,6 +258,8 @@ GrayImage loadGrayImage(const std::string& path, int max_image_size, bool want_c
     // finding img.mask empty.
     if (!feature_mask_path.empty() && (mask_path.empty() || !img.mask.empty()))
         intersectMask(img.mask, loadMask(feature_mask_path));
+    // ANDed with the files, unflipped, as the trainer reads it (data/DataManager.h).
+    if (mask_path.empty() || !img.mask.empty()) intersectMask(img.mask, loadAlpha(path));
     img.exif = readExif(path);  // header bytes only; see sfm/core/Exif.h
     if (apply_exif_orientation) applyExifOrientation(img);
     return img;
