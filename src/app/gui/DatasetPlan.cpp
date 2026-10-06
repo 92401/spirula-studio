@@ -293,11 +293,11 @@ void compare(StepPlan& s, const StepRecord& r, std::vector<FieldChange> changes)
     else set(s, Act::Redo, Why::Settings);
 }
 
-// What `spirula sfm` and `spirula lidar` will make of what the workspace
-// holds, once the steps above are planned. Each reuses by its own signature;
-// this predicts the answer from the fields that feed it.
+// What `spirula sfm` and `spirula lidar` will make of the workspace: each
+// reuses by its own signature, predicted here from the fields that feed it,
+// then what the user chose where the stage's lock allows.
 void plan_parts(DatasetPlan& p, const PlanJob& job, const WorkspaceState& ws,
-                const DatasetRecord& rec, bool masks_feed) {
+                const DatasetRecord& rec, const PlanRequest& req, bool masks_feed) {
     const StepPlan& fr = p[Step::Frames];
     const StepPlan& mk = p[Step::Masks];
     const StepPlan& md = p[Step::Model];
@@ -307,6 +307,19 @@ void plan_parts(DatasetPlan& p, const PlanJob& job, const WorkspaceState& ws,
     StepPlan& mp = p[ModelPart::Mapping];
     StepPlan& al = p[ModelPart::Align];
     if (!job.reconstruct) return;
+
+    auto choose = [&](ModelPart part, StepPlan& s) {
+        if (s.lock != Lock::None) return;
+        const PartChoice c = req.parts[(int)part];
+        if (c == PartChoice::Keep && makes(s.act)) s.act = Act::Keep;
+        else if (c == PartChoice::Run && !makes(s.act)) set(s, Act::Redo, Why::Requested);
+    };
+    auto changed = [](const StepPlan& s, std::initializer_list<const char*> keys) {
+        for (const FieldChange& c : s.changes)
+            for (const char* k : keys)
+                if (c.key == k) return true;
+        return false;
+    };
 
     if (job.staged && makes(md.act)) {
         if (rr.present)
@@ -318,41 +331,74 @@ void plan_parts(DatasetPlan& p, const PlanJob& job, const WorkspaceState& ws,
         const bool moved = !ws.extracted_images.empty() && !same_dir(ws.extracted_images, images);
 
         // The runner deletes features/ and matches.bin under new frames.
-        if (makes(fr.act)) set(fe, ws.features ? Act::Redo : Act::Run,
-                               ws.features ? Why::Frames : Why::None);
-        else if (!ws.extracted) set(fe, Act::Run);
-        else if (moved) set(fe, Act::Redo, Why::Moved);
-        else if (!rr.present) set(fe, Act::Reuse, Why::Unrecorded);
-        else if (!fe.changes.empty()) set(fe, Act::Redo, Why::Settings);
-        // An image is extracted again when its mask file is newer.
-        else if (masks_feed && (makes(mk.act) || rr.masks_id != rec.step(Step::Masks).id))
+        if (makes(fr.act)) {
+            set(fe, ws.features ? Act::Redo : Act::Run, ws.features ? Why::Frames : Why::None);
+            fe.lock = ws.features ? Lock::Frames : Lock::Nothing;
+        } else if (!ws.extracted) {
+            set(fe, Act::Run);
+            fe.lock = Lock::Nothing;
+        } else if (moved) {
+            set(fe, Act::Redo, Why::Moved);
+        } else if (!rr.present) {
+            set(fe, Act::Reuse, Why::Unrecorded);
+        } else if (!fe.changes.empty()) {
+            set(fe, Act::Redo, Why::Settings);
+        } else if (masks_feed && (makes(mk.act) || rr.masks_id != rec.step(Step::Masks).id)) {
+            // An image is extracted again when its mask file is newer.
             set(fe, Act::Redo, Why::Masks);
-        else if (!rr.complete && !ws.matched) set(fe, Act::Run, Why::Resume);
-        else set(fe, Act::Reuse);
+        } else if (!rr.complete && !ws.matched) {
+            set(fe, Act::Run, Why::Resume);
+            fe.lock = Lock::Nothing;
+        } else {
+            set(fe, Act::Reuse);
+        }
+        // A learned matcher reads only the descriptors it was trained on.
+        if (fe.lock == Lock::None && changed(fe, {"features", "engine"})) fe.lock = Lock::Frontend;
+        choose(ModelPart::Features, fe);
 
-        // Its signature covers every feature file's size and write time.
-        if (!ws.matched) set(ma, Act::Run,
-                             ws.matching_part && !makes(fe.act) ? Why::Resume : Why::None);
-        else if (makes(fe.act)) set(ma, Act::Redo, Why::Features);
-        else if (!rr.present) set(ma, Act::Reuse, Why::Unrecorded);
-        else if (!ma.changes.empty()) set(ma, Act::Redo, Why::Settings);
-        else set(ma, Act::Reuse);
+        // Its signature covers every feature file's size, write time and path.
+        if (!ws.matched) {
+            set(ma, Act::Run, ws.matching_part && !makes(fe.act) ? Why::Resume : Why::None);
+            ma.lock = Lock::Nothing;
+        } else if (makes(fe.act)) {
+            set(ma, Act::Redo, Why::Features);
+            ma.lock = Lock::Before;
+        } else if (moved) {
+            set(ma, Act::Redo, Why::Moved);
+        } else if (!rr.present) {
+            set(ma, Act::Reuse, Why::Unrecorded);
+        } else if (!ma.changes.empty()) {
+            set(ma, Act::Redo, Why::Settings);
+        } else {
+            set(ma, Act::Reuse);
+        }
+        if (ma.lock == Lock::None && changed(ma, {"lens", "focal", "camera_mode", "focal_px",
+                                                  "distortion", "data_type", "scan_views"}))
+            ma.lock = Lock::Lens;
+        choose(ModelPart::Matching, ma);
 
         if (!ws.model) set(mp, Act::Run);
         else if (makes(ma.act)) set(mp, Act::Redo, Why::Matches);
         else if (!mp.changes.empty()) set(mp, Act::Redo, Why::Settings);
         else if (md.why == Why::Resume) set(mp, Act::Run);
         else set(mp, Act::Redo, md.why);
+        mp.lock = Lock::Always;
     }
 
     if (job.lidar_clouds.empty()) return;
-    if (makes(md.act)) set(al, ws.aligned ? Act::Redo : Act::Run,
-                           ws.aligned ? Why::Model : Why::None);
-    else if (!ws.aligned) set(al, Act::Run);
-    else if (ws.aligned_clouds == job.lidar_clouds &&
-             ws.aligned_kept_frame == job.lidar_in_frame)
+    if (makes(md.act)) {
+        set(al, ws.aligned ? Act::Redo : Act::Run, ws.aligned ? Why::Model : Why::None);
+        al.lock = ws.aligned ? Lock::Before : Lock::Nothing;
+    } else if (!ws.aligned) {
+        set(al, Act::Run);
+        al.lock = Lock::Nothing;
+    } else if (ws.aligned_clouds == job.lidar_clouds &&
+               ws.aligned_kept_frame == job.lidar_in_frame) {
         set(al, Act::Reuse);
-    else set(al, Act::Redo, Why::Settings);
+    } else {
+        set(al, Act::Redo, Why::Settings);
+    }
+    choose(ModelPart::Align, al);
 }
 
 float to_float(const std::string& s) { return (float)std::strtod(s.c_str(), nullptr); }
@@ -862,7 +908,7 @@ DatasetPlan plan_dataset(const PlanJob& job, const WorkspaceState& ws,
     if (fixed(Step::Model))
         std::copy(std::begin(done->parts), std::end(done->parts), std::begin(p.parts));
     else
-        plan_parts(p, job, ws, rec, masks_feed);
+        plan_parts(p, job, ws, rec, req, masks_feed);
 
     StepPlan& g = p[Step::Geometry];
     if (fixed(Step::Geometry)) {

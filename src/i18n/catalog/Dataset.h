@@ -12956,6 +12956,177 @@ SS_MSG(plan_part_align,
     ES("Alineación con LiDAR"), PT("Alinhamento com LiDAR"), IT("Allineamento LiDAR"),
     NL("LiDAR-uitlijning"), RU("Совмещение с LiDAR"), TR("LiDAR hizalama"));
 
+SS_MSG(plan_part_toggle_help,
+    EN("Ticked, this stage runs. Untick it to keep what an earlier run left "
+       "instead, or tick one that would be reused to make it again; every stage "
+       "after one that runs runs too."),
+    JA("チェックするとこの段階を実行します。外すと前の実行が残したものをそのまま"
+       "使い、再利用される段階にチェックを入れると作り直します。実行する段階より"
+       "後の段階もすべて実行されます。"),
+    ZH_HANS("勾选则运行这一阶段。取消勾选会沿用之前运行留下的结果；给会被沿用的阶段"
+            "打勾则重做。运行的阶段之后的阶段也都会运行。"),
+    ZH_HANT("勾選則執行這一階段。取消勾選會沿用之前執行留下的結果；給會被沿用的階段"
+            "打勾則重做。執行的階段之後的階段也都會執行。"),
+    KO("체크하면 이 단계를 실행합니다. 해제하면 이전 실행이 남긴 것을 그대로 쓰고, "
+       "다시 쓰일 단계에 체크하면 다시 만듭니다. 실행되는 단계 다음의 단계도 모두 "
+       "실행됩니다."),
+    DE("Angehakt läuft dieser Schritt. Ohne Haken bleibt, was ein früherer Lauf "
+       "hinterlassen hat; ein Haken bei einem Schritt, der weiterverwendet würde, "
+       "macht ihn neu. Auf einen Schritt, der läuft, folgen alle weiteren."),
+    FR("Cochée, cette étape s'exécute. Décochez-la pour garder ce qu'une exécution "
+       "précédente a laissé, ou cochez une étape qui serait réutilisée pour la "
+       "refaire ; toute étape après une étape qui s'exécute s'exécute aussi."),
+    ES("Marcada, esta etapa se ejecuta. Desmárquela para conservar lo que dejó una "
+       "ejecución anterior, o marque una que se reutilizaría para rehacerla; toda "
+       "etapa posterior a una que se ejecuta también se ejecuta."),
+    PT("Marcada, esta etapa é executada. Desmarque-a para manter o que uma "
+       "execução anterior deixou, ou marque uma que seria reutilizada para a "
+       "refazer; todas as etapas depois de uma que é executada também o são."),
+    IT("Spuntata, questa fase viene eseguita. Togli la spunta per tenere ciò che "
+       "ha lasciato un'esecuzione precedente, o spunta una fase che verrebbe "
+       "riutilizzata per rifarla; ogni fase dopo una che viene eseguita viene "
+       "eseguita anch'essa."),
+    NL("Aangevinkt wordt deze stap uitgevoerd. Vink hem uit om te houden wat een "
+       "eerdere run achterliet, of vink een stap aan die hergebruikt zou worden om "
+       "hem opnieuw te doen; elke stap na een stap die loopt, loopt ook."),
+    RU("Отмеченный этап выполняется. Снимите отметку, чтобы оставить то, что "
+       "сделал прошлый запуск, или отметьте этап, который использовался бы как "
+       "есть, чтобы сделать его заново; все этапы после выполняемого тоже "
+       "выполняются."),
+    TR("İşaretliyse bu aşama çalışır. Önceki bir çalıştırmanın bıraktığını korumak "
+       "için işareti kaldırın ya da yeniden kullanılacak bir aşamayı yeniden yapmak "
+       "için işaretleyin; çalışan bir aşamadan sonraki her aşama da çalışır."));
+
+SS_MSG(plan_lock_nothing,
+    EN("Nothing finished is on disk for this stage, so it has to run."),
+    JA("この段階の完成した結果がディスクにないので、実行が必要です。"),
+    ZH_HANS("磁盘上没有这一阶段做完的结果，所以必须运行。"),
+    ZH_HANT("磁碟上沒有這一階段做完的結果，所以必須執行。"),
+    KO("이 단계의 끝난 결과가 디스크에 없어서 실행해야 합니다."),
+    DE("Für diesen Schritt liegt nichts Fertiges auf der Festplatte, also muss er laufen."),
+    FR("Rien de terminé n'est sur le disque pour cette étape : elle doit s'exécuter."),
+    ES("No hay nada terminado en disco para esta etapa, así que debe ejecutarse."),
+    PT("Não há nada terminado no disco para esta etapa, por isso tem de ser executada."),
+    IT("Su disco non c'è niente di finito per questa fase, quindi va eseguita."),
+    NL("Er staat voor deze stap niets afgerond op schijf, dus hij moet lopen."),
+    RU("Для этого этапа на диске нет готового результата, поэтому он выполняется."),
+    TR("Bu aşama için diskte bitmiş bir şey yok, bu yüzden çalışması gerekiyor."));
+
+SS_MSG(plan_lock_frames,
+    EN("The frames are made again, so the feature points of the old ones cannot "
+       "be kept."),
+    JA("フレームを作り直すので、古いフレームの特徴点は残せません。"),
+    ZH_HANS("帧会重做，所以旧帧的特征点不能保留。"),
+    ZH_HANT("影格會重做，所以舊影格的特徵點不能保留。"),
+    KO("프레임을 다시 만들기 때문에 예전 프레임의 특징점은 남겨 둘 수 없습니다."),
+    DE("Die Bilder werden neu gemacht, also lassen sich die Merkmale der alten "
+       "nicht behalten."),
+    FR("Les images sont refaites : les points des anciennes ne peuvent pas être "
+       "gardés."),
+    ES("Los fotogramas se rehacen, así que no se pueden conservar los puntos de "
+       "los anteriores."),
+    PT("Os quadros são refeitos, por isso os pontos dos antigos não podem ser "
+       "mantidos."),
+    IT("I fotogrammi vengono rifatti, quindi i punti di quelli vecchi non si "
+       "possono tenere."),
+    NL("De beelden worden opnieuw gemaakt, dus de kenmerken van de oude kunnen "
+       "niet blijven."),
+    RU("Кадры делаются заново, поэтому признаки старых кадров оставить нельзя."),
+    TR("Kareler yeniden yapılıyor, bu yüzden eskilerin öznitelikleri korunamaz."));
+
+SS_MSG(plan_lock_frontend,
+    EN("These feature points are of another type than the one chosen, and its "
+       "matcher cannot read them."),
+    JA("これらの特徴点は選んだものと種類が違い、その照合器では読めません。"),
+    ZH_HANS("这些特征点和所选的类型不同，它的匹配器读不了。"),
+    ZH_HANT("這些特徵點和所選的類型不同，它的比對器讀不了。"),
+    KO("이 특징점은 고른 것과 종류가 달라 그 정합기가 읽을 수 없습니다."),
+    DE("Diese Merkmale sind von einer anderen Art als der gewählten, und deren "
+       "Zuordnung kann sie nicht lesen."),
+    FR("Ces points sont d'un autre type que celui choisi, et son apparieur ne "
+       "peut pas les lire."),
+    ES("Estos puntos son de otro tipo que el elegido, y su emparejador no puede "
+       "leerlos."),
+    PT("Estes pontos são de outro tipo que o escolhido, e o seu emparelhador não "
+       "os consegue ler."),
+    IT("Questi punti sono di un tipo diverso da quello scelto, e il suo "
+       "abbinatore non li sa leggere."),
+    NL("Deze kenmerken zijn van een ander soort dan het gekozen, en de koppelaar "
+       "daarvan kan ze niet lezen."),
+    RU("Эти признаки другого типа, чем выбранный, и его сопоставитель не может "
+       "их прочитать."),
+    TR("Bu öznitelikler seçilenden farklı türde ve onun eşleştiricisi bunları "
+       "okuyamaz."));
+
+SS_MSG(plan_lock_before,
+    EN("The stage before it is made again, so this one has to run too."),
+    JA("前の段階を作り直すので、この段階も実行が必要です。"),
+    ZH_HANS("前一个阶段会重做，所以这一阶段也必须运行。"),
+    ZH_HANT("前一個階段會重做，所以這一階段也必須執行。"),
+    KO("앞 단계를 다시 만들기 때문에 이 단계도 실행해야 합니다."),
+    DE("Der Schritt davor wird neu gemacht, also muss auch dieser laufen."),
+    FR("L'étape d'avant est refaite : celle-ci doit donc s'exécuter aussi."),
+    ES("La etapa anterior se rehace, así que esta también debe ejecutarse."),
+    PT("A etapa anterior é refeita, por isso esta também tem de ser executada."),
+    IT("La fase precedente viene rifatta, quindi anche questa va eseguita."),
+    NL("De stap ervoor wordt opnieuw gedaan, dus deze moet ook lopen."),
+    RU("Предыдущий этап делается заново, поэтому этот тоже выполняется."),
+    TR("Önceki aşama yeniden yapılıyor, bu yüzden bu da çalışmalı."));
+
+SS_MSG(plan_lock_lens,
+    EN("A lens setting changed. The matches carry the lenses they were checked "
+       "with, so keeping them would leave the change unused."),
+    JA("レンズの設定が変わりました。照合結果は検証に使ったレンズを持っているので、"
+       "残すと変更が使われません。"),
+    ZH_HANS("镜头设置变了。匹配结果带着验证时用的镜头，保留它们就等于没用上这个改动。"),
+    ZH_HANT("鏡頭設定變了。匹配結果帶著驗證時用的鏡頭，保留它們就等於沒用上這個改動。"),
+    KO("렌즈 설정이 바뀌었습니다. 정합 결과는 검증에 쓴 렌즈를 담고 있어서, 남겨 "
+       "두면 바꾼 설정이 쓰이지 않습니다."),
+    DE("Eine Objektiveinstellung hat sich geändert. Die Paare tragen die Objektive, "
+       "mit denen sie geprüft wurden; behalten bliebe die Änderung ungenutzt."),
+    FR("Un réglage d'objectif a changé. Les appariements portent les objectifs avec "
+       "lesquels ils ont été vérifiés : les garder laisserait le changement sans "
+       "effet."),
+    ES("Cambió un ajuste de lente. Los emparejamientos llevan las lentes con que se "
+       "verificaron, así que conservarlos dejaría el cambio sin efecto."),
+    PT("Mudou uma definição de lente. Os pareamentos levam as lentes com que foram "
+       "verificados, por isso mantê-los deixaria a mudança sem efeito."),
+    IT("È cambiata un'impostazione dell'obiettivo. Gli abbinamenti portano gli "
+       "obiettivi con cui sono stati verificati: tenerli lascerebbe il cambiamento "
+       "senza effetto."),
+    NL("Een lensinstelling is veranderd. De koppelingen dragen de lenzen waarmee "
+       "ze gecontroleerd zijn, dus houden zou de wijziging ongebruikt laten."),
+    RU("Изменилась настройка объектива. Сопоставления хранят объективы, с которыми "
+       "их проверяли, поэтому, оставив их, изменение не будет использовано."),
+    TR("Bir lens ayarı değişti. Eşlemeler doğrulandıkları lensleri taşıyor; "
+       "korunurlarsa değişiklik kullanılmamış olur."));
+
+SS_MSG(plan_lock_mapping,
+    EN("Mapping is the reconstruction itself and runs whenever it is made. To "
+       "skip it, keep the reconstruction as it is."),
+    JA("マッピングは再構成そのもので、再構成を作るときは必ず実行します。省くには"
+       "再構成をそのまま残してください。"),
+    ZH_HANS("建图就是重建本身，只要做重建就会运行。要跳过它，请保留现有的重建。"),
+    ZH_HANT("建圖就是重建本身，只要做重建就會執行。要跳過它，請保留現有的重建。"),
+    KO("매핑은 재구성 그 자체라서 재구성을 만들 때마다 실행됩니다. 건너뛰려면 "
+       "재구성을 그대로 남겨 두세요."),
+    DE("Die Kartierung ist die Rekonstruktion selbst und läuft, wann immer sie "
+       "gemacht wird. Um sie zu überspringen, die Rekonstruktion behalten."),
+    FR("La cartographie est la reconstruction elle-même et s'exécute chaque fois "
+       "qu'elle est faite. Pour l'éviter, gardez la reconstruction telle quelle."),
+    ES("El mapeo es la reconstrucción misma y se ejecuta siempre que se hace. "
+       "Para saltarlo, conserve la reconstrucción tal como está."),
+    PT("O mapeamento é a própria reconstrução e é executado sempre que ela é "
+       "feita. Para o saltar, mantenha a reconstrução como está."),
+    IT("La mappatura è la ricostruzione stessa e viene eseguita ogni volta che "
+       "la si fa. Per saltarla, tieni la ricostruzione così com'è."),
+    NL("Kartering is de reconstructie zelf en loopt telkens als die gemaakt "
+       "wordt. Houd de reconstructie zoals ze is om haar over te slaan."),
+    RU("Картирование и есть реконструкция и выполняется всякий раз, когда она "
+       "делается. Чтобы пропустить его, оставьте реконструкцию как есть."),
+    TR("Haritalama yeniden kurmanın kendisidir ve her yapıldığında çalışır. "
+       "Atlamak için yeniden kurmayı olduğu gibi koruyun."));
+
 SS_MSG(plan_keep_built,
     EN("Keep the existing frames and reconstruction"),
     JA("いまあるフレームと再構成を残す"),

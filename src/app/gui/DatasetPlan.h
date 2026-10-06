@@ -16,12 +16,23 @@ namespace gui {
 struct SfmJob;
 struct ColmapJob;
 
+// The built-in reconstruction's stages: `spirula sfm` keeps features/ and
+// matches.bin while the settings that made them read the same, always maps
+// again, and `spirula lidar` keeps an alignment made from the same scans.
+enum class ModelPart { Features, Matching, Mapping, Align };
+inline constexpr int kNumModelParts = 4;
+
+// A stage kept although the plan would make it again, or made again although
+// it would be kept. Honoured only where StepPlan::lock allows.
+enum class PartChoice { Auto, Keep, Run };
+
 // What the user asked for, as opposed to what the settings imply.
 struct PlanRequest {
     bool redo_frames = false, redo_masks = false, redo_model = false;
     bool redo_geometry = false;
     // Keep frames and a reconstruction whose settings differ from the panel's.
     bool keep_built = false;
+    PartChoice parts[kNumModelParts] = {};
 };
 
 // What each step's output is made with (StepRecord::fields).
@@ -80,9 +91,22 @@ struct FieldChange {
     std::string key, scope, was, now;   // `was` / `now` empty: absent
 };
 
+// Why a stage of the reconstruction can be neither kept nor made again
+// against the plan: each is a combination that cannot come out right.
+enum class Lock {
+    None,
+    Nothing,    // nothing finished on disk to keep
+    Frames,     // new frames: the old ones' feature points describe nothing
+    Frontend,   // feature points of another type than the one chosen
+    Before,     // the stage before it is made again
+    Lens,       // matches.bin carries the lenses verification used
+    Always,     // mapping is the reconstruction being made
+};
+
 struct StepPlan {
     Act act = Act::None;
     Why why = Why::None;
+    Lock lock = Lock::None;   // a stage of the reconstruction only
     std::vector<FieldChange> changes;
     // Rebuilds something the user did not ask to: confirmed first.
     bool ask = false;
@@ -93,12 +117,6 @@ struct StepPlan {
     std::vector<std::string> kinds;
     bool adds = false;
 };
-
-// The built-in reconstruction's stages: `spirula sfm` keeps features/ and
-// matches.bin while the settings that made them read the same, always maps
-// again, and `spirula lidar` keeps an alignment made from the same scans.
-enum class ModelPart { Features, Matching, Mapping, Align };
-inline constexpr int kNumModelParts = 4;
 
 struct DatasetPlan {
     StepPlan steps[kNumSteps];

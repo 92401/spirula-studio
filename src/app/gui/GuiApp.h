@@ -430,6 +430,8 @@ private:
     // when the folder changes, and from the plan's own button.
     void restore_from_record(bool announce);
     void restore_record_rows(const DatasetRecord& rec);
+    // The re-dos and the stages kept or forced: one run's worth each.
+    void forget_redo_requests();
     // Everything start_dataset_job does once the confirmation is settled.
     // False when the run did not start (busy, or the device could not be frozen).
     bool launch_dataset_job();
@@ -827,6 +829,10 @@ private:
     // output folder or the inputs change.
     bool _keep_built = false;
     std::string _keep_built_for;
+    // The reconstruction's stages ticked or unticked in the plan list
+    // (PlanRequest::parts), for this output folder only.
+    PartChoice _part_choice[kNumModelParts] = {};
+    std::string _part_choice_for;
     bool _resume = true;
     bool _mask_enable = false;
     // Hide what the masks cover from feature detection too, not only from

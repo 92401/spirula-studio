@@ -920,6 +920,15 @@ void SfmRunner::run(SfmJob job) {
                 std::ofstream(mf, std::ios::binary | std::ios::trunc) << now[++k];
                 settings.push_back(mf.string());
             }
+            // What the user kept or asked again of `spirula sfm`'s own stages;
+            // the rest it decides by its signatures, as the plan predicted.
+            for (const auto& [part, flag] : {std::pair{ModelPart::Features, "--reuse-features"},
+                                             std::pair{ModelPart::Matching, "--reuse-matches"}}) {
+                const StepPlan& sp = plan[part];
+                if (sp.act == Act::Keep) settings.insert(settings.end(), {flag, "keep"});
+                else if (sp.act == Act::Redo && sp.why == Why::Requested)
+                    settings.insert(settings.end(), {flag, "redo"});
+            }
             // Explicit for both in-process and self-child runs.
             if (!job.device_selector.empty()) {
                 settings.push_back("--device");
@@ -1005,7 +1014,9 @@ void SfmRunner::run(SfmJob job) {
         if (!reuse_model && modelled) record.finish(Step::Model);
 
         // ---- 3. the laser scans: alignment, then their depth and normals ----
-        if (job.lidar.enabled()) {
+        const StepPlan& align = plan[ModelPart::Align];
+        job.lidar.overwrite = align.act == Act::Redo && align.why == Why::Requested;
+        if (job.lidar.enabled() && align.act != Act::Keep) {
             // Masks folded into masks/ are already the right way round; ones
             // read where they lie keep their own convention.
             job.lidar.flip_masks = prep.mask_dir_flipped;

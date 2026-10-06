@@ -115,6 +115,20 @@ files' presence says whether there is anything to reuse at all. "Reconstruct
 again" on unchanged settings therefore reads as extraction and matching
 reused, mapping redone -- minutes, where the line above it says the hour.
 
+Each stage's line carries a checkbox: ticked, it runs. Unticking one the plan
+would redo keeps what is on disk (`PartChoice::Keep`, `spirula sfm
+--reuse-features|--reuse-matches keep`, or no `spirula lidar` at all), and
+ticking one it would reuse makes it again (`redo`, `--overwrite`). A kept
+stage is recorded as made with the current settings -- its signature is
+stored again, and a kept feature file older than its mask is dated now -- so
+the next run reuses it without being told. What cannot come out right is
+refused by `StepPlan::lock`, not left to the user: a stage after one that
+runs, mapping on its own, feature points across new frames or another
+frontend (its matcher cannot read them), and matches across a lens change,
+because `matches.bin` carries the camera setup verification used and keeping
+it would leave the new lens unused. `spirula sfm` refuses on its own to keep
+matches over a feature file the same run rewrote.
+
 ## Restoring onto the dataset's own images/
 
 Dropping `<dataset>/images` gives the panel one photo folder with a

@@ -3557,6 +3557,91 @@ SS_MSG(auto_resume_help,
     TR("Aynı ayarlarla yarıda kalan bir çalıştırmanın çıktı klasöründe bıraktığı "
        "öznitelikleri, çift listesini ve doğrulanmış çiftleri devral"));
 
+SS_MSG(reuse_features_help,
+    EN("The features already in the output folder: auto reuses them while the "
+       "settings that made them read the same, keep reuses them whatever made "
+       "them, redo extracts them again"),
+    JA("出力フォルダにすでにある特徴点の扱い：auto は作ったときの設定が同じなら使い、"
+       "keep は何で作られていても使い、redo は抽出し直します"),
+    ZH_HANS("输出文件夹里已有的特征：auto 在做它们的设置不变时沿用，keep 不论用什么做"
+            "的都沿用，redo 重新提取"),
+    ZH_HANT("輸出資料夾裡已有的特徵：auto 在做它們的設定不變時沿用，keep 不論用什麼做"
+            "的都沿用，redo 重新提取"),
+    KO("출력 폴더에 이미 있는 특징점: auto는 만든 설정이 같으면 다시 쓰고, keep은 "
+       "무엇으로 만들었든 다시 쓰며, redo는 다시 추출합니다"),
+    DE("Die Merkmale im Ausgabeordner: auto verwendet sie weiter, solange die "
+       "Einstellungen, die sie erzeugt haben, gleich lauten, keep verwendet sie "
+       "unabhängig davon weiter, redo extrahiert sie neu"),
+    FR("Les points déjà dans le dossier de sortie : auto les réutilise tant que "
+       "les réglages qui les ont faits sont les mêmes, keep les réutilise quoi "
+       "qui les ait faits, redo les extrait à nouveau"),
+    ES("Los rasgos que ya están en la carpeta de salida: auto los reutiliza "
+       "mientras los ajustes que los hicieron sean los mismos, keep los reutiliza "
+       "los haya hecho lo que sea, redo los vuelve a extraer"),
+    PT("Os pontos já na pasta de saída: auto reutiliza-os enquanto as definições "
+       "que os fizeram forem as mesmas, keep reutiliza-os seja o que for que os "
+       "fez, redo extrai-os de novo"),
+    IT("I punti già nella cartella di uscita: auto li riutilizza finché le "
+       "impostazioni che li hanno fatti restano le stesse, keep li riutilizza "
+       "comunque siano stati fatti, redo li estrae di nuovo"),
+    NL("De kenmerken die al in de uitvoermap staan: auto hergebruikt ze zolang de "
+       "instellingen waarmee ze gemaakt zijn gelijk blijven, keep hergebruikt ze "
+       "hoe ze ook gemaakt zijn, redo extraheert ze opnieuw"),
+    RU("Признаки, уже лежащие в папке вывода: auto использует их, пока "
+       "настройки, с которыми они сделаны, те же, keep использует их, чем бы они "
+       "ни были сделаны, redo извлекает заново"),
+    TR("Çıktı klasöründe zaten olan öznitelikler: auto onları yapan ayarlar aynı "
+       "kaldıkça yeniden kullanır, keep neyle yapılmış olursa olsun yeniden "
+       "kullanır, redo yeniden çıkarır"));
+
+SS_MSG(reuse_matches_help,
+    EN("The verified pairs already in matches.bin: auto reuses them while the "
+       "settings and the features that made them are the same, keep reuses them "
+       "over the same unchanged features whatever settings made them, redo "
+       "matches again"),
+    JA("matches.bin にすでにある検証済みペアの扱い：auto は作ったときの設定と特徴点が"
+       "同じなら使い、keep は特徴点が変わっていなければ設定にかかわらず使い、redo は"
+       "照合し直します"),
+    ZH_HANS("matches.bin 里已有的已验证像对：auto 在做它们的设置和特征不变时沿用，"
+            "keep 只要特征没变、不论设置都沿用，redo 重新匹配"),
+    ZH_HANT("matches.bin 裡已有的已驗證影像對：auto 在做它們的設定和特徵不變時沿用，"
+            "keep 只要特徵沒變、不論設定都沿用，redo 重新比對"),
+    KO("matches.bin에 이미 있는 검증된 쌍: auto는 만든 설정과 특징점이 같으면 다시 "
+       "쓰고, keep은 특징점이 그대로면 설정과 상관없이 다시 쓰며, redo는 다시 "
+       "정합합니다"),
+    DE("Die geprüften Paare in matches.bin: auto verwendet sie weiter, solange "
+       "Einstellungen und Merkmale, aus denen sie entstanden, gleich sind, keep "
+       "verwendet sie über denselben unveränderten Merkmalen unabhängig von den "
+       "Einstellungen weiter, redo ordnet neu zu"),
+    FR("Les paires vérifiées déjà dans matches.bin : auto les réutilise tant que "
+       "les réglages et les points qui les ont faites sont les mêmes, keep les "
+       "réutilise sur les mêmes points inchangés quels que soient les réglages, "
+       "redo apparie à nouveau"),
+    ES("Los pares verificados que ya están en matches.bin: auto los reutiliza "
+       "mientras los ajustes y los rasgos que los hicieron sean los mismos, keep "
+       "los reutiliza sobre los mismos rasgos sin cambios sean cuales sean los "
+       "ajustes, redo vuelve a emparejar"),
+    PT("Os pares verificados já em matches.bin: auto reutiliza-os enquanto as "
+       "definições e os pontos que os fizeram forem os mesmos, keep reutiliza-os "
+       "sobre os mesmos pontos inalterados sejam quais forem as definições, redo "
+       "emparelha de novo"),
+    IT("Le coppie verificate già in matches.bin: auto le riutilizza finché "
+       "impostazioni e punti che le hanno fatte restano gli stessi, keep le "
+       "riutilizza sugli stessi punti invariati qualunque siano le impostazioni, "
+       "redo confronta di nuovo"),
+    NL("De geverifieerde paren die al in matches.bin staan: auto hergebruikt ze "
+       "zolang de instellingen en kenmerken waarmee ze gemaakt zijn gelijk "
+       "blijven, keep hergebruikt ze over dezelfde ongewijzigde kenmerken wat de "
+       "instellingen ook zijn, redo koppelt opnieuw"),
+    RU("Проверенные пары, уже лежащие в matches.bin: auto использует их, пока "
+       "настройки и признаки, по которым они сделаны, те же, keep использует их "
+       "при тех же неизменных признаках при любых настройках, redo сопоставляет "
+       "заново"),
+    TR("matches.bin'de zaten olan doğrulanmış çiftler: auto onları yapan ayarlar "
+       "ve öznitelikler aynı kaldıkça yeniden kullanır, keep öznitelikler "
+       "değişmediyse ayarlar ne olursa olsun yeniden kullanır, redo yeniden "
+       "eşleştirir"));
+
 SS_MSG(check_help,
     EN("With --resume: report how far each model agrees with the two-view "
        "geometries it was built from, then exit without writing anything"),

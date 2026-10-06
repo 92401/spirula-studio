@@ -24,6 +24,7 @@ struct LidarJob {
     std::string mask_dir;              // the dataset's masks, "" for none
     bool flip_masks = false;           // the dataset's masks paint what to remove
     bool scanner_poses_only = false;   // no reconstruction, or one that failed: use none of it
+    bool overwrite = false;            // align again although nothing it was made from changed
     bool enabled() const { return !clouds.empty(); }
 };
 

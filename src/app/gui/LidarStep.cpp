@@ -139,6 +139,7 @@ bool run_lidar_step(const LidarJob& job, const std::string& dataset,
     if (job.in_frame) argv.insert(argv.end(), {"--mode", "keep"});
     if (job.flip_masks) argv.push_back("--flip-masks");
     if (job.scanner_poses_only) argv.push_back("--scanner-poses");
+    if (job.overwrite) argv.push_back("--overwrite");
     std::string cmd;
     for (const std::string& a : argv) cmd += (cmd.empty() ? "$ " : " ") + a;
     prog.note(cmd, true);

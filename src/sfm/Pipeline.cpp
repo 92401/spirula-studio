@@ -1450,24 +1450,28 @@ void sweepStaleFeatures(const fs::path& outdir, const std::set<fs::path>& live) 
     for (const fs::path& p : dead) fs::remove(p, ec);
 }
 
-// Is `feat` a whole feature file that describes `img` as it stands now? An
-// mtime comparison, because a re-run that regenerated the frames or the masks
-// leaves everything else about the settings identical.
+// Is `feat` a whole feature file that describes `img` as it stands now? By
+// mtime: regenerated frames or masks leave the settings identical. Given
+// `older`, a whole file with a newer image or mask passes and sets it.
 bool featuresAreCurrent(const fs::path& feat, const fs::path& img,
                         const std::string& mask, const std::string& feature_mask,
-                        uint32_t& count) {
+                        uint32_t& count, bool* older = nullptr) {
     std::error_code fe, ie, me;
     const auto t = fs::last_write_time(feat, fe);
-    if (fe || t < fs::last_write_time(img, ie) || ie) return false;
+    if (fe) return false;
+    bool stale = t < fs::last_write_time(img, ie) || ie;
     for (const std::string* m : {&mask, &feature_mask})
-        if (!m->empty() && t < fs::last_write_time(*m, me) && !me) return false;
+        stale = stale || (!m->empty() && t < fs::last_write_time(*m, me) && !me);
+    if (stale && !older) return false;
+    if (older) *older = stale;
     return peekFeatures(feat.string(), count);
 }
 
 }  // namespace
 
 int extractDirectory(const std::string& imagedir, const fs::path& outdir,
-                     const SfmConfig& cfg, ExtractStats& stats, bool reuse) {
+                     const SfmConfig& cfg, ExtractStats& stats, bool reuse,
+                     std::vector<fs::path>* trusted) {
     const SiftOptions& opt = cfg.sift;
     const std::string& maskdir = cfg.mask_dir;
     const std::string& fmaskdir = cfg.feature_mask_dir;
@@ -1616,10 +1620,13 @@ int extractDirectory(const std::string& imagedir, const fs::path& outdir,
             const std::string fmask = k < lopt.feature_mask_paths.size()
                                           ? lopt.feature_mask_paths[k]
                                           : std::string();
-            if (!featuresAreCurrent(outs[k], paths[k], mask, fmask, count)) {
+            bool older = false;
+            if (!featuresAreCurrent(outs[k], paths[k], mask, fmask, count,
+                                    trusted ? &older : nullptr)) {
                 todo.push_back(k);
                 continue;
             }
+            if (older) trusted->push_back(outs[k]);
             stats.reused++;
             stats.features += count;
             stats.images++;
@@ -2348,22 +2355,31 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
     const fs::path rdir = resume::dir(_workspace);
     const std::string extract_sig =
         stageSignature(cfg, CMD_EXTRACT) + resume::kSignedImages + _imagedir + "\n";
+    // What the files on disk were recorded as made with, before this run
+    // records itself: matches over kept features were made under it.
+    const std::string old_extract = resume::recorded(rdir / resume::kExtractSig);
     std::error_code rm_ec;
-    bool reuse = cfg.reuse;
-    if (!reuse || resume::recorded(rdir / resume::kExtractSig) != extract_sig) {
+    bool reuse = cfg.reuse && cfg.reuse_features != "redo";
+    const bool keep_features = reuse && cfg.reuse_features == "keep";
+    if (!reuse || (!keep_features && old_extract != extract_sig)) {
         // The pair list and the journal index the feature files, so they go
         // wherever those go.
         reuse = false;
         resume::clear(_workspace);
         fs::remove_all(featdir, rm_ec);
         fs::remove(matchpath, rm_ec);
+    } else if (old_extract != extract_sig && fs::is_directory(featdir, rm_ec) &&
+               !fs::is_empty(featdir, rm_ec)) {
+        L::out(Tag::Extract, M::extract_kept_other_settings, {featdir.string()});
     }
     if (cfg.reuse) resume::store(rdir / resume::kExtractSig, extract_sig);
 
     // ---- 1. extract ----
     double t0 = now();
     ExtractStats est;
-    if (int rc = extractDirectory(_imagedir, featdir, cfg, est, reuse)) {
+    std::vector<fs::path> trusted;
+    if (int rc = extractDirectory(_imagedir, featdir, cfg, est, reuse,
+                                  keep_features ? &trusted : nullptr)) {
         r.exit_code = rc;
         return r;
     }
@@ -2412,19 +2428,54 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
     // What this stage's output depends on: its own settings, the extraction
     // that produced its input, and the feature files themselves -- the pair
     // lists and the journal are indices into a particular set of those.
+    const std::string match_settings = stageSignature(cfg, CMD_MATCH) + "pairs-resolved=" +
+                                       std::to_string((int)mode) + "\n";
+    const std::string features_before = "features=" + featureDirDigest(featdir) + "\n";
+    // Kept features older than their image or mask are dated now, so the next
+    // run counts them current as well.
+    for (const fs::path& p : trusted)
+        fs::last_write_time(p, fs::file_time_type::clock::now(), rm_ec);
     MatchResume mres;
     mres.dir = rdir;
-    mres.signature = extract_sig + stageSignature(cfg, CMD_MATCH) +
-                     "pairs-resolved=" + std::to_string((int)mode) + "\n" +
-                     "features=" + featureDirDigest(featdir) + "\n";
+    mres.signature =
+        extract_sig + match_settings + "features=" + featureDirDigest(featdir) + "\n";
+    const std::string old_match = resume::recorded(rdir / resume::kMatchSig);
+    // Matches over features kept under other extraction settings are still
+    // theirs: the digest is of the files they index, as they were then.
+    const bool current =
+        old_match == mres.signature || old_match == old_extract + match_settings + features_before;
+    if (cfg.reuse_matches == "redo") {
+        resume::forget(rdir / resume::kMatchSig);
+        resume::forget(rdir / resume::kMatchJournal);
+        resume::forget(rdir / "pairs.bin");
+    }
+    // Kept whatever made them only over the very files they index: a feature
+    // file this run wrote numbers its keypoints anew.
+    const bool keep_matches = cfg.reuse_matches == "keep" && !current &&
+                              fs::exists(matchpath, rm_ec);
+    if (keep_matches && est.reused != est.images) {
+        L::warn(Tag::Match, M::match_keep_refused, {matchpath.string()});
+    }
     // A finished matches.bin is the whole of this stage; the mapper wants
     // keypoints and colours, so the descriptors are never read at all.
     bool reused_matches = false;
-    if (cfg.reuse && fs::exists(matchpath, rm_ec) &&
-        resume::recorded(rdir / resume::kMatchSig) == mres.signature) {
+    if (cfg.reuse && cfg.reuse_matches != "redo" && fs::exists(matchpath, rm_ec) &&
+        (current || (keep_matches && est.reused == est.images))) {
         try {
             MatchesDatabase disk = readMatches(matchpath.string());
-            if (loadFeatureDir(featdir.string(), cfg, /*with_descriptors=*/false, feats, db) == 0) {
+            bool loaded =
+                loadFeatureDir(featdir.string(), cfg, /*with_descriptors=*/false, feats, db) == 0;
+            bool same_images = loaded && disk.images.size() == db.images.size();
+            for (size_t i = 0; same_images && i < db.images.size(); i++)
+                same_images = disk.images[i].name == db.images[i].name &&
+                              disk.images[i].num_features == db.images[i].num_features;
+            if (loaded && !current && !same_images) {
+                L::warn(Tag::Match, M::match_keep_refused, {matchpath.string()});
+                feats.clear();
+                db = MatchesDatabase();
+                loaded = false;
+            }
+            if (loaded) {
                 db.pairs = std::move(disk.pairs);
                 db.cameras = std::move(disk.cameras);
                 db.camera_ids = std::move(disk.camera_ids);
@@ -2450,8 +2501,11 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
         }
     }
     if (reused_matches) {
+        if (!current) L::out(Tag::Match, M::match_kept_other_settings, {matchpath.string()});
         L::out(Tag::Match, M::match_reusing_matches,
                {(long long)mstats.kept, matchpath.string()});
+        if (cfg.reuse && old_match != mres.signature)
+            resume::store(rdir / resume::kMatchSig, mres.signature);
     } else if (int rc = matchFeatureDir(featdir.string(), cfg, mode, /*verify=*/true, feats, db,
                                         mstats, &calib, cfg.reuse ? &mres : nullptr)) {
         r.exit_code = rc;

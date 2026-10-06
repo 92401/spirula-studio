@@ -376,8 +376,72 @@ int main() {
                "new masks re-extract the images they cover");
         j = made;
         j.prep.video_fps = 3.0f;
-        expect(plan(j)[ModelPart::Features].why == Why::Frames,
-               "new frames re-extract every image");
+        p = plan(j);
+        expect(p[ModelPart::Features].why == Why::Frames &&
+                   p[ModelPart::Features].lock == Lock::Frames,
+               "new frames re-extract every image, and the old points cannot be kept");
+    }
+
+    // ---- stages the user keeps or runs against the plan ------------------------
+    {
+        PlanRequest keep_matches;
+        keep_matches.parts[(int)ModelPart::Matching] = PartChoice::Keep;
+        SfmJob j = made;
+        j.prep.inputs[0].rig = kRigNone;
+        DatasetPlan p = plan(j, keep_matches);
+        expect(p[ModelPart::Matching].act == Act::Keep &&
+                   p[ModelPart::Mapping].act == Act::Redo &&
+                   p[ModelPart::Features].act == Act::Reuse,
+               "a rig change can keep the matches and only map again");
+        expect(p[ModelPart::Mapping].lock == Lock::Always,
+               "... and mapping itself is never skipped on its own");
+
+        j = made;
+        j.features = 2;
+        PlanRequest keep_features;
+        keep_features.parts[(int)ModelPart::Features] = PartChoice::Keep;
+        p = plan(j, keep_features);
+        expect(p[ModelPart::Features].act == Act::Redo &&
+                   p[ModelPart::Features].lock == Lock::Frontend,
+               "feature points of another type are not kept");
+        j = made;
+        j.max_features = 1000;
+        p = plan(j, keep_features);
+        expect(p[ModelPart::Features].act == Act::Keep &&
+                   p[ModelPart::Matching].act == Act::Reuse,
+               "kept feature points keep the matches over them");
+
+        PlanRequest both = keep_matches;
+        p = plan(j, both);
+        expect(p[ModelPart::Features].act == Act::Redo &&
+                   p[ModelPart::Matching].act == Act::Redo &&
+                   p[ModelPart::Matching].lock == Lock::Before,
+               "matches over feature points made again are not kept");
+
+        j = made;
+        j.prep.inputs[0].camera_model = "opencv-fisheye";
+        j.camera_model = "opencv-fisheye";
+        p = plan(j, keep_matches);
+        expect(p[ModelPart::Matching].act == Act::Redo &&
+                   p[ModelPart::Matching].lock == Lock::Lens,
+               "matches verified with another lens are not kept");
+
+        PlanRequest force;
+        force.redo_model = true;
+        force.parts[(int)ModelPart::Matching] = PartChoice::Run;
+        p = plan(made, force);
+        expect(p[ModelPart::Features].act == Act::Reuse &&
+                   p[ModelPart::Matching].act == Act::Redo &&
+                   p[ModelPart::Matching].why == Why::Requested &&
+                   p[ModelPart::Mapping].why == Why::Matches,
+               "a current stage can be made again, and the ones after it follow");
+        force.parts[(int)ModelPart::Matching] = PartChoice::Keep;
+        force.parts[(int)ModelPart::Features] = PartChoice::Run;
+        p = plan(made, force);
+        expect(p[ModelPart::Features].act == Act::Redo &&
+                   p[ModelPart::Matching].act == Act::Redo &&
+                   p[ModelPart::Matching].lock == Lock::Before,
+               "... and a stage after one that runs cannot be kept");
     }
     {
         SfmJob j = made;
@@ -390,8 +454,21 @@ int main() {
             << R"({"clouds": ["/scans/a.e57"], "mode": "auto"})";
         expect(plan(j)[ModelPart::Align].act == Act::Reuse,
                "an alignment to the same scans is reused");
+        PlanRequest force;
+        force.parts[(int)ModelPart::Align] = PartChoice::Run;
+        p = plan(j, force);
+        expect(p[ModelPart::Align].act == Act::Redo && p[ModelPart::Align].why == Why::Requested,
+               "... unless it is asked for again");
         j.lidar.clouds.push_back("/scans/b.e57");
         expect(plan(j)[ModelPart::Align].act == Act::Redo, "... and redone for another scan");
+        PlanRequest keep;
+        keep.parts[(int)ModelPart::Align] = PartChoice::Keep;
+        expect(plan(j, keep)[ModelPart::Align].act == Act::Keep,
+               "... or kept, when the user says so");
+        keep.redo_model = true;
+        p = plan(j, keep);
+        expect(p[ModelPart::Align].act == Act::Redo && p[ModelPart::Align].lock == Lock::Before,
+               "... but never over a new reconstruction");
         j.lidar.clouds.pop_back();
         j.lidar.in_frame = true;
         expect(plan(j)[ModelPart::Align].act == Act::Redo,

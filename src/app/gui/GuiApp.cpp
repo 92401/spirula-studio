@@ -1659,7 +1659,7 @@ bool GuiApp::launch_batch_dataset(BatchTask& task, const BatchRow& row) {
     apply_dataset_settings(settings);
     _sources = sources;          // rescan_found_masks() re-derived the list
     _source_path_edits.clear();  // re-seeded from _sources by the next draw
-    _redo_frames = _redo_masks = _redo_model = _redo_geometry = false;
+    forget_redo_requests();
     _keep_built = false;
     // The row's settings are the run's; the folder's record must not replace them.
     _restored_ws = workspace;
@@ -3669,7 +3669,7 @@ void GuiApp::open_reconstruction(const std::string& workspace) {
     std::vector<std::string> inputs;
     for (const PrepInput& in : decode_record_inputs(read_dataset_record(workspace).inputs).rows)
         if (!in.path.empty() && fs::exists(fs::u8path(in.path), ec)) inputs.push_back(in.path);
-    _redo_frames = _redo_masks = _redo_model = _redo_geometry = false;
+    forget_redo_requests();
     clear_lidar_sources();
     if (!inputs.empty()) {
         add_sources(inputs, /*replace=*/true);
@@ -3924,6 +3924,8 @@ void GuiApp::sync_dataset_jobs() {
     req.redo_model = _redo_model;
     req.redo_geometry = _redo_geometry;
     req.keep_built = _keep_built && _keep_built_for == _workspace;
+    if (_part_choice_for == _workspace)
+        std::copy(std::begin(_part_choice), std::end(_part_choice), std::begin(req.parts));
     _sfm_job.request = _colmap_job.request = req;
     _sfm_job.mask_features = _colmap_job.mask_features = _mask_features;
     // The same step either way: `spirula geometry` over the finished dataset.
@@ -4033,7 +4035,7 @@ bool GuiApp::launch_dataset_job() {
     else                                      _colmap.start(_colmap_job, films);
     // One run each: a re-do that stayed armed would throw the same step away
     // again the next time the button is pressed.
-    _redo_frames = _redo_masks = _redo_model = _redo_geometry = false;
+    forget_redo_requests();
     return true;
 }
 
@@ -6390,7 +6392,7 @@ void GuiApp::reset_recon_options() {
     }
     apply_capture_defaults(_sources, _sfm_job, _colmap_job);
     normalize_source_lenses(_sources, _sfm_job.camera_model);
-    _redo_frames = _redo_masks = _redo_model = _redo_geometry = false;
+    forget_redo_requests();
     _keep_built = false;
     _resume = true;
     log(dmsg::reset_options_done.get());
@@ -6558,6 +6560,19 @@ const Msg& plan_part_state(const StepPlan& s) {
     return plan_state(s);
 }
 
+const Msg& plan_lock_text(Lock l) {
+    switch (l) {
+        case Lock::None:
+        case Lock::Nothing:  break;
+        case Lock::Frames:   return dmsg::plan_lock_frames;
+        case Lock::Frontend: return dmsg::plan_lock_frontend;
+        case Lock::Before:   return dmsg::plan_lock_before;
+        case Lock::Lens:     return dmsg::plan_lock_lens;
+        case Lock::Always:   return dmsg::plan_lock_mapping;
+    }
+    return dmsg::plan_lock_nothing;
+}
+
 // Worth a line each only when they do not all just run.
 bool plan_parts_shown(const DatasetPlan& plan) {
     for (const StepPlan& s : plan.parts)
@@ -6642,22 +6657,20 @@ void GuiApp::draw_dataset_plan(const DatasetPlan& plan) {
 
     const bool parts = plan_parts_shown(plan);
     const float indent = ImGui::GetStyle().IndentSpacing;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    // A stage's checkbox, frameless so its row keeps the height of the others.
+    const float box = ImGui::GetFontSize() + spacing;
     float label_w = 0.0f;
     for (int k = 0; k < kNumSteps; k++)
         label_w = std::max(label_w, ImGui::CalcTextSize(plan_step_name((Step)k).get()).x);
     for (int k = 0; parts && k < kNumModelParts; k++)
-        label_w = std::max(label_w, indent + ImGui::CalcTextSize(
-                                                 plan_part_name((ModelPart)k).get()).x);
-    const float state_x =
-        ImGui::GetCursorPosX() + label_w + ImGui::GetStyle().ItemSpacing.x * 2.0f;
+        label_w = std::max(label_w, indent + box + ImGui::CalcTextSize(
+                                                       plan_part_name((ModelPart)k).get()).x);
+    const float state_x = ImGui::GetCursorPosX() + label_w + spacing * 2.0f;
     bool differs = false;
-    auto row = [&](const Msg& name, const Msg& state, const StepPlan& sp, bool nested,
-                   bool first_change) {
-        if (nested) ImGui::Indent(indent);
-        ui::TextDisabled(name);
-        if (nested) ImGui::Unindent(indent);
+    auto state = [&](const Msg& text, const StepPlan& sp, bool first_change) {
         ImGui::SameLine(state_x);
-        ui::TextColored(plan_color(sp), state);
+        ui::TextColored(plan_color(sp), text);
         plan_changes_tooltip(sp);
         differs = differs || !sp.changes.empty();
         if (!first_change || sp.changes.empty()) return;
@@ -6668,18 +6681,40 @@ void GuiApp::draw_dataset_plan(const DatasetPlan& plan) {
         ui::TextDisabledRaw(first);
         plan_changes_tooltip(sp);
     };
+    // Ticked, the stage runs; what the plan would do, until the user says.
+    auto stage = [&](ModelPart part, const StepPlan& sp) {
+        ImGui::PushID((int)part);
+        ImGui::Indent(indent);
+        bool run = makes(sp.act);
+        ImGui::BeginDisabled(sp.lock != Lock::None);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        if (ui::CheckboxRaw("##run", &run)) {
+            if (_part_choice_for != _workspace) {
+                std::fill(std::begin(_part_choice), std::end(_part_choice), PartChoice::Auto);
+                _part_choice_for = _workspace;
+            }
+            _part_choice[(int)part] = run ? PartChoice::Run : PartChoice::Keep;
+        }
+        ImGui::PopStyleVar();
+        ImGui::EndDisabled();
+        if (sp.lock == Lock::None) ui::help_on_hover(dmsg::plan_part_toggle_help);
+        else ui::help_on_hover_disabled(plan_lock_text(sp.lock));
+        ImGui::SameLine();
+        ui::TextDisabled(plan_part_name(part));
+        ImGui::Unindent(indent);
+        state(plan_part_state(sp), sp, true);
+        ImGui::PopID();
+    };
     for (int k = 0; k < kNumSteps; k++) {
         const Step step = (Step)k;
         const StepPlan& sp = plan[step];
         if (sp.act == Act::None) continue;
         // Split, each stage names the settings that reach it instead.
         const bool split = step == Step::Model && parts;
-        row(plan_step_name(step), plan_state(sp), sp, false, !split || !makes(sp.act));
-        for (int q = 0; split && q < kNumModelParts; q++) {
-            const StepPlan& pp = plan[(ModelPart)q];
-            if (pp.act != Act::None)
-                row(plan_part_name((ModelPart)q), plan_part_state(pp), pp, true, true);
-        }
+        ui::TextDisabled(plan_step_name(step));
+        state(plan_state(sp), sp, !split || !makes(sp.act));
+        for (int q = 0; split && q < kNumModelParts; q++)
+            if (plan[(ModelPart)q].act != Act::None) stage((ModelPart)q, plan[(ModelPart)q]);
     }
     const bool keeping = _keep_built && _keep_built_for == _workspace;
     if (plan.ask() || keeping) {
@@ -6774,6 +6809,11 @@ void GuiApp::restore_from_record(bool announce) {
     _keep_built = false;
     _ws_state_at = -1.0;
     if (announce) log(_ds_presets.msg);
+}
+
+void GuiApp::forget_redo_requests() {
+    _redo_frames = _redo_masks = _redo_model = _redo_geometry = false;
+    std::fill(std::begin(_part_choice), std::end(_part_choice), PartChoice::Auto);
 }
 
 void GuiApp::restore_record_rows(const DatasetRecord& rec) {

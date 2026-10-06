@@ -222,6 +222,11 @@ struct SfmConfig {
     // workspace -- the feature files it wrote, the pair list it chose, the pairs
     // verification finished (sfm/core/Resume.h). Off starts every stage over.
     bool reuse = true;
+    // Per stage, with `reuse` on: `keep` takes features/ or matches.bin as they
+    // are, whatever made them, and records them as made with these settings;
+    // `redo` makes them again even when they are current.
+    std::string reuse_features = "auto";
+    std::string reuse_matches = "auto";
 
     // Runtime.
     int threads = 0;           // host worker pools; 0 = hardware_concurrency
@@ -635,6 +640,10 @@ struct SfmConfig {
     F(feature_dir, "features", CMD_MAP, Tier::Advanced, "input", 0, 0, "", feature_dir)            \
     F(resume, "resume", CMD_MAP, Tier::Advanced, "input", 0, 0, "", resume)                        \
     F(reuse, "resume", CMD_AUTO, Tier::Basic, "input", 0, 0, "", auto_resume)                      \
+    F(reuse_features, "reuse-features", CMD_AUTO, Tier::Advanced, "input", 0, 0, "auto|keep|redo", \
+      reuse_features)                                                                              \
+    F(reuse_matches, "reuse-matches", CMD_AUTO, Tier::Advanced, "input", 0, 0, "auto|keep|redo",   \
+      reuse_matches)                                                                               \
     F(check, "check", CMD_MAP, Tier::Advanced, "input", 0, 0, "", check)                           \
     /* ---- runtime ---- */                                                                        \
     F(threads, "threads", CMD_AUTO | CMD_MATCH | CMD_MAP, Tier::Advanced, "runtime", 0, 4096, "",  \
