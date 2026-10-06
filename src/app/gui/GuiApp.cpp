@@ -6261,7 +6261,7 @@ void GuiApp::open_roi_editor(const std::string& dataset, const std::string& file
 
 // Which saved region the run trains in: the first by default, any other, or
 // none. What it writes is --roi-region's own spelling, so a batch row and the
-// command line read it the same way.
+// command line read it the same way. Hidden until there is a region to choose.
 void GuiApp::draw_roi_row(bool busy) {
     namespace roimsg = spirula::i18n::msg::roi;
     if (_cfg.data.empty()) return;
@@ -6269,14 +6269,11 @@ void GuiApp::draw_roi_row(bool busy) {
         _roi_files_for = _cfg.data;
         _roi_files = spirula::list_roi_files(_cfg.data);
     }
-    auto stem = [](const std::string& p) { return fs::path(p).stem().string(); };
     const spirula::RoiChoice now = spirula::resolve_roi_setting(_cfg.roi_region, _cfg.data);
-    std::string shown;
-    if (now.off) shown = roimsg::train_none.get();
-    else if (_cfg.roi_region.empty())
-        shown = _roi_files.empty() ? std::string(roimsg::train_auto_none.get())
-                                   : i18n::format(roimsg::train_auto, {stem(_roi_files.front())});
-    else shown = stem(now.path);
+    // A region given by path still shows, so it can be turned off.
+    if (_roi_files.empty() && now.path.empty()) return;
+    auto stem = [](const std::string& p) { return fs::path(p).stem().string(); };
+    const std::string shown = now.off ? std::string(roimsg::train_none.get()) : stem(now.path);
     ui::Text(roimsg::train_label);
     ui::help_on_hover(roimsg::train_help);
     ImGui::BeginDisabled(busy);
@@ -6287,18 +6284,11 @@ void GuiApp::draw_roi_row(bool busy) {
     bool picked = false;
     if (ui::BeginComboRaw("##roirow", shown.c_str())) {
         _roi_files = spirula::list_roi_files(_cfg.data);
-        const std::string auto_label =
-            _roi_files.empty() ? std::string(roimsg::train_auto_none.get())
-                               : i18n::format(roimsg::train_auto, {stem(_roi_files.front())});
-        if (ui::SelectableRaw(auto_label + "##auto", _cfg.roi_region.empty())) {
-            pick.clear();
-            picked = true;
-        }
         for (size_t i = 0; i < _roi_files.size(); i++) {
             ImGui::PushID((int)i);
             std::error_code ec;
-            const bool on = !_cfg.roi_region.empty() && !now.off && fs::equivalent(now.path, _roi_files[i], ec);
-            if (ui::SelectableRaw(stem(_roi_files[i]), on)) {
+            const bool on = !now.off && fs::equivalent(now.path, _roi_files[i], ec);
+            if (ui::SelectableRaw(stem(_roi_files[i]), on) && !on) {
                 pick = "roi/" + fs::path(_roi_files[i]).filename().generic_string();
                 picked = true;
             }

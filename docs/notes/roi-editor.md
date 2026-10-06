@@ -88,10 +88,11 @@ preview, and a preset context field (`SS_PRESET_CONTEXT_FIELDS`), so no saved
 preset carries one dataset's region to another. Opening a different dataset
 resets it to automatic.
 
-The training screen's dataset section has a row for it: Automatic (naming the
-file that is), each saved region, or None, and "Edit Region". Saving in the
-editor re-reads the preview when the training screen holds a parsed dataset
-and no run.
+The training screen's dataset section has a row for it once the dataset has a
+saved region (or the setting names one by path): each saved region, the first
+shown as chosen while the setting is unset, or None, and "Edit Region". Until
+then the editor opens from the dataset screen. Saving in the editor re-reads
+the preview when the training screen holds a parsed dataset and no run.
 
 ## The editor
 

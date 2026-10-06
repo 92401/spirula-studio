@@ -969,20 +969,6 @@ SS_MSG(train_label,
     ES("Región de interés"), PT("Região de interesse"), IT("Regione di interesse"),
     NL("Interessegebied"), RU("Область интереса"), TR("İlgi bölgesi"));
 
-SS_MSG(train_auto,
-    EN("Automatic: {0}"), JA("自動: {0}"), ZH_HANS("自动：{0}"), ZH_HANT("自動：{0}"),
-    KO("자동: {0}"), DE("Automatisch: {0}"), FR("Automatique : {0}"), ES("Automática: {0}"),
-    PT("Automática: {0}"), IT("Automatica: {0}"), NL("Automatisch: {0}"),
-    RU("Автоматически: {0}"), TR("Otomatik: {0}"));
-
-SS_MSG(train_auto_none,
-    EN("Automatic (none saved)"), JA("自動（保存なし）"), ZH_HANS("自动（未保存任何区域）"),
-    ZH_HANT("自動（未儲存任何區域）"), KO("자동 (저장된 영역 없음)"),
-    DE("Automatisch (keiner gespeichert)"), FR("Automatique (aucune enregistrée)"),
-    ES("Automática (ninguna guardada)"), PT("Automática (nenhuma guardada)"),
-    IT("Automatica (nessuna salvata)"), NL("Automatisch (geen opgeslagen)"),
-    RU("Автоматически (нет сохранённых)"), TR("Otomatik (kayıtlı yok)"));
-
 SS_MSG(train_none,
     EN("None: the whole scene"), JA("なし: シーン全体"), ZH_HANS("无：整个场景"),
     ZH_HANT("無：整個場景"), KO("없음: 장면 전체"), DE("Keiner: die ganze Szene"),
@@ -998,40 +984,40 @@ SS_MSG(train_edit_region,
 
 SS_MSG(train_help,
     EN("The model grows only inside this region, and pixels that show only what lies "
-       "outside it are left out of training. Automatic takes the first region saved "
-       "for this dataset."),
+       "outside it are left out of training. By default the first region saved for "
+       "this dataset is used."),
     JA("モデルはこの領域の中でだけ成長し、領域外しか写っていない画素は学習から外され"
-       "ます。「自動」はこのデータセットに最初に保存された領域を使います。"),
-    ZH_HANS("模型只在该区域内增长，只拍到区域外内容的像素不参与训练。“自动”使用为本"
+       "ます。既定ではこのデータセットに最初に保存された領域を使います。"),
+    ZH_HANS("模型只在该区域内增长，只拍到区域外内容的像素不参与训练。默认使用为本"
             "数据集保存的第一个区域。"),
-    ZH_HANT("模型只在該區域內增長，只拍到區域外內容的像素不參與訓練。「自動」使用為本"
+    ZH_HANT("模型只在該區域內增長，只拍到區域外內容的像素不參與訓練。預設使用為本"
             "資料集儲存的第一個區域。"),
     KO("모델은 이 영역 안에서만 자라고, 영역 밖만 보이는 픽셀은 학습에서 빠집니다. "
-       "자동은 이 데이터셋에 저장된 첫 번째 영역을 씁니다."),
+       "기본값은 이 데이터셋에 저장된 첫 번째 영역입니다."),
     DE("Das Modell wächst nur innerhalb dieses Bereichs, und Pixel, die nur zeigen, "
-       "was außerhalb liegt, bleiben beim Training außen vor. Automatisch nimmt den "
-       "ersten für diesen Datensatz gespeicherten Bereich."),
+       "was außerhalb liegt, bleiben beim Training außen vor. Standardmäßig gilt der "
+       "erste für diesen Datensatz gespeicherte Bereich."),
     FR("Le modèle ne croît qu'à l'intérieur de cette région, et les pixels qui ne "
-       "montrent que l'extérieur sont écartés de l'entraînement. Automatique prend la "
+       "montrent que l'extérieur sont écartés de l'entraînement. Par défaut, c'est la "
        "première région enregistrée pour ce jeu de données."),
     ES("El modelo solo crece dentro de esta región, y los píxeles que solo muestran lo "
-       "que queda fuera se excluyen del entrenamiento. Automática toma la primera "
+       "que queda fuera se excluyen del entrenamiento. Por defecto se usa la primera "
        "región guardada para este conjunto de datos."),
     PT("O modelo só cresce dentro desta região, e os píxeis que só mostram o que fica "
-       "fora dela ficam fora do treino. Automática usa a primeira região guardada para "
-       "este conjunto de dados."),
+       "fora dela ficam fora do treino. Por padrão usa-se a primeira região guardada "
+       "para este conjunto de dados."),
     IT("Il modello cresce solo dentro questa regione, e i pixel che mostrano solo ciò "
-       "che sta fuori sono esclusi dall'addestramento. Automatica prende la prima "
-       "regione salvata per questo dataset."),
+       "che sta fuori sono esclusi dall'addestramento. Per impostazione predefinita si "
+       "usa la prima regione salvata per questo dataset."),
     NL("Het model groeit alleen binnen dit gebied, en pixels die alleen tonen wat "
-       "erbuiten ligt, doen niet mee met de training. Automatisch neemt het eerste "
+       "erbuiten ligt, doen niet mee met de training. Standaard geldt het eerste "
        "gebied dat voor deze dataset is opgeslagen."),
     RU("Модель растёт только внутри этой области, а пиксели, на которых видно лишь то, "
-       "что снаружи, исключаются из обучения. «Автоматически» берёт первую область, "
-       "сохранённую для этого набора данных."),
+       "что снаружи, исключаются из обучения. По умолчанию берётся первая область, "
+       "сохранённая для этого набора данных."),
     TR("Model yalnızca bu bölgenin içinde büyür; yalnızca dışarıdakini gösteren "
-       "pikseller eğitimin dışında kalır. Otomatik, bu veri kümesi için kaydedilen ilk "
-       "bölgeyi kullanır."));
+       "pikseller eğitimin dışında kalır. Varsayılan olarak bu veri kümesi için "
+       "kaydedilen ilk bölge kullanılır."));
 
 }  // namespace roi
 }  // namespace msg
