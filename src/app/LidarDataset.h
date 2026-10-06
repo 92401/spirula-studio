@@ -7,9 +7,12 @@
 // depth and normal maps rendered from the scan. docs/notes/lidar-alignment.md.
 
 #include "app/LidarAlign.h"
+#include "data/Json.h"
 
 #include <atomic>
 #include <cstdint>
+#include <exception>
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
@@ -58,6 +61,40 @@ struct DatasetResult {
 DatasetResult write_lidar_dataset(const DatasetOptions& opt,
                                   const std::function<void(const std::string&)>& log,
                                   const std::atomic<bool>* cancel = nullptr);
+
+// Beside sparse/0's model once write_lidar_dataset aligned it.
+inline constexpr const char* kAlignedMarker = "lidar_alignment.json";
+
+inline const char* align_mode_name(AlignMode m) {
+    return m == AlignMode::Keep      ? "keep"
+           : m == AlignMode::Refine  ? "refine"
+           : m == AlignMode::Anchors ? "anchors"
+                                     : "auto";
+}
+
+// The clouds and mode sparse/0 was last aligned with, read off that marker;
+// false when it has none. Whether a run reuses it is the run's to decide.
+struct AlignedWith {
+    std::vector<std::string> clouds;
+    AlignMode mode = AlignMode::Auto;
+};
+inline bool read_aligned_with(const std::string& dataset, AlignedWith& out) {
+    std::error_code ec;
+    const std::filesystem::path marker =
+        std::filesystem::path(dataset) / "sparse" / "0" / kAlignedMarker;
+    if (!std::filesystem::exists(marker, ec)) return false;
+    out = AlignedWith{};
+    try {
+        const JsonValue v = json_parse_file(marker.string());
+        if (const JsonValue* cs = v.find("clouds"); cs && cs->is_array())
+            for (const JsonValue& c : cs->arr) out.clouds.push_back(c.as_string());
+        if (const JsonValue* m = v.find("mode"))
+            for (AlignMode a : {AlignMode::Keep, AlignMode::Refine, AlignMode::Anchors})
+                if (m->as_string() == align_mode_name(a)) out.mode = a;
+    } catch (const std::exception&) {
+    }
+    return true;
+}
 
 // The images of an E57 file as anchors: written under `images_dir`/`subdir`
 // (in pinhole/ and panorama/ below it when it has both), their poses added to

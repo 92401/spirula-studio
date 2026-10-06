@@ -40,7 +40,6 @@ namespace app::lidar {
 namespace {
 
 constexpr double kPi = 3.14159265358979323846;
-constexpr const char* kAlignedMarker = "lidar_alignment.json";
 // Part of the signature: raised with a fix that changes the result, so a
 // dataset aligned before it is done again rather than reused.
 constexpr int kAlignVersion = 2;
@@ -1522,9 +1521,7 @@ DatasetResult write_lidar_dataset(const DatasetOptions& opt,
         w.key("clouds").array();
         for (const std::string& c : opt.clouds) w.value(c);
         w.end();
-        w.field("mode", opt.mode == AlignMode::Keep ? "keep"
-                        : opt.mode == AlignMode::Refine ? "refine"
-                        : opt.mode == AlignMode::Anchors ? "anchors" : "auto");
+        w.field("mode", align_mode_name(opt.mode));
         w.key("scans").array();
         for (size_t k = 0; k < n_clouds; k++) {
             w.object();

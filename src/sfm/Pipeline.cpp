@@ -1991,7 +1991,7 @@ int matchFeatureDir(const std::string& featdir, const SfmConfig& cfg, PairMode m
     // workers finish out of order, so the journal is not in the list's order.
     std::unordered_map<uint64_t, TwoViewMatches> done_kept;
     std::vector<uint64_t> done_keys;
-    const fs::path journal_path = res ? res->dir / "matches.part" : fs::path();
+    const fs::path journal_path = res ? res->dir / resume::kMatchJournal : fs::path();
     const bool resumed_verify =
         res && verify &&
         resume::readJournal(journal_path, res->signature, db.images, done_kept, done_keys,
@@ -2347,10 +2347,10 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
     // run interrupted half way through leaves files the next one may reuse.
     const fs::path rdir = resume::dir(_workspace);
     const std::string extract_sig =
-        stageSignature(cfg, CMD_EXTRACT) + "images=" + _imagedir + "\n";
+        stageSignature(cfg, CMD_EXTRACT) + resume::kSignedImages + _imagedir + "\n";
     std::error_code rm_ec;
     bool reuse = cfg.reuse;
-    if (!reuse || resume::recorded(rdir / "extract.sig") != extract_sig) {
+    if (!reuse || resume::recorded(rdir / resume::kExtractSig) != extract_sig) {
         // The pair list and the journal index the feature files, so they go
         // wherever those go.
         reuse = false;
@@ -2358,7 +2358,7 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
         fs::remove_all(featdir, rm_ec);
         fs::remove(matchpath, rm_ec);
     }
-    if (cfg.reuse) resume::store(rdir / "extract.sig", extract_sig);
+    if (cfg.reuse) resume::store(rdir / resume::kExtractSig, extract_sig);
 
     // ---- 1. extract ----
     double t0 = now();
@@ -2421,7 +2421,7 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
     // keypoints and colours, so the descriptors are never read at all.
     bool reused_matches = false;
     if (cfg.reuse && fs::exists(matchpath, rm_ec) &&
-        resume::recorded(rdir / "match.sig") == mres.signature) {
+        resume::recorded(rdir / resume::kMatchSig) == mres.signature) {
         try {
             MatchesDatabase disk = readMatches(matchpath.string());
             if (loadFeatureDir(featdir.string(), cfg, /*with_descriptors=*/false, feats, db) == 0) {
@@ -2462,9 +2462,9 @@ AutoResult run_auto(SfmConfig& cfg, const AutoInputs& in) {
         writeMatches(matchpath.string(), db);
         // matches.bin says everything the journal and the pair list did, and
         // the journal is the same size again.
-        resume::forget(rdir / "matches.part");
+        resume::forget(rdir / resume::kMatchJournal);
         resume::forget(rdir / "pairs.bin");
-        if (cfg.reuse) resume::store(rdir / "match.sig", mres.signature);
+        if (cfg.reuse) resume::store(rdir / resume::kMatchSig, mres.signature);
     }
     // Nothing past this point reads a descriptor -- the mapper works on
     // keypoints, the correspondence graph and the per-keypoint colors -- and on

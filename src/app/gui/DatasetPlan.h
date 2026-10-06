@@ -45,6 +45,10 @@ struct PlanJob {
     StepFields model;
     bool mask_features = true;
     GeometryJob geometry;
+    // The built-in engine, whose reconstruction is planned stage by stage.
+    bool staged = false;
+    std::vector<std::string> lidar_clouds;
+    bool lidar_in_frame = false;
 };
 PlanJob plan_job(const SfmJob& job);
 PlanJob plan_job(const ColmapJob& job, const PrepJob& prep);
@@ -62,6 +66,10 @@ enum class Why {
     Settings,    // its settings differ from the ones it was made with
     Frames,      // the frames under it are being replaced
     Model,       // the reconstruction under it is being replaced
+    Features,    // the feature points under it are being replaced
+    Matches,     // the matches under it are being replaced
+    Masks,       // only where the masks it was made with are being replaced
+    Moved,       // made from the images in another folder
     Stale,       // made from an earlier output of the step before it
     Resume,      // a run of it was interrupted
     InDataset,   // the input already is the dataset's own
@@ -86,10 +94,20 @@ struct StepPlan {
     bool adds = false;
 };
 
+// The built-in reconstruction's stages: `spirula sfm` keeps features/ and
+// matches.bin while the settings that made them read the same, always maps
+// again, and `spirula lidar` keeps an alignment made from the same scans.
+enum class ModelPart { Features, Matching, Mapping, Align };
+inline constexpr int kNumModelParts = 4;
+
 struct DatasetPlan {
     StepPlan steps[kNumSteps];
+    // Act::None for a stage the run will not reach.
+    StepPlan parts[kNumModelParts];
     StepPlan& operator[](Step s) { return steps[(int)s]; }
     const StepPlan& operator[](Step s) const { return steps[(int)s]; }
+    StepPlan& operator[](ModelPart s) { return parts[(int)s]; }
+    const StepPlan& operator[](ModelPart s) const { return parts[(int)s]; }
     bool ask() const;
 };
 

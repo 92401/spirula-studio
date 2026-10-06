@@ -122,7 +122,7 @@ static void test_dataset_preset() {
     s.sfm.max_features = 8192;
     s.sfm.max_image_size = 2000;
     s.sfm.mapper = 1;
-    s.sfm.features = 1;
+    s.sfm.features = (int)std::size(gui::kSfmFeatures) - 1;
     s.sfm.matcher = 1;
     s.sfm.metric_gps = 2;
     s.sfm.sensor_gauge = 1;

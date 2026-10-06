@@ -579,6 +579,16 @@ struct WorkspaceState {
     bool geometry = false;  // normals/ or depths/, which a run adds to
     // The folder says what built it (DatasetRecord.h).
     bool record = false;
+    // features/ and matches.bin under the signatures `spirula sfm` checks
+    // before reusing them, and the journal of a matching it did not finish.
+    bool extracted = false, matched = false, matching_part = false;
+    // The image folder the extraction signed, absolute: a moved dataset's
+    // features are extracted again.
+    std::string extracted_images;
+    // sparse/0 aligned to laser scans by `spirula lidar`, and with what.
+    bool aligned = false;
+    std::vector<std::string> aligned_clouds;
+    bool aligned_kept_frame = false;
     // Something a resumed run can pick up instead of redoing.
     bool resumable() const { return frames || features || masks; }
 };

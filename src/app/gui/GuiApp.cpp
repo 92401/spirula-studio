@@ -6530,11 +6530,39 @@ const Msg& plan_state(const StepPlan& s) {
                 case Why::Requested: return dmsg::plan_redo_requested;
                 case Why::Frames:    return dmsg::plan_redo_frames;
                 case Why::Model:     return dmsg::plan_redo_model;
+                case Why::Features:  return dmsg::plan_redo_features;
+                case Why::Matches:   return dmsg::plan_redo_matches;
+                case Why::Masks:     return dmsg::plan_redo_masked;
+                case Why::Moved:     return dmsg::plan_redo_moved;
                 case Why::Stale:     return dmsg::plan_redo_stale;
                 default:             return dmsg::plan_redo_settings;
             }
     }
     return dmsg::plan_reuse;
+}
+
+const Msg& plan_part_name(ModelPart p) {
+    switch (p) {
+        case ModelPart::Features: return dmsg::plan_part_features;
+        case ModelPart::Matching: return dmsg::step_matching;
+        case ModelPart::Mapping:  return dmsg::plan_part_mapping;
+        case ModelPart::Align:    return dmsg::plan_part_align;
+    }
+    return dmsg::plan_part_features;
+}
+
+// A stage `spirula sfm` decides by its own signature, with no record of ours
+// to predict it from.
+const Msg& plan_part_state(const StepPlan& s) {
+    if (s.act == Act::Reuse && s.why == Why::Unrecorded) return dmsg::plan_reuse_if_same;
+    return plan_state(s);
+}
+
+// Worth a line each only when they do not all just run.
+bool plan_parts_shown(const DatasetPlan& plan) {
+    for (const StepPlan& s : plan.parts)
+        if (s.act != Act::None && !(s.act == Act::Run && s.why == Why::None)) return true;
+    return false;
 }
 
 ImVec4 plan_color(const StepPlan& s) {
@@ -6600,29 +6628,58 @@ void plan_changes_tooltip(const StepPlan& s) {
 }  // namespace
 
 void GuiApp::draw_dataset_plan(const DatasetPlan& plan) {
+    // Its own ground, or it reads as the end of the form scrolled above it.
+    ImVec4 bg = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
+    bg.w *= 0.5f;
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, bg);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(px(10.0f), px(6.0f)));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, px(4.0f));
+    ImGui::BeginChild("##dsplan", ImVec2(0, 0),
+                      ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_AlwaysUseWindowPadding,
+                      ImGuiWindowFlags_NoScrollbar);
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
+
+    const bool parts = plan_parts_shown(plan);
+    const float indent = ImGui::GetStyle().IndentSpacing;
     float label_w = 0.0f;
     for (int k = 0; k < kNumSteps; k++)
         label_w = std::max(label_w, ImGui::CalcTextSize(plan_step_name((Step)k).get()).x);
+    for (int k = 0; parts && k < kNumModelParts; k++)
+        label_w = std::max(label_w, indent + ImGui::CalcTextSize(
+                                                 plan_part_name((ModelPart)k).get()).x);
+    const float state_x =
+        ImGui::GetCursorPosX() + label_w + ImGui::GetStyle().ItemSpacing.x * 2.0f;
     bool differs = false;
+    auto row = [&](const Msg& name, const Msg& state, const StepPlan& sp, bool nested,
+                   bool first_change) {
+        if (nested) ImGui::Indent(indent);
+        ui::TextDisabled(name);
+        if (nested) ImGui::Unindent(indent);
+        ImGui::SameLine(state_x);
+        ui::TextColored(plan_color(sp), state);
+        plan_changes_tooltip(sp);
+        differs = differs || !sp.changes.empty();
+        if (!first_change || sp.changes.empty()) return;
+        std::string first = plan_change_text(sp.changes[0]);
+        if (sp.changes.size() > 1)
+            first += "  (+" + std::to_string(sp.changes.size() - 1) + ")";
+        ImGui::SameLine();
+        ui::TextDisabledRaw(first);
+        plan_changes_tooltip(sp);
+    };
     for (int k = 0; k < kNumSteps; k++) {
         const Step step = (Step)k;
         const StepPlan& sp = plan[step];
         if (sp.act == Act::None) continue;
-        ImGui::PushID(k);
-        ui::TextDisabled(plan_step_name(step));
-        ImGui::SameLine(label_w + ImGui::GetStyle().ItemSpacing.x * 3.0f);
-        ui::TextColored(plan_color(sp), plan_state(sp));
-        plan_changes_tooltip(sp);
-        if (!sp.changes.empty()) {
-            differs = true;
-            std::string first = plan_change_text(sp.changes[0]);
-            if (sp.changes.size() > 1)
-                first += "  (+" + std::to_string(sp.changes.size() - 1) + ")";
-            ImGui::SameLine();
-            ui::TextDisabledRaw(first);
-            plan_changes_tooltip(sp);
+        // Split, each stage names the settings that reach it instead.
+        const bool split = step == Step::Model && parts;
+        row(plan_step_name(step), plan_state(sp), sp, false, !split || !makes(sp.act));
+        for (int q = 0; split && q < kNumModelParts; q++) {
+            const StepPlan& pp = plan[(ModelPart)q];
+            if (pp.act != Act::None)
+                row(plan_part_name((ModelPart)q), plan_part_state(pp), pp, true, true);
         }
-        ImGui::PopID();
     }
     const bool keeping = _keep_built && _keep_built_for == _workspace;
     if (plan.ask() || keeping) {
@@ -6637,6 +6694,7 @@ void GuiApp::draw_dataset_plan(const DatasetPlan& plan) {
         if (ui::SmallButton(dmsg::plan_use_record)) restore_from_record(true);
         ui::help_on_hover(dmsg::plan_use_record_help);
     }
+    ImGui::EndChild();
 }
 
 // Making again what the user did not ask to: the frames, or the hour the

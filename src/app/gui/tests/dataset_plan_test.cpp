@@ -2,8 +2,10 @@
 // (app/gui/DatasetPlan.h), against records written into a scratch workspace
 // the way a run writes them.
 
+#include "app/LidarDataset.h"
 #include "app/gui/DatasetPlan.h"
 #include "app/gui/SfmRunner.h"
+#include "sfm/core/Resume.h"
 
 #include <cstdio>
 #include <filesystem>
@@ -299,6 +301,107 @@ int main() {
                "frames interrupted on the same settings are finished");
         expect(p[Step::Model].act == Act::Redo,
                "... and the model built from the frames before them is not trusted");
+    }
+
+    // ---- the reconstruction's own stages ---------------------------------------
+    build(ws, made);
+    {
+        PlanRequest redo;
+        redo.redo_model = true;
+        DatasetPlan p = plan(made, redo);
+        expect(p[ModelPart::Features].act == Act::Run && p[ModelPart::Matching].act == Act::Run &&
+                   p[ModelPart::Mapping].act == Act::Redo &&
+                   p[ModelPart::Align].act == Act::None,
+               "nothing of `spirula sfm`'s to reuse: extract, match, map again");
+        touch(ws / "features" / "cam0" / "00010.jpg.bin");
+        touch(ws / "matches.bin");
+        touch(ws / sfm::resume::kDir / sfm::resume::kExtractSig);
+        touch(ws / sfm::resume::kDir / sfm::resume::kMatchSig);
+        p = plan(made, redo);
+        expect(p[ModelPart::Features].act == Act::Reuse &&
+                   p[ModelPart::Matching].act == Act::Reuse &&
+                   p[ModelPart::Mapping].act == Act::Redo &&
+                   p[ModelPart::Mapping].why == Why::Requested,
+               "reconstructing again on the same settings only maps again");
+        expect(plan(made)[ModelPart::Mapping].act == Act::None,
+               "a reused reconstruction runs none of its stages");
+        std::ofstream(ws / sfm::resume::kDir / sfm::resume::kExtractSig)
+            << "features=sift\n" << sfm::resume::kSignedImages << "/elsewhere/images\n";
+        p = plan(made, redo);
+        expect(p[ModelPart::Features].act == Act::Redo &&
+                   p[ModelPart::Features].why == Why::Moved,
+               "features extracted from images somewhere else are extracted again");
+        std::ofstream(ws / sfm::resume::kDir / sfm::resume::kExtractSig)
+            << "features=sift\n" << sfm::resume::kSignedImages << (ws / "images").string() << "\n";
+        expect(plan(made, redo)[ModelPart::Features].act == Act::Reuse,
+               "... and ones from these images are not");
+
+        SfmJob j = made;
+        j.features = (int)std::size(kSfmFeatures) - 1;
+        p = plan(j);
+        expect(p[ModelPart::Features].act == Act::Redo &&
+                   p[ModelPart::Features].why == Why::Settings &&
+                   p[ModelPart::Matching].why == Why::Features &&
+                   p[ModelPart::Mapping].why == Why::Matches,
+               "another frontend extracts again, and the stages after it follow");
+        j = made;
+        j.loop_closure = false;
+        p = plan(j);
+        expect(p[ModelPart::Features].act == Act::Reuse &&
+                   p[ModelPart::Matching].act == Act::Redo &&
+                   p[ModelPart::Matching].changes.size() == 1 &&
+                   p[ModelPart::Matching].changes[0].key == "loop_closure" &&
+                   p[ModelPart::Features].changes.empty(),
+               "a pairing setting keeps the features and matches again, naming itself");
+        j = made;
+        j.prep.inputs[0].rig = kRigNone;
+        p = plan(j);
+        expect(p[ModelPart::Features].act == Act::Reuse &&
+                   p[ModelPart::Matching].act == Act::Redo &&
+                   p[ModelPart::Matching].why == Why::Settings,
+               "a rig changes the pairs matched, so it matches again");
+        j = made;
+        j.mapper = 1;
+        p = plan(j);
+        expect(p[ModelPart::Matching].act == Act::Reuse &&
+                   p[ModelPart::Mapping].act == Act::Redo &&
+                   p[ModelPart::Mapping].why == Why::Settings,
+               "a mapper setting only maps again");
+        j = made;
+        j.prep.mask_dilate_ratio = 0.08f;
+        p = plan(j, redo);
+        expect(p[ModelPart::Features].act == Act::Redo &&
+                   p[ModelPart::Features].why == Why::Masks &&
+                   p[ModelPart::Matching].why == Why::Features,
+               "new masks re-extract the images they cover");
+        j = made;
+        j.prep.video_fps = 3.0f;
+        expect(plan(j)[ModelPart::Features].why == Why::Frames,
+               "new frames re-extract every image");
+    }
+    {
+        SfmJob j = made;
+        j.lidar.clouds = {"/scans/a.e57"};
+        DatasetPlan p = plan(j);
+        expect(p[Step::Model].act == Act::Reuse && p[ModelPart::Align].act == Act::Run &&
+                   p[ModelPart::Features].act == Act::None,
+               "scans added to a finished reconstruction: only the alignment runs");
+        std::ofstream(ws / "sparse" / "0" / app::lidar::kAlignedMarker)
+            << R"({"clouds": ["/scans/a.e57"], "mode": "auto"})";
+        expect(plan(j)[ModelPart::Align].act == Act::Reuse,
+               "an alignment to the same scans is reused");
+        j.lidar.clouds.push_back("/scans/b.e57");
+        expect(plan(j)[ModelPart::Align].act == Act::Redo, "... and redone for another scan");
+        j.lidar.clouds.pop_back();
+        j.lidar.in_frame = true;
+        expect(plan(j)[ModelPart::Align].act == Act::Redo,
+               "... or for a model said to be in the scans' frame already");
+        j.lidar.in_frame = false;
+        PlanRequest redo;
+        redo.redo_model = true;
+        p = plan(j, redo);
+        expect(p[ModelPart::Align].act == Act::Redo && p[ModelPart::Align].why == Why::Model,
+               "a new reconstruction is aligned again");
     }
 
     // ---- depth and normals ---------------------------------------------------

@@ -99,6 +99,22 @@ produces the same mask -- the border stencil applied again -- leaves its
 modification time alone, and with it every feature file `spirula sfm` would
 otherwise consider stale.
 
+### The reconstruction's stages
+
+With the built-in engine, a reconstruction that is made again is not made
+from nothing. `spirula sfm` keeps `features/` and `matches.bin` while the
+settings that made them still read the same -- its own signatures in
+`.resume/`, compared before it trusts either -- re-extracts an image whose
+mask file is newer than its features, and always maps again; `spirula lidar`
+keeps an alignment made from the same scans. The list shows this as one line
+per stage under the reconstruction (`DatasetPlan::parts`). The plan cannot
+compute those signatures without running the tool's own setup, so it
+predicts them: each model field is filed under the first stage whose
+signature carries the flag it becomes (`field_part()`), and the signature
+files' presence says whether there is anything to reuse at all. "Reconstruct
+again" on unchanged settings therefore reads as extraction and matching
+reused, mapping redone -- minutes, where the line above it says the hour.
+
 ## Restoring onto the dataset's own images/
 
 Dropping `<dataset>/images` gives the panel one photo folder with a

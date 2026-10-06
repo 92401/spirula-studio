@@ -135,6 +135,11 @@ void clamp_to(T& v, T lo, T hi) { v = std::clamp(v, lo, hi); }
 template <typename E>
 void clamp_enum(E& v, int lo, int hi) { v = (E)std::clamp((int)v, lo, hi); }
 
+// An index into one of SfmRunner.h's spelling tables: a hand-written bound
+// falls behind the day the table grows.
+template <int N>
+void clamp_index(int& v, const char* const (&)[N]) { v = std::clamp(v, 0, N - 1); }
+
 // One of `options`, or the first of them. A model name the runners do not
 // know reconstructs into nothing, so a hand-edited file cannot carry one.
 void clamp_choice(std::string& v, const char* const* options, int n) {
@@ -233,18 +238,18 @@ void sanitize_dataset_settings(DatasetSettings& s) {
     clamp_to(g.face_res, 0, 1);
 
     SfmJob& j = s.sfm;
-    clamp_to(j.quality, 0, 3);
-    clamp_to(j.data_type, 0, 2);
-    clamp_to(j.camera_mode, 0, 2);
-    clamp_to(j.pairs, 0, 3);
+    clamp_index(j.quality, kSfmQuality);
+    clamp_index(j.data_type, kSfmDataType);
+    clamp_index(j.camera_mode, kSfmCameraMode);
+    clamp_index(j.pairs, kSfmPairs);
     clamp_to(j.overlap, 1, 1000);
     clamp_to(j.distortion_refine, 0, 2);
-    clamp_to(j.mapper, 0, 1);
-    clamp_to(j.features, 0, 2);
+    clamp_index(j.mapper, kSfmMapper);
+    clamp_index(j.features, kSfmFeatures);
     clamp_to(j.matcher, 0, 1);
-    clamp_to(j.metric_gps, 0, 3);
-    clamp_to(j.sensor_gauge, 0, 2);
-    clamp_to(j.exif_attitude, 0, 2);
+    clamp_index(j.metric_gps, kSfmMetricGps);
+    clamp_index(j.sensor_gauge, kSfmSensorGauge);
+    clamp_index(j.exif_attitude, kSfmExifAttitude);
     clamp_to(j.max_features, 0, 1000000);
     clamp_to(j.max_image_size, 0, 32768);
     j.init_focal_px = std::max(0.0f, j.init_focal_px);

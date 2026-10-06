@@ -2,6 +2,7 @@
 
 #include "app/gui/DatasetPrep.h"
 
+#include "app/LidarDataset.h"
 #include "app/gui/DatasetRecord.h"
 #include "app/gui/mask/MaskLayer.h"
 #include "sfm/core/Resume.h"
@@ -943,6 +944,22 @@ WorkspaceState probe_workspace(const std::string& workspace,
                colmap_model_here(ws) || metashape_export_here(ws);
     st.geometry = has_content(ws / "normals") || has_content(ws / "depths");
     st.record = fs::exists(ws / kDatasetRecordFile, ec);
+    const fs::path resume = ws / sfm::resume::kDir;
+    st.extracted = has_content(ws / "features") &&
+                   fs::exists(resume / sfm::resume::kExtractSig, ec);
+    if (st.extracted) {
+        const std::string key = sfm::resume::kSignedImages;
+        std::ifstream sig(resume / sfm::resume::kExtractSig);
+        for (std::string line; std::getline(sig, line);)
+            if (line.rfind(key, 0) == 0) st.extracted_images = line.substr(key.size());
+    }
+    st.matched = fs::exists(ws / "matches.bin", ec) &&
+                 fs::exists(resume / sfm::resume::kMatchSig, ec);
+    st.matching_part = fs::exists(resume / sfm::resume::kMatchJournal, ec);
+    app::lidar::AlignedWith aligned;
+    st.aligned = app::lidar::read_aligned_with(workspace, aligned);
+    st.aligned_clouds = aligned.clouds;
+    st.aligned_kept_frame = aligned.mode == app::lidar::AlignMode::Keep;
     return st;
 }
 

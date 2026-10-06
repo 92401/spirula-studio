@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <iterator>
 #include <map>
 #include <set>
 
@@ -237,6 +238,27 @@ bool soft_model_key(const std::string& key) {
     return key == "masks_for_features" || key == "feature_only_masks";
 }
 
+// The first `spirula sfm` stage whose signature (sfm::stageSignature) carries
+// what a model field becomes on its command line. Unlisted counts as
+// extraction: overstating the work beats hiding it.
+ModelPart field_part(const std::string& key) {
+    static const char* const matching[] = {
+        "lens",        "focal",        "camera_mode", "data_type", "matcher",
+        "pairs",       "overlap",      "loop_closure", "prefilter_sequential",
+        "focal_px",    "distortion",   "sequence",    "rig",        "scan_views",
+    };
+    static const char* const mapping[] = {
+        "mapper",         "distortion_refine", "final_per_image_intrinsics",
+        "final_free_rig", "metric_gps",        "sensor_gauge",
+        "exif_attitude",
+    };
+    for (const char* k : matching)
+        if (key == k) return ModelPart::Matching;
+    for (const char* k : mapping)
+        if (key == k) return ModelPart::Mapping;
+    return ModelPart::Features;
+}
+
 std::vector<FieldChange> diff(const StepFields& was, const StepFields& now,
                               bool only_now = false) {
     auto key = [](const StepField& f) { return f.key + '\x1f' + f.scope; };
@@ -269,6 +291,68 @@ void compare(StepPlan& s, const StepRecord& r, std::vector<FieldChange> changes)
                          s.changes.empty() ? Why::Resume : Why::Settings);
     else if (s.changes.empty()) set(s, Act::Reuse);
     else set(s, Act::Redo, Why::Settings);
+}
+
+// What `spirula sfm` and `spirula lidar` will make of what the workspace
+// holds, once the steps above are planned. Each reuses by its own signature;
+// this predicts the answer from the fields that feed it.
+void plan_parts(DatasetPlan& p, const PlanJob& job, const WorkspaceState& ws,
+                const DatasetRecord& rec, bool masks_feed) {
+    const StepPlan& fr = p[Step::Frames];
+    const StepPlan& mk = p[Step::Masks];
+    const StepPlan& md = p[Step::Model];
+    const StepRecord& rr = rec.step(Step::Model);
+    StepPlan& fe = p[ModelPart::Features];
+    StepPlan& ma = p[ModelPart::Matching];
+    StepPlan& mp = p[ModelPart::Mapping];
+    StepPlan& al = p[ModelPart::Align];
+    if (!job.reconstruct) return;
+
+    if (job.staged && makes(md.act)) {
+        if (rr.present)
+            for (const FieldChange& c : diff(rr.fields, job.model))
+                p[field_part(c.key)].changes.push_back(c);
+
+        const std::string dir = image_dir_field(job.prep);
+        const fs::path images = dir == "images" ? fs::path(job.prep.workspace) / dir : fs::path(dir);
+        const bool moved = !ws.extracted_images.empty() && !same_dir(ws.extracted_images, images);
+
+        // The runner deletes features/ and matches.bin under new frames.
+        if (makes(fr.act)) set(fe, ws.features ? Act::Redo : Act::Run,
+                               ws.features ? Why::Frames : Why::None);
+        else if (!ws.extracted) set(fe, Act::Run);
+        else if (moved) set(fe, Act::Redo, Why::Moved);
+        else if (!rr.present) set(fe, Act::Reuse, Why::Unrecorded);
+        else if (!fe.changes.empty()) set(fe, Act::Redo, Why::Settings);
+        // An image is extracted again when its mask file is newer.
+        else if (masks_feed && (makes(mk.act) || rr.masks_id != rec.step(Step::Masks).id))
+            set(fe, Act::Redo, Why::Masks);
+        else if (!rr.complete && !ws.matched) set(fe, Act::Run, Why::Resume);
+        else set(fe, Act::Reuse);
+
+        // Its signature covers every feature file's size and write time.
+        if (!ws.matched) set(ma, Act::Run,
+                             ws.matching_part && !makes(fe.act) ? Why::Resume : Why::None);
+        else if (makes(fe.act)) set(ma, Act::Redo, Why::Features);
+        else if (!rr.present) set(ma, Act::Reuse, Why::Unrecorded);
+        else if (!ma.changes.empty()) set(ma, Act::Redo, Why::Settings);
+        else set(ma, Act::Reuse);
+
+        if (!ws.model) set(mp, Act::Run);
+        else if (makes(ma.act)) set(mp, Act::Redo, Why::Matches);
+        else if (!mp.changes.empty()) set(mp, Act::Redo, Why::Settings);
+        else if (md.why == Why::Resume) set(mp, Act::Run);
+        else set(mp, Act::Redo, md.why);
+    }
+
+    if (job.lidar_clouds.empty()) return;
+    if (makes(md.act)) set(al, ws.aligned ? Act::Redo : Act::Run,
+                           ws.aligned ? Why::Model : Why::None);
+    else if (!ws.aligned) set(al, Act::Run);
+    else if (ws.aligned_clouds == job.lidar_clouds &&
+             ws.aligned_kept_frame == job.lidar_in_frame)
+        set(al, Act::Reuse);
+    else set(al, Act::Redo, Why::Settings);
 }
 
 float to_float(const std::string& s) { return (float)std::strtod(s.c_str(), nullptr); }
@@ -643,6 +727,9 @@ PlanJob plan_job(const SfmJob& job) {
     p.geometry = job.geometry;
     // The scans give the run its depth and normals.
     if (job.lidar.enabled()) p.geometry.enable = false;
+    p.staged = true;
+    p.lidar_clouds = job.lidar.clouds;
+    p.lidar_in_frame = job.lidar.in_frame;
     return p;
 }
 
@@ -772,6 +859,10 @@ DatasetPlan plan_dataset(const PlanJob& job, const WorkspaceState& ws,
         }
         md.changes = std::move(all);
     }
+    if (fixed(Step::Model))
+        std::copy(std::begin(done->parts), std::end(done->parts), std::begin(p.parts));
+    else
+        plan_parts(p, job, ws, rec, masks_feed);
 
     StepPlan& g = p[Step::Geometry];
     if (fixed(Step::Geometry)) {

@@ -157,10 +157,9 @@ struct SfmJob {
     // 0 flat, 1 bottom-up. Flat for every capture, whatever its size: there is
     // no automatic switch, here or in `spirula sfm`.
     int mapper = 0;
-    // 0 SIFT, 1 ALIKED-n16rot, 2 ALIKED-n32. The learned ones fetch a
-    // checkpoint on first use and run on their own resolution ladder, so the
-    // quality preset means something different for each -- which is why this
-    // is a frontend choice and not a quality level.
+    // An index into kSfmFeatures. A frontend choice, not a quality level: the
+    // learned ones run on their own resolution ladder, so the quality preset
+    // means something different for each.
     int features = 0;
     // 0 brute force, 1 LightGlue. Only meaningful with a learned frontend, and
     // an order of magnitude slower per pair -- the panel greys it out for SIFT

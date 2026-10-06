@@ -660,6 +660,21 @@ std::string stageSignature(const SfmConfig& cfg, uint32_t cmd) {
                 out += (m ? "," : "") + d.members[m];
             out += "\n";
         }
+    // A rig adds its mates to the pairs that verified (sfm/feature/RigPairs.h):
+    // which images share a frame, and which way each lens faces.
+    if ((cmd & CMD_MAP) || ((cmd & CMD_MATCH) && cfg.rig_pairs))
+        for (const RigDef& d : cfg.rigs) {
+            out += "rig " + d.kind + ":";
+            for (size_t c = 0; c < d.captures.size(); c++)
+                out += (c ? "," : "") + d.captures[c];
+            for (const RigMemberDef& m : d.members) {
+                out += " " + m.prefix;
+                if (!m.has_ext) continue;
+                out += "=";
+                appendParams(std::vector<double>(m.ext.R.begin(), m.ext.R.end()));
+            }
+            out += "\n";
+        }
     return out;
 }
 
