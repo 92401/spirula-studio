@@ -220,6 +220,14 @@ degree-3 SH to degree 2. Each result uses 20 source cameras.
 | indoor6k / equirectangular | 3DGS, compressed | 270.7 | 1,650,567 | 23.0256 | 0.877304 |
 | indoor6k / dual fisheye | 3DGS, original | 743.6 | 2,998,224 | 19.0179 | 0.822091 |
 | indoor6k / dual fisheye | 3DGS, compressed | 295.0 | 1,798,935 | 18.9376 | 0.820310 |
+| Garden / pinhole | 3DGUT, original (3k steps, 1/2 resolution) | 105.7 | 446,978 | 22.1390 | 0.635582 |
+| Garden / pinhole | 3DGUT, compressed (3k steps, 1/2 resolution) | 41.9 | 268,187 | 22.0616 | 0.628453 |
+
+The 3DGUT rows use the same 60% contribution-ranked splats and degree-3 to
+degree-2 SH reduction, but are an independent smoke run rather than a
+like-for-like comparison with the 7,000-step Garden Mip run above. On its 20
+source cameras, the compressed 3DGUT model differs from the original by
+37.5592 dB PSNR and 0.987195 SSIM.
 
 ## 4. What is gone
 
